@@ -45,7 +45,7 @@
 #define AUTO_TARGET_SETTLE_DELAY_MS               50U
 #define AUTO_TARGET_FEEDBACK_TIMEOUT_MS          250U
 #define AUTO_TARGET_PRESSURE_FRESHNESS_MS        200U
-#define AUTO_TARGET_APPROACH_TIMEOUT_MS         3000U
+/* ApproachMeasure1: initial contact search has no total motion timeout. */
 #define AUTO_TARGET_CONVERGENCE_TIMEOUT_MS      8000U
 
 extern const MachineConfig g_sd700_auto_target_machine_config;
@@ -120,6 +120,19 @@ typedef struct
     uint32_t approach_timeout_decided_at_ms;
     uint32_t timeout_cycle_started_ms;
     bool approach_timeout_committed;
+    /* ApproachMeasure1: first START -> contact measurement, frozen through
+     * STOP/fault; no contact means elapsed time/pulses are a search lower bound.
+     * Times are uint32 MCU ms (wrap-safe elapsed, range < one full tick wrap).
+     * pulse_count above remains ALL coarse requests, including later recontact. */
+    uint32_t search_started_at_ms;
+    uint32_t search_elapsed_ms;
+    bool search_active;
+    bool first_contact_latched;
+    uint32_t first_contact_pulse_count;
+    int32_t first_contact_pressure_units;
+    uint32_t first_contact_received_at_ms;
+    uint32_t first_contact_decided_at_ms;
+    uint64_t first_contact_sample_sequence;
     AutoPressDiagnostics press;
 } AutoApproachDiagnostics;
 

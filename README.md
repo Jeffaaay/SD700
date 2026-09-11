@@ -1,22 +1,44 @@
-# SD700 - PressBoost1 / FieldReady1 static field bundle
+# SD700 - ApproachMeasure1 static field measurement
 
 ## CURRENT FIELD VERSION
 
-**CURRENT FIELD CANDIDATE:** PressBoost1 / FieldReady1
+**CURRENT FIELD CANDIDATE:** ApproachMeasure1 / existing PressBoost1 after contact
 
-**HEX:** [SD700_AutoTarget_PressBoost1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_PressBoost1_RealBench_Release.hex)
+**HEX:** [SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex)
 
-Repository path: `output/AutoTarget/firmware/SD700_AutoTarget_PressBoost1_RealBench_Release.hex`
+Repository path: `output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex`
 
-**SHA256:** `26CB9D8AB146A63DCF21F420CCA4AAB256004FF60AD2B08317BCF4FDA7B5AEB2`
+**SHA256:** `8F537F2EF2FFA622BB92F1A6ED2C38972B57627337EC6B905C8283734826D56F`
 
-**STATUS:** Target 250 / AUTO_HOLD real PressBoost1 validation pending.
-Target 250 uses sensor control units, not certified Newtons. No 3500 N,
-40 m/min or 60 m/min validation is claimed.
+**STATUS:** Real starting-gap/contact measurement and Target 250 / AUTO_HOLD
+validation pending. Target 250 is SENSOR CONTROL UNITS, not certified Newtons.
+No 3500 N, 40 m/min or 60 m/min validation is claimed.
+
+This candidate removes the fixed 3000 ms coarse-approach fault. Initial search
+continues with the same bounded pulses, motor OFF, settle and new valid fresh
+feedback until contact or STOP/fault. The existing 8000 ms convergence clock
+starts at first valid MCU contact receive time, not START; an already-contacted
+START begins the clock immediately. Recontact during convergence cannot reset
+it. ContactDeadline's completion/error/STOP ordering remains. A per-pulse
+BACKSTOP still faults (Fault 5 / Detail 6); that code no longer means a normal
+3000 ms search expiration in this candidate.
+
+Post-contact PressBoost1 mapping, boost, RELEASE, HOLD, Ki=0, pulse timing,
+MotorExecutor/TIM5/PWM/direction and all pressure/STOP protections are unchanged.
+There is no automatic increase of approach voltage or pulse width. Initial
+search has no firmware total time limit; the operator and existing capture
+window terminate this supervised measurement when necessary.
+
+The RAM record `g_sd700_approach_diagnostics` retains first-contact receive time,
+pressure, coarse count and START-to-contact elapsed time. Without contact it
+freezes elapsed time/count at STOP/fault as a measured lower bound. Read it
+**after verified STOP, without reset/download**; the serial report identifies
+these as `RAM_NOT_READ` until an operator saves the dump. PC polls cannot recover
+exact contact timing/counts. Record the approximate initial gap alongside it.
 
 ## FIELD UPDATE
 
-First time (requires access to this private repository):
+First time (private repository access required):
 
 ```powershell
 git clone https://github.com/Jeffaaay/SD700.git
@@ -30,46 +52,17 @@ git switch main
 git pull --ff-only
 ```
 
-Use only the firmware identified above, then follow the
-[full static test instructions](Docs/AUTO_TARGET_STATIC_TEST.md): one START,
-fixed workpiece, Target 250, no ApproachOnly.
+Use only the firmware above and the [static test instructions](Docs/AUTO_TARGET_STATIC_TEST.md).
+Static fixed workpiece, operator supervision, emergency stop/current limit ready,
+ONE START, full AutoTarget, **no ApproachOnly**. Do not repeat START to jog down.
+The example's 60-second PC observation window ends with STOP; it is not a new
+firmware approach timeout. No physical result is claimed until field data shows
+contact, rise above the previous approximately 30 plateau, 245..255 and AUTO_HOLD.
 
-Git retains source, tools, docs and exactly this HEX plus its matching ELF.
-Builds, field captures, test logs, baselines and historical firmware/ReviewBundle
-ZIPs remain local engineering evidence and are ignored. They are not supplied
-by a clone. This Git setup did not change MCU sources, scripts or firmware and
-did not build, connect, flash or start hardware.
-
-## FieldReady1 capture update (existing baseline)
-
-Tonight's physical-test candidate remains PressBoost1. This update changes ONLY
-host preflight retry limits, report presentation/summary and tests/packaging.
-No MCU source, parameters, protocol or firmware changed; no ARM rebuild ran.
-
-BASELINE and TARGET_READBACK each allow at most10 complete fenced snapshots,
-with20 ms only between incoherent attempts. Every attempt starts all four reads
-anew; fields are never combined across attempts. Safety/capability/transport
-errors abort immediately. Target write and START are never retried; lost START
-echo still leads to the original STOP path. AUTO sampling/qualification/exit
-logic, existing stability metrics and ApproachOnly behavior are unchanged.
-
-The generated report adds observed maximum pressure, first observed Target+/-5
-time, total/longest observed AUTO_HOLD spans, final coherent STOP Fault/Detail
-and StopVerified. Missing final data is UNKNOWN. Existing PRESS RAM fields are
-listed individually as RAM_NOT_READ with their debugger locations; Modbus cannot
-supply the exact PRESS count, base/boost or per-pulse completion/feedback tuple.
-No unobserved values are filled with zero/false. See the static instructions.
-
-Start with [REVIEW_BUNDLE.md](REVIEW_BUNDLE.md). The ONE unchanged Release pair is
-`output/AutoTarget/firmware/SD700_AutoTarget_PressBoost1_RealBench_Release.*`.
-HEX SHA256: `26CB9D8AB146A63DCF21F420CCA4AAB256004FF60AD2B08317BCF4FDA7B5AEB2`.
-
-Next trial: a static fixed workpiece, full AutoTarget, Target250 sensor control
-units, ONE START, no ApproachOnly. Success requires real evidence of contact,
-pressure rising clearly above the previous approximately30 plateau, approaching
-250, reaching+/-5 and entering AUTO_HOLD. This has NOT been established here.
-No Newton conversion, rotating-workpiece modes or controller tuning was added.
-The prior user report peak31/final30/Fault5-Detail8 remains the physical unknown.
+Git tracks one current HEX/ELF pair. Previous firmware and generated logs/builds/
+captures remain ignored local evidence; previous commits/tags are retained.
+Actual tests/build results: [ApproachMeasure1 verification](Docs/APPROACH_MEASURE1_TEST_RESULTS.md).
+No hardware was connected, flashed or started by this change.
 
 ## Existing build reference (not tonight's test workflow)
 
@@ -148,13 +141,15 @@ min(8*positive excess,800) mV in the original direction path,10 ms, no boost.
 If already in HOLD at Pressure240, error10 is still inside the original exit
 band: output stays OFF, with NO request. The table is requested amplitude,
 not measured terminal voltage. No duration boost, integrator, unlimited ramp,
-automatic restart or timeout extension. Persistent low response still faults
+automatic restart or convergence-time extension. Persistent low response still faults
 at the original8000 ms convergence budget (Fault5/Detail8).
 
 ## Preserved limits and evidence
 
 APPROACH: FIRST10000 mV/20 ms/backstop50, RECONTACT10000/10/40; contact20;
-3000 ms total approach. First profile repeats before first contact as before.
+No total approach deadline. First profile repeats before first contact as before.
+The 8000 ms convergence budget starts at first valid contact receive time;
+already-contacted START begins it at START. Recontact does not reset it.
 ContactDeadline receive/dispatch ordering and all safety priorities are unchanged.
 Raw abort325 is an experiment threshold, NOT a known mechanical safety limit.
 Target maximum275; HOLD enter/exit5/10. No electrical brake or energized preload.
@@ -167,25 +162,16 @@ last completion reason, before/observed-peak/settled-after values and sequences.
 it is not true instantaneous peak evidence. Read it after verified STOP as in
 [static instructions](Docs/AUTO_TARGET_STATIC_TEST.md). No protocol changes.
 
-FieldReady1 actually reran41 C host variants (23 original+10 PI/refusal+6 V5
-races+2 AutoTarget O0/O2),11 C policy cases, both capture-script tests and the
-physical-output-lock/source check: PASS. Capture tests cover13 framing groups,
-20 preflight groups,220 safety/capability attempt positions,40 transport-error
-positions and report output. MCU sources/HEX/ELF remain byte-identical. ARM
-build this update: NOT RUN. Prior PressBoost1's10 ARM builds remain historical
-PASS evidence; its Release is unchanged:text25364/data20/BSS2928.
-Historical local results: `output/AutoTarget/TEST_RESULTS.md` (not tracked by Git).
-These checks were run for FieldReady1; they were not rerun for the Git setup.
+All 41 C host variants and the 10 ARM build configurations were run for
+ApproachMeasure1, with policy and capture regressions; see the current test
+record for commands, counts and hashes. All pressure inputs in software tests
+are SYNTHETIC_INPUT, not physical response or tuning evidence.
 
-All software pressure curves are SYNTHETIC_INPUT. Powered PressBoost1 test,
-Target250/HOLD/mechanical response, calibration and OFF-fall diagnosis: NOT RUN.
-No production approval. Use the ONE full static test in the field instructions,
-without ApproachOnly; the agent did not connect, flash or start the device.
+Mechanical allowable load/travel and calibration remain unconfirmed. Abort325
+is an experiment limit, not a certified mechanical ceiling. Powered contact,
+Target250/HOLD and OFF-fall diagnosis remain NOT RUN for this candidate.
 
-Local pre-FieldReady1 scripts, docs and hashes are retained in
-`output/AutoTarget/field_ready1_baseline/`. Pre-PressBoost1 source/build evidence
-remains in `output/AutoTarget/press_boost1_baseline/`. Older ContactDeadline/CaptureFix1
-and legacy evidence remain history. [Legacy control evidence](Docs/LEGACY_CONTROL_EVIDENCE.md)
-and [reference constants](Config/legacy_control_reference.h) are not linked
-into the firmware. Root SHA256SUMS.txt covers every Git-tracked file except
-itself. Historical ZIP manifests remain in the local engineering evidence.
+[Legacy evidence](Docs/LEGACY_CONTROL_EVIDENCE.md) and
+[reference constants](Config/legacy_control_reference.h) remain historical.
+Root SHA256SUMS.txt covers every Git-tracked file except itself. Generated
+engineering evidence is local under output/ and is not supplied by a clone.

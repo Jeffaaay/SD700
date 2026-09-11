@@ -18,7 +18,7 @@ $autoArguments = @{SelfTest=$SelfTest; ApproachOnly=$ApproachOnly; Port=$Port; T
 # safety/admission, STOP coil, fake serial and clock helpers. No new protocol.
 . "$PSScriptRoot/capture_pressure_response.ps1" -LibraryOnly
 foreach ($entry in $autoArguments.GetEnumerator()) { Set-Variable -Name $entry.Key -Value $entry.Value }
-$script:ExpectedProfile = 'AutoTarget segmented PRESS + bounded feedback boost; Ki=0; NOT TUNED'
+$script:ExpectedProfile = 'ApproachMeasure1 initial gap measurement + unchanged PressBoost1; Ki=0; NOT TUNED'
 
 function Read-AutoWords {
     param([scriptblock]$Exchange, [int]$Address, [int]$Count)
@@ -252,6 +252,8 @@ function Get-AutoFieldSummary {
         FinalStopReadbackFault = $(if ($offValid) {$off[0].Fault} else {'UNKNOWN'})
         FinalStopReadbackFaultDetail = $(if ($offValid) {$off[0].FaultDetail} else {'UNKNOWN'})
         FinalStopReadbackCoherent = $offValid
+        LatestCoherentPressure = $(if ($last.Count -and $last[0].ControlPressure -ne 65535) {$last[0].ControlPressure} else {'UNKNOWN'})
+        LatestCoherentPressureFreshValid = $(if ($last.Count) {$last[0].PressureFreshValid} else {'UNKNOWN'})
         LastCoherentObservedState = $(if ($last.Count) {$last[0].MachineState} else {'UNKNOWN'})
         LastCoherentObservedFault = $(if ($last.Count) {$last[0].Fault} else {'UNKNOWN'})
         LastCoherentObservedFaultDetail = $(if ($last.Count) {$last[0].FaultDetail} else {'UNKNOWN'})
@@ -282,6 +284,27 @@ function Get-AutoPressRamReportLines {
     'Use settled after/OffFallObserved only with feedback_valid=true. A zero after value when invalid is not a measurement. OFF fall is sampled rise then lower settled pressure, not true instantaneous peak.'
 }
 
+function Get-AutoApproachRamReportLines {
+    'ApproachMeasurementSource=RAM_NOT_READ_BY_CAPTURE_SCRIPT'
+    'After verified STOP: attach with matching ELF without reset/download; p g_sd700_approach_diagnostics'
+    $fields = [ordered]@{
+        ApproachStartedMs='search_started_at_ms'; ApproachElapsedMs='search_elapsed_ms'
+        ApproachMeasurementActive='search_active'; FirstContactLatched='first_contact_latched'
+        CoarsePulseCount='pulse_count'; FirstContactCoarsePulseCount='first_contact_pulse_count'
+        FirstContactPressure='first_contact_pressure_units'; FirstContactReceivedMs='first_contact_received_at_ms'
+        FirstContactDecisionMs='first_contact_decided_at_ms'; FirstContactSampleSequence='first_contact_sample_sequence'
+        ApproachRequestedMv='requested_mv'; ApproachRequestedDurationMs='requested_duration_ms'
+        ApproachCompletionReason='end_reason'; LatestApproachPressure='pressure_units'
+        LatestApproachSampleReceivedMs='sample_received_at_ms'; LatestApproachPressureFresh='pressure_fresh'
+    }
+    foreach ($entry in $fields.GetEnumerator()) {
+        "$($entry.Key)=RAM_NOT_READ (g_sd700_approach_diagnostics.$($entry.Value))"
+    }
+    'ApproachElapsedMs freezes at first contact MCU receive time or STOP/fault. With FirstContactLatched=false, elapsed and CoarsePulseCount are the measured no-contact lower bound; first-contact fields are NOT MEASURED, even if their RAM value is zero.'
+    'FirstContactCoarsePulseCount freezes at first contact; CoarsePulseCount includes later recontact. Already-contacted START has zero approach elapsed/pulses. LatestApproachPressure is the search snapshot, not the final PRESS/HOLD pressure; use LatestCoherentPressure with its freshness flag for the latest PC readback.'
+    'PC polls cannot recover exact contact time or coarse count. Retain the post-STOP RAM dump alongside CSV/report and record approximate starting gap separately. No contact/HOLD success is inferred from missing RAM data.'
+}
+
 function Get-AutoReportLines {
     param($Capture, [int]$TargetValue, [string]$Hash, [bool]$StopAtContact = $false)
     $metrics = Get-AutoMetrics $Capture.Samples $Capture.StartedMs $TargetValue
@@ -296,6 +319,7 @@ function Get-AutoReportLines {
     'HOLD totals/longest count only adjacent new coherent fresh healthy output-OFF state7 observations with increasing sequence, receive gap <=200 ms and unchanged request. Unknown/incoherent gaps break a span; duplicate polls add no time. These are observed intervals, not exact MCU dwell time.',
     'First within +/-5 is PC observation time since the single START attempt, not exact device band-entry time. Maximum pressure uses qualified AUTO observations only; STOP_READBACK is separate.',
     ((Get-AutoPressRamReportLines) -join [Environment]::NewLine),
+    ((Get-AutoApproachRamReportLines) -join [Environment]::NewLine),
     'Observed peak is the maximum qualified PC register observation, NOT the true instantaneous peak.',
     'Final window = last 1000 ms of AUTO observations; tolerance = +/-5; HOLD exit = +/-10.',
     'Observed stability requires 3 seconds in HOLD and +/-5 on new coherent frames, gap <=200 ms, no new request.',
@@ -304,7 +328,7 @@ function Get-AutoReportLines {
     'PressBoost1: PRESS base 400..1000 mV for error 5..20, then 1000..3000 over error 20..120; capped above 120. All pulses 10 ms/backstop 40 ms.',
     'After two normally completed low-response pulses: +300 mV; extra cap 2000 for error >20, 1000 for error 10..20, zero for error <=10. Rise >=2 control units resets boost.',
     'Last PRESS completion/before/observed-peak/settled-after: debugger g_sd700_approach_diagnostics.press after verified STOP; observed_off_fall is sampled evidence, not a measured instantaneous peak.',
-    'Coarse first=10000 mV/20 ms; recontact=10000 mV/10 ms; backstops=50/40 ms; OFF settle=50 ms + newer fresh frame; total approach=3000 ms.',
+    'Coarse first=10000 mV/20 ms; recontact=10000 mV/10 ms; backstops=50/40 ms; OFF settle=50 ms + newer fresh frame; no fixed total approach timeout. Initial search does not consume convergence time; the existing 8000 ms convergence budget starts at first valid MCU contact receive time. Recontact does not reset it.',
     'Approach-only STOP follows PC observation; firmware cancels coarse motion at contact >=20 immediately, then retains existing fine behavior until STOP arrives.',
     'RequestNumberSinceStart counts all accepted motor requests, including fine pulses; PC polling can miss entire coarse pulses and state transitions.',
     'Exact coarse count and last end reason: debugger RAM symbol g_sd700_approach_diagnostics after verified STOP. Completion reason is not exposed by existing Modbus.',
@@ -392,6 +416,15 @@ function Test-AutoFieldReport {
         'SettledPressureAfterPulse','FeedbackValid','OffFallObserved')) {
         Assert-SelfTest ($text.Contains("$name=RAM_NOT_READ (g_sd700_approach_diagnostics.press.")) 'RAM-only result must never be invented from Modbus polls'
     }
+    Assert-SelfTest ($s.LatestCoherentPressure -eq 300 -and -not $s.LatestCoherentPressureFreshValid) 'latest coherent readback remains separate from qualified maximum/freshness'
+    foreach ($name in @('ApproachElapsedMs','CoarsePulseCount','FirstContactCoarsePulseCount',
+        'FirstContactPressure','FirstContactReceivedMs','FirstContactDecisionMs',
+        'FirstContactSampleSequence','ApproachRequestedMv','ApproachRequestedDurationMs',
+        'ApproachCompletionReason','LatestApproachPressure','FirstContactLatched')) {
+        Assert-SelfTest ($text.Contains("$name=RAM_NOT_READ (g_sd700_approach_diagnostics.")) 'approach RAM measurements cannot be fabricated from PC polls'
+    }
+    Assert-SelfTest ($text.Contains('no-contact lower bound') -and $text.Contains('no fixed total approach timeout')) 'measurement report explains lower bound and scope'
+    Write-Output 'APPROACH_MEASURE_REPORT=PASS SYNTHETIC_INPUT; RAM_UNREAD_NOT_INVENTED'
     $duplicate=$rows[2].PSObject.Copy(); $duplicate.NewSensorSample=$false
     $c.Samples=@($rows[0..2])+@($duplicate)+@($rows[3..9])+@($off)
     $s=Get-AutoFieldSummary $c 250
@@ -658,7 +691,7 @@ if (-not $ConfirmStaticTest -or -not $ConfirmMechanicalLimitChecked) {
     throw 'Requires -ConfirmStaticTest -ConfirmMechanicalLimitChecked after operator checks the permitted mechanical load against the experiment abort threshold. NOT production approved.'
 }
 if ([string]::IsNullOrWhiteSpace($Port) -or [string]::IsNullOrWhiteSpace($OutputCsv)) { throw 'Port and OutputCsv are required' }
-$firmware = Join-Path $PSScriptRoot '../output/AutoTarget/firmware/SD700_AutoTarget_PressBoost1_RealBench_Release.hex'
+$firmware = Join-Path $PSScriptRoot '../output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex'
 $actualHash = (Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator-confirmed firmware SHA256 must match the bundled AutoTarget Release HEX'

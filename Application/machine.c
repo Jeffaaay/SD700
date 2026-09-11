@@ -254,6 +254,43 @@ static void Machine_ResetForcePi(MachineContext *context)
 }
 
 #if SD700_AUTO_TARGET_ENABLED
+/* Small RAM measurement only. Freeze at first contact or STOP/fault, including
+ * OFF/settle intervals; no delayed sample may update a finished measurement. */
+static void Machine_UpdateApproachMeasurement(const MachineContext *context,
+                                               uint32_t now_ms, bool finish)
+{
+    volatile AutoApproachDiagnostics *d = &g_sd700_approach_diagnostics;
+    if (!d->search_active) { return; }
+    d->search_elapsed_ms = (uint32_t)(now_ms - d->search_started_at_ms);
+    d->pressure_units = context->pressure.control_pressure_units;
+    d->sample_received_at_ms = context->pressure.received_at_ms;
+    d->sample_sequence = context->pressure.sequence;
+    d->pressure_fresh = Machine_IsPressureFresh(context, now_ms);
+    if (finish) { d->search_active = false; }
+}
+
+static void Machine_RecordFirstContact(const MachineContext *context,
+                                       uint32_t now_ms)
+{
+    volatile AutoApproachDiagnostics *d = &g_sd700_approach_diagnostics;
+    if (d->first_contact_latched) { return; }
+    /* Already-contacted START has zero search time, even if its fresh sample
+     * predates START. Otherwise measure receive time, not dispatch latency. */
+    d->search_elapsed_ms = d->search_active ?
+        (uint32_t)(context->pressure.received_at_ms - d->search_started_at_ms) : 0U;
+    d->search_active = false;
+    d->first_contact_latched = true;
+    d->first_contact_pulse_count = d->pulse_count;
+    d->first_contact_pressure_units = context->pressure.control_pressure_units;
+    d->first_contact_received_at_ms = context->pressure.received_at_ms;
+    d->first_contact_decided_at_ms = now_ms;
+    d->first_contact_sample_sequence = context->pressure.sequence;
+    d->pressure_units = context->pressure.control_pressure_units;
+    d->sample_received_at_ms = context->pressure.received_at_ms;
+    d->sample_sequence = context->pressure.sequence;
+    d->pressure_fresh = Machine_IsPressureFresh(context, now_ms);
+}
+
 static void Machine_RecordApproachEnd(const MachineContext *context,
                                       AutoApproachEndReason reason,
                                       uint32_t now_ms)
@@ -305,6 +342,7 @@ static void Machine_EnterFault(MachineContext *context,
     (void)MotorExecutor_Disable();
 #if SD700_AUTO_TARGET_ENABLED
     Machine_RecordPressEnd(context, approach_reason, now_ms);
+    Machine_UpdateApproachMeasurement(context, now_ms, true);
 #endif
     Machine_ClearTransientMotion(context);
     Machine_ResetForcePi(context);
@@ -366,18 +404,6 @@ static MachineCommandResult Machine_StartApproach(
     uint32_t backstop_ms;
 #if SD700_AUTO_TARGET_ENABLED
     MachineCommandResult result;
-#endif
-
-#if SD700_AUTO_TARGET_ENABLED
-    /* Recontact may first be discovered after the approach budget expires.
-     * Reject BEFORE requesting even one segment, not at the next safety tick. */
-    if ((uint32_t)(now_ms - context->cycle_started_ms) >=
-        AUTO_TARGET_APPROACH_TIMEOUT_MS)
-    {
-        Machine_EnterFault(context, FAULT_MOTION_TIMEOUT,
-                           FAULT_DETAIL_APPROACH_TIMEOUT, now_ms);
-        return COMMAND_NOT_READY;
-    }
 #endif
 
     if (profile == APPROACH_FIRST)
@@ -505,12 +531,13 @@ static bool Machine_EnterSettle(MachineContext *context, uint32_t now_ms)
 }
 
 #if SD700_AUTO_TARGET_ENABLED
-static bool Machine_HasTimelyApproachContact(const MachineContext *context,
+static bool Machine_HasCurrentApproachContact(const MachineContext *context,
                                              uint32_t now_ms)
 {
-    /* MCU receive tick, never dispatch/PC time. Unsigned elapsed also rejects
-     * a previous episode's frame and handles uint32 wrap. Equality belongs to
-     * this deadline tick ONLY while timeout/STOP/fault has not been committed.
+    /* MCU receive tick, never dispatch/PC time. Sample age must not exceed
+     * episode age, excluding a pre-START cached frame across uint32 tick wrap.
+     * Initial search has no total deadline. State/freshness/order gates and
+     * the ContactDeadline completion-versus-cancel ordering remain in force.
      * Pressure delivery already deduplicates sequences and rejects bad order.
      * Contact evidence need not be settled feedback: it only stops coarse
      * motion; the existing settle/time/sequence gate still controls fine motion. */
@@ -519,8 +546,8 @@ static bool Machine_HasTimelyApproachContact(const MachineContext *context,
            Machine_IsPressureFresh(context, now_ms) &&
            (context->pressure.control_pressure_units >=
             context->config.contact_threshold_units) &&
-           ((uint32_t)(context->pressure.received_at_ms - context->cycle_started_ms) <=
-            AUTO_TARGET_APPROACH_TIMEOUT_MS);
+           ((uint32_t)(now_ms - context->pressure.received_at_ms) <=
+            (uint32_t)(now_ms - context->cycle_started_ms));
 }
 
 static void Machine_StopApproachOnContact(MachineContext *context, uint32_t now_ms)
@@ -552,9 +579,16 @@ static void Machine_StopApproachOnContact(MachineContext *context, uint32_t now_
         }
         if (context->state == AUTO_SETTLE)
         {
+            g_sd700_approach_diagnostics.contact_cycle_started_ms = context->cycle_started_ms;
+            if (!context->auto_has_contacted)
+            {
+                Machine_RecordFirstContact(context, now_ms);
+                /* Start the existing convergence budget at MCU contact receive
+                 * time. Later recontacts must not extend this cycle. */
+                context->cycle_started_ms = context->pressure.received_at_ms;
+            }
             context->auto_has_contacted = true;
             context->auto_approach_pending = false;
-            g_sd700_approach_diagnostics.contact_cycle_started_ms = context->cycle_started_ms;
             g_sd700_approach_diagnostics.contact_sample_sequence = context->pressure.sequence;
             g_sd700_approach_diagnostics.contact_received_at_ms = context->pressure.received_at_ms;
             g_sd700_approach_diagnostics.contact_decided_at_ms = now_ms;
@@ -1002,6 +1036,7 @@ static MachineCommandResult Machine_Stop(MachineContext *context,
 
 #if SD700_AUTO_TARGET_ENABLED
     Machine_RecordPressEnd(context, AUTO_APPROACH_END_STOP, now_ms);
+    Machine_UpdateApproachMeasurement(context, now_ms, true);
 #endif
     Machine_ClearTransientMotion(context);
     Machine_ResetForcePi(context);
@@ -1156,6 +1191,8 @@ MachineCommandResult Machine_HandleCommand(MachineContext *context,
         context->auto_has_contacted = context->pressure.control_pressure_units >=
                                       context->config.contact_threshold_units;
         context->auto_approach_pending = !context->auto_has_contacted;
+        g_sd700_approach_diagnostics.search_started_at_ms = now_ms;
+        g_sd700_approach_diagnostics.search_active = !context->auto_has_contacted;
 #endif
         if (context->pressure.control_pressure_units <
             context->config.contact_threshold_units)
@@ -1168,6 +1205,9 @@ MachineCommandResult Machine_HandleCommand(MachineContext *context,
         {
             result = Machine_EnterSettle(context, now_ms) ?
                      COMMAND_ACCEPTED : COMMAND_EXECUTOR_FAILED;
+#if SD700_AUTO_TARGET_ENABLED
+            if (result == COMMAND_ACCEPTED) { Machine_RecordFirstContact(context, now_ms); }
+#endif
         }
     }
 
@@ -1277,7 +1317,7 @@ void Machine_HandlePressureSample(MachineContext *context,
          context->config.contact_threshold_units))
     {
 #if SD700_AUTO_TARGET_ENABLED
-        if (Machine_HasTimelyApproachContact(context, now_ms))
+        if (Machine_HasCurrentApproachContact(context, now_ms))
         {
             Machine_StopApproachOnContact(context, now_ms);
         }
@@ -1313,6 +1353,10 @@ void Machine_CheckPressureSafety(MachineContext *context, uint32_t now_ms)
         return;
     }
 
+#if SD700_AUTO_TARGET_ENABLED
+    Machine_UpdateApproachMeasurement(context, now_ms, false);
+#endif
+
     if (!Machine_IsPressureFresh(context, now_ms))
     {
         Machine_EnterFault(context,
@@ -1327,19 +1371,12 @@ void Machine_CheckPressureSafety(MachineContext *context, uint32_t now_ms)
         return;
     }
 
-#if SD700_AUTO_TARGET_ENABLED
-    if (context->auto_approach_pending &&
-        ((uint32_t)(now_ms - context->cycle_started_ms) >=
-         AUTO_TARGET_APPROACH_TIMEOUT_MS) &&
-        (!Machine_HasTimelyApproachContact(context, now_ms)))
-    {
-        Machine_EnterFault(context, FAULT_MOTION_TIMEOUT,
-                           FAULT_DETAIL_APPROACH_TIMEOUT, now_ms);
-        return;
-    }
-#endif
-
     if ((context->state != AUTO_HOLD) &&
+#if SD700_AUTO_TARGET_ENABLED
+        /* Initial search consumes no convergence budget. Recontact after the
+         * first latch remains inside the running cycle; it cannot reset it. */
+        context->auto_has_contacted &&
+#endif
         ((uint32_t)(now_ms - context->cycle_started_ms) >=
          context->config.automatic_cycle_timeout_ms))
     {
@@ -1361,11 +1398,10 @@ void Machine_CheckPressureSafety(MachineContext *context, uint32_t now_ms)
                            now_ms);
     }
 #if SD700_AUTO_TARGET_ENABLED
-    /* Only the uncommitted approach timeout yields to timely contact evidence.
-     * Freshness, cycle and settle-feedback faults above still take precedence.
-     * The existing contact stop services pending hardware completions first.
-     * No grace period, new pulse or deadline reset is introduced here. */
-    if (Machine_HasTimelyApproachContact(context, now_ms))
+    /* Freshness, active convergence and settle-feedback faults above still
+     * take precedence. ContactDeadline's contact stop services and classifies
+     * pending hardware completions before cancelling the coarse output. */
+    if (Machine_HasCurrentApproachContact(context, now_ms))
     {
         Machine_StopApproachOnContact(context, now_ms);
     }

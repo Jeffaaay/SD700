@@ -352,29 +352,25 @@ static void TestWrap(void)
 static void TestNoResponseDeadlines(void)
 {
     uint32_t now;
-    uint32_t end;
-    unsigned int scenario;
-    for (scenario = 0U; scenario < 2U; ++scenario)
+    Init(100U, 0U); Start(0U); /* Already-contacted START: original 8000 ms. */
+    assert(g_sd700_approach_diagnostics.first_contact_latched);
+    assert(g_sd700_approach_diagnostics.search_elapsed_ms == 0U);
+    assert(g_sd700_approach_diagnostics.first_contact_pulse_count == 0U);
+    assert(g_sd700_approach_diagnostics.pressure_units == 100);
+    for (now = 1U; now <= AUTO_TARGET_CONVERGENCE_TIMEOUT_MS; ++now)
     {
-        Init(scenario == 0U ? 0U : 100U, 0U); Start(0U);
-        end = scenario == 0U ? AUTO_TARGET_APPROACH_TIMEOUT_MS : AUTO_TARGET_CONVERGENCE_TIMEOUT_MS;
-        for (now = 1U; now <= end && r.machine.state != FAULT; ++now)
-        {
-            const MotorExecutorSnapshot *m = MotorExecutor_GetSnapshot();
-            if (m->logical_active && (uint32_t)(now - r.machine.state_entered_ms) >= m->requested_duration_ms)
-            {
-                FakeMotorStopTimer_TriggerNormal();
-            }
-            if ((now % 100U) == 0U) { Feed(scenario == 0U ? 0U : 100U, now); }
-            Service(now);
-        }
-        assert(r.machine.state == FAULT && r.machine.fault == FAULT_MOTION_TIMEOUT);
-        assert(r.machine.fault_detail == (scenario == 0U ? FAULT_DETAIL_APPROACH_TIMEOUT : FAULT_DETAIL_CYCLE_TIMEOUT));
-        assert(r.machine.cycle_started_ms == 0U);
-        assert(MotorExecutor_OutputIsDisabled());
-        assert(FakeMotorHwReal_GetState()->apply_count > 2U);
+        const MotorExecutorSnapshot *m = MotorExecutor_GetSnapshot();
+        if (m->logical_active && (uint32_t)(now - r.machine.state_entered_ms) >= m->requested_duration_ms)
+        { FakeMotorStopTimer_TriggerNormal(); }
+        if ((now % 100U) == 0U) { Feed(100U, now); }
+        Service(now);
+        if (now < AUTO_TARGET_CONVERGENCE_TIMEOUT_MS) { assert(r.machine.state != FAULT); }
     }
-    puts("AUTO_ZERO_AND_NO_RESPONSE_DEADLINES=PASS");
+    assert(r.machine.state == FAULT && r.machine.fault == FAULT_MOTION_TIMEOUT);
+    assert(r.machine.fault_detail == FAULT_DETAIL_CYCLE_TIMEOUT);
+    assert(r.machine.cycle_started_ms == 0U && MotorExecutor_OutputIsDisabled());
+    assert(FakeMotorHwReal_GetState()->apply_count > 2U);
+    puts("AUTO_POST_CONTACT_NO_RESPONSE_DEADLINE=PASS");
 }
 
 static void TestAbortAndCompletion(void)
@@ -420,7 +416,7 @@ static void TestLateRecontactBudget(void)
     uint32_t now;
     uint32_t count = 0U;
     Init(100U, 0U); Start(0U);
-    for (now = 1U; now < 3500U && r.machine.state != FAULT; ++now)
+    for (now = 1U; now <= 8000U && r.machine.state != FAULT; ++now)
     {
         const MotorExecutorSnapshot *m = MotorExecutor_GetSnapshot();
         if (m->logical_active && (uint32_t)(now - r.machine.state_entered_ms) >= m->requested_duration_ms)
@@ -430,11 +426,18 @@ static void TestLateRecontactBudget(void)
         if (now == 2999U) { count = FakeMotorHwReal_GetState()->apply_count; }
         if ((now % 100U) == 0U) { Feed(now < 3000U ? 100U : 0U, now); }
         Service(now);
+        if (now < 8000U) { assert(r.machine.state != FAULT); }
+        assert(r.machine.cycle_started_ms == 0U);
+        if (r.machine.state == AUTO_APPROACH)
+        {
+            assert(MotorExecutor_GetSnapshot()->requested_duration_ms == 10U);
+            assert(FakeMotorStopTimer_GetState()->backstop_ms == 40U);
+        }
     }
-    assert(r.machine.state == FAULT && r.machine.fault_detail == FAULT_DETAIL_APPROACH_TIMEOUT);
-    assert(FakeMotorHwReal_GetState()->apply_count == count);
+    assert(r.machine.state == FAULT && r.machine.fault_detail == FAULT_DETAIL_CYCLE_TIMEOUT);
+    assert(FakeMotorHwReal_GetState()->apply_count > count);
     assert(MotorExecutor_OutputIsDisabled());
-    puts("AUTO_LATE_RECONTACT_REJECTED_BEFORE_REQUEST=PASS");
+    puts("AUTO_RECONTACT_KEEPS_EXISTING_CONVERGENCE_BUDGET=PASS");
 }
 
 static void TestStopAllStates(void)
@@ -569,8 +572,8 @@ static void PrepareContactDeadline(uint32_t start, unsigned int phase)
 
 static int TestContactDeadline(void)
 {
-    const uint32_t received[] = {2999U,2999U,3000U,2999U,3000U};
-    const uint32_t handled[]  = {2999U,3000U,3000U,3001U,3001U};
+    const uint32_t received[] = {2999U,2999U,3000U,2999U,3000U,3001U};
+    const uint32_t handled[]  = {2999U,3000U,3000U,3001U,3001U,3001U};
     unsigned int phase, sample, wrap;
     int failures = 0;
     for (wrap = 0U; wrap < 2U; ++wrap)
@@ -578,7 +581,7 @@ static int TestContactDeadline(void)
         uint32_t start = wrap == 0U ? 1000U : UINT32_MAX - 1500U;
         for (phase = 0U; phase < 3U; ++phase)
         {
-            for (sample = 0U; sample < 5U; ++sample)
+            for (sample = 0U; sample < 6U; ++sample)
             {
                 uint32_t count;
                 bool accepted;
@@ -608,7 +611,9 @@ static int TestContactDeadline(void)
                     Feed(100U, start + 3061U);
                 }
                 AssertPulse(MOTOR_DIRECTION_PRESS, 3000U);
-                assert(r.machine.cycle_started_ms == start);
+                assert(r.machine.cycle_started_ms == start + received[sample]);
+                assert(g_sd700_approach_diagnostics.search_elapsed_ms == received[sample]);
+                assert(g_sd700_approach_diagnostics.first_contact_decided_at_ms == start + handled[sample]);
                 Stop(start + (phase == 1U ? handled[sample] + 1U : 3062U));
             }
         }
@@ -635,9 +640,9 @@ static void TestContactDeadlineRejections(void)
                 {
                     case 0U: Feed(0U, now); break;
                     case 1U: Feed(19U, now); break;
-                    case 2U: /* Timeout already committed, then contact with same tick. */
+                    case 2U: /* Safety tick first, then fresh contact: no old 3000 ms fault. */
                         Service(now); Feed(20U, now); break;
-                    case 3U: /* Only the receive time is after deadline; no grace. */
+                    case 3U: /* Fresh receive after the removed deadline is now eligible. */
                         ++now; Feed(20U, now); break;
                     case 4U: /* Duplicate poll does not replace the previous zero frame. */
                         assert(!FeedAt(20U, seq, now, now)); Service(now); break;
@@ -659,21 +664,26 @@ static void TestContactDeadlineRejections(void)
                         assert(FeedAt(20U, ++seq, r.machine.pressure.received_at_ms - 1U, now));
                         break;
                 }
-                assert(r.machine.state == FAULT && MotorExecutor_OutputIsDisabled());
-                assert(!FakeMotorStopTimer_GetState()->armed);
-                assert(r.machine.fault == (pressure_fault ? FAULT_PRESSURE_SENSOR_FAULT : FAULT_MOTION_TIMEOUT));
                 if (!pressure_fault)
                 {
-                    assert(r.machine.fault_detail == FAULT_DETAIL_APPROACH_TIMEOUT);
-                    assert(g_sd700_approach_diagnostics.approach_timeout_committed);
-                    assert(g_sd700_approach_diagnostics.approach_timeout_decided_at_ms == now);
-                    assert(g_sd700_approach_diagnostics.timeout_cycle_started_ms == start);
+                    assert(r.machine.fault == FAULT_NONE);
+                    assert(!g_sd700_approach_diagnostics.approach_timeout_committed);
+                    assert(r.machine.auto_has_contacted == (scenario == 2U || scenario == 3U));
+                    if (scenario == 4U) { assert(FakeMotorHwReal_GetState()->apply_count == count); }
+                    Stop(now + 1U);
+                    count = FakeMotorHwReal_GetState()->apply_count;
                 }
-                assert(g_sd700_approach_diagnostics.contact_sample_sequence == 0U);
+                else
+                {
+                    assert(r.machine.state == FAULT && MotorExecutor_OutputIsDisabled());
+                    assert(!FakeMotorStopTimer_GetState()->armed);
+                    assert(r.machine.fault == FAULT_PRESSURE_SENSOR_FAULT);
+                    assert(g_sd700_approach_diagnostics.contact_sample_sequence == 0U);
+                }
                 /* Late higher pressure and old completion cannot clear a fault. */
                 FakeMotorStopTimer_GetState()->handler(MOTOR_STOP_TIMER_NORMAL);
-                Feed(250U, now + 1U); Service(now + 1U); Stop(now + 2U);
-                assert(r.machine.state == FAULT && MotorExecutor_OutputIsDisabled());
+                Feed(250U, now + 2U); Service(now + 2U); Stop(now + 3U);
+                assert(r.machine.state == (pressure_fault ? FAULT : IDLE) && MotorExecutor_OutputIsDisabled());
                 assert(FakeMotorHwReal_GetState()->apply_count == count);
             }
         }
@@ -684,7 +694,7 @@ static void TestContactDeadlineRejections(void)
     assert(r.machine.state == AUTO_APPROACH && !r.machine.auto_has_contacted);
     assert(g_sd700_approach_diagnostics.contact_sample_sequence == 0U);
     Stop(1002U);
-    puts("CONTACT_DEADLINE_REJECT_LOW_LATE_EXPIRED_INVALID_DUPLICATE_ORDER_PRIOR_EPISODE=PASS");
+    puts("CONTACT_MEASURE_LOW_LATE_ELIGIBLE_STALE_INVALID_DUPLICATE_ORDER_PRIOR_EPISODE=PASS");
 }
 
 static void TestContactDeadlineEventOrdering(void)
@@ -741,10 +751,11 @@ static void TestContactDoesNotRelaxFineDeadlines(void)
     PrepareContactDeadline(0U, 0U);
     r.machine.config.automatic_cycle_timeout_ms = 3000U;
     Feed(20U, 3000U);
-    assert(r.machine.state == FAULT && r.machine.fault_detail == FAULT_DETAIL_CYCLE_TIMEOUT);
+    assert(r.machine.state == AUTO_SETTLE && r.machine.cycle_started_ms == 3000U);
+    Stop(3001U);
 
     PrepareContactDeadline(0U, 0U); Feed(20U, 3000U);
-    for (now = 3001U; now <= 8000U; ++now)
+    for (now = 3001U; now <= 11000U; ++now)
     {
         const MotorExecutorSnapshot *m = MotorExecutor_GetSnapshot();
         if (m->logical_active && (uint32_t)(now - r.machine.state_entered_ms) >= m->requested_duration_ms)
@@ -754,8 +765,8 @@ static void TestContactDoesNotRelaxFineDeadlines(void)
         }
         if ((now % 100U) == 0U) { Feed(100U, now); }
         Service(now);
-        assert(r.machine.cycle_started_ms == 0U);
-        if (now < 8000U) { assert(r.machine.state != FAULT); }
+        assert(r.machine.cycle_started_ms == 3000U);
+        if (now < 11000U) { assert(r.machine.state != FAULT); }
     }
     assert(r.machine.state == FAULT && r.machine.fault_detail == FAULT_DETAIL_CYCLE_TIMEOUT);
     assert(MotorExecutor_OutputIsDisabled());
@@ -764,11 +775,15 @@ static void TestContactDoesNotRelaxFineDeadlines(void)
     PrepareContactDeadline(0U, 0U); Feed(20U, 3000U); Service(3050U);
     {
         uint32_t count = FakeMotorHwReal_GetState()->apply_count;
-        Feed(0U, 3051U); /* lost contact does not reopen an expired coarse budget */
-        assert(r.machine.state == FAULT && r.machine.fault_detail == FAULT_DETAIL_APPROACH_TIMEOUT);
-        assert(MotorExecutor_OutputIsDisabled() && FakeMotorHwReal_GetState()->apply_count == count);
+        Feed(0U, 3051U); /* recontact cannot restart the convergence clock */
+        assert(r.machine.state == AUTO_APPROACH && r.machine.cycle_started_ms == 3000U);
+        assert(MotorExecutor_GetSnapshot()->requested_duration_ms == 10U);
+        assert(FakeMotorHwReal_GetState()->apply_count == count + 1U);
+        Feed(20U, 3052U);
+        assert(r.machine.state == AUTO_SETTLE && r.machine.cycle_started_ms == 3000U);
+        Stop(3053U);
     }
-    puts("CONTACT_DEADLINE_FINE_SETTLE_CYCLE_AND_RECONTACT_LIMITS_PRESERVED=PASS");
+    puts("CONTACT_CONVERGENCE_FROM_RECEIVE_SETTLE_FAULT_RECONTACT_NO_RESET=PASS");
 }
 
 static void TestContactEvidenceIsNotSettledFeedback(void)
@@ -985,9 +1000,121 @@ static void TestPressExecutorNormalCompletion(void)
     puts("PRESS_NORMAL_COMPLETION_REAL_EXECUTOR=PASS SYNTHETIC_INPUT");
 }
 
+/* Initial gap measurement: real executor plus fake TIM5/HW, SYNTHETIC_INPUT. */
+static void RunZeroApproach(uint32_t start, uint32_t elapsed_end)
+{
+    uint32_t elapsed;
+    for (elapsed = 1U; elapsed <= elapsed_end; ++elapsed)
+    {
+        uint32_t now = start + elapsed;
+        const MotorExecutorSnapshot *m = MotorExecutor_GetSnapshot();
+        if (m->logical_active)
+        {
+            assert(r.machine.state == AUTO_APPROACH);
+            assert(m->command_mv == 10000U && m->requested_duration_ms == 20U);
+            assert(FakeMotorStopTimer_GetState()->normal_duration_ms == 20U);
+            assert(FakeMotorStopTimer_GetState()->backstop_ms == 50U);
+            if ((uint32_t)(now - r.machine.state_entered_ms) >= 20U)
+            { FakeMotorStopTimer_TriggerNormal(); }
+        }
+        if ((elapsed % 100U) == 0U) { Feed(0U, now); }
+        Service(now);
+        assert(r.machine.fault == FAULT_NONE);
+        assert(!r.machine.auto_has_contacted && r.machine.auto_approach_pending);
+        assert(r.machine.cycle_started_ms == start);
+    }
+}
+
+static void TestLongInitialApproach(void)
+{
+    uint32_t count;
+    Init(0U, 1000U); Start(1000U);
+    RunZeroApproach(1000U, 12000U); /* exceeds BOTH previous 3000/8000 budgets */
+    count = FakeMotorHwReal_GetState()->apply_count;
+    assert(count > 100U);
+    AssertApproach(count, 20U);
+    Feed(20U, 13001U);
+    assert(r.machine.state == AUTO_SETTLE && MotorExecutor_OutputIsDisabled());
+    assert(r.machine.auto_has_contacted && !r.machine.auto_approach_pending);
+    assert(r.machine.cycle_started_ms == 13001U);
+    assert(!g_sd700_approach_diagnostics.search_active);
+    assert(g_sd700_approach_diagnostics.first_contact_latched);
+    assert(g_sd700_approach_diagnostics.search_elapsed_ms == 12001U);
+    assert(g_sd700_approach_diagnostics.first_contact_pulse_count == count);
+    assert(g_sd700_approach_diagnostics.first_contact_pressure_units == 20);
+    assert(g_sd700_approach_diagnostics.first_contact_received_at_ms == 13001U);
+    assert(g_sd700_approach_diagnostics.first_contact_decided_at_ms == 13001U);
+    assert(g_sd700_approach_diagnostics.first_contact_sample_sequence == seq);
+    assert(FakeMotorHwReal_GetState()->apply_count == count);
+    Settled(30U, 13051U); AssertPulse(MOTOR_DIRECTION_PRESS, 3000U);
+    Stop(13053U);
+    assert(g_sd700_approach_diagnostics.search_elapsed_ms == 12001U);
+    assert(g_sd700_approach_diagnostics.first_contact_pulse_count == count);
+    puts("APPROACH_MEASURE_LONG_ZERO_BOUNDED_CONTACT_PRESSBOOST=PASS SYNTHETIC_INPUT");
+}
+
+static void TestLongApproachStopsAndMeasurement(void)
+{
+    unsigned int scenario;
+    for (scenario = 0U; scenario < 10U; ++scenario)
+    {
+        uint32_t start = UINT32_MAX - 500U;
+        uint32_t now = start + 12000U;
+        uint32_t count, stopped_elapsed;
+        Init(0U, start); Start(start); RunZeroApproach(start, 12000U);
+        count = FakeMotorHwReal_GetState()->apply_count;
+        AssertApproach(count, 20U);
+        assert(g_sd700_approach_diagnostics.search_active);
+        assert(g_sd700_approach_diagnostics.search_elapsed_ms == 12000U);
+        if (scenario == 0U) { Stop(now + 1U); }
+        else if (scenario == 1U)
+        { Complete(now + 20U); Stop(now + 25U); } /* output OFF between pulses */
+        else if (scenario == 2U)
+        { Complete(now + 20U); Service(now + 70U); Stop(now + 80U); }
+        else if (scenario == 3U) { Feed(325U, now + 1U); }
+        else if (scenario == 4U)
+        { Machine_ReportFault(&r.machine, FAULT_OVERCURRENT, FAULT_DETAIL_NONE, now + 1U); }
+        else if (scenario == 5U)
+        { Complete(now + 20U); Service(now + 201U); }
+        else if (scenario == 6U)
+        {
+            MachinePressureSample invalid = r.machine.pressure;
+            invalid.frame_valid = false;
+            Machine_HandlePressureSample(&r.machine, &invalid, now + 1U);
+        }
+        else if (scenario == 7U)
+        { FakeMotorStopTimer_TriggerBackstop(); Service(now + 1U); }
+        else if (scenario == 8U)
+        { FakeMotorStopTimer_TriggerError(); Service(now + 1U); }
+        else
+        { Complete(now + 20U); Service(now + 70U); Feed(0U, now + 200U); } /* eligible new pulse */
+        if (scenario == 9U)
+        {
+            assert(r.machine.state == AUTO_APPROACH);
+            Stop(now + 201U); ++count;
+        }
+        assert(r.machine.state == ((scenario < 3U || scenario == 9U) ? IDLE : FAULT));
+        assert(MotorExecutor_OutputIsDisabled() && !FakeMotorStopTimer_GetState()->armed);
+        assert(!g_sd700_approach_diagnostics.search_active);
+        assert(!g_sd700_approach_diagnostics.first_contact_latched);
+        assert(g_sd700_approach_diagnostics.pulse_count == count);
+        stopped_elapsed = g_sd700_approach_diagnostics.search_elapsed_ms;
+        assert(stopped_elapsed >= 12001U && stopped_elapsed <= 12201U);
+        if (scenario == 5U) { assert(r.machine.fault_detail == FAULT_DETAIL_PRESSURE_TIMEOUT); }
+        if (scenario == 6U) { assert(r.machine.fault_detail == FAULT_DETAIL_PRESSURE_INVALID); }
+        FakeMotorStopTimer_GetState()->handler(MOTOR_STOP_TIMER_NORMAL);
+        Feed(250U, now + 300U); Service(now + 300U);
+        assert(MotorExecutor_OutputIsDisabled() && FakeMotorHwReal_GetState()->apply_count == count);
+        assert(g_sd700_approach_diagnostics.search_elapsed_ms == stopped_elapsed);
+        assert(!g_sd700_approach_diagnostics.first_contact_latched);
+    }
+    puts("APPROACH_MEASURE_LONG_STOP_FAULT_SENSOR_BACKSTOP_WRAP_NO_RESTART=PASS SYNTHETIC_INPUT");
+}
+
 int main(void)
 {
     (void)setvbuf(stdout, NULL, _IONBF, 0);
+    TestLongInitialApproach(); TestLongApproachStopsAndMeasurement();
     TestPressExecutorNormalCompletion();
     TestSegmentedPressAndBoost(); TestPressFeedbackEligibility(); TestPressBoostStops();
     TestFullCycle(); TestContactStartAndClamp(); TestFeedbackGates(); TestWrap();
