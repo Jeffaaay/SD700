@@ -1,0 +1,5 @@
+# Preserve the engineering snapshot byte-for-byte across platforms/checkouts.
+# In particular, newline conversion must never change a verified HEX SHA256.
+* -text
+*.hex binary
+*.elf binary

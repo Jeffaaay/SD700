@@ -1,0 +1,42 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.associations": {
+      ".eideignore": "ignore",
+      "*.h": "c",
+      "*.c": "c",
+      "*.hpp": "cpp",
+      "*.cpp": "cpp",
+      "*.s": "arm"
+    },
+    "files.autoGuessEncoding": true,
+    "C_Cpp.default.configurationProvider": "cl.eide",
+    "C_Cpp.default.compilerPath": "C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc.exe",
+    "C_Cpp.default.intelliSenseMode": "gcc-arm",
+    "C_Cpp.default.cStandard": "c11",
+    "EIDE.ARM.GCC.InstallDirectory": "C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi",
+    "C_Cpp.default.defines": [
+      "USE_HAL_DRIVER",
+      "STM32F411xE"
+    ],
+    "C_Cpp.default.includePath": [
+      "${workspaceFolder}/..",
+      "${workspaceFolder}/../User",
+      "${workspaceFolder}/../Drivers",
+      "${workspaceFolder}/../Drivers/CMSIS/Device/ST/STM32F4xx/Include",
+      "${workspaceFolder}/../Drivers/CMSIS/Include",
+      "${workspaceFolder}/../Drivers/STM32F4xx_HAL_Driver/Inc"
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.cpptools",
+      "marus25.cortex-debug",
+      "lumascet.vsterm"
+    ]
+  }
+}

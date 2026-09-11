@@ -1,0 +1,6 @@
+#ifndef BOARD_MOTOR_MOTOR_HW_EARLY_FORCE_DISABLE_H
+#define BOARD_MOTOR_MOTOR_HW_EARLY_FORCE_DISABLE_H
+
+void MotorHw_EarlyForceDisable(void);
+
+#endif

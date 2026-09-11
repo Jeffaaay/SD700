@@ -1,0 +1,74 @@
+# ========================
+# Build Artifacts
+# ========================
+Output/
+EIDE/build/
+build/
+
+# Generated executables, firmware, archives and compiler/test output.
+# The two exact current field firmware files are allowed explicitly below.
+*.exe
+*.log
+*.hex
+*.elf
+*.bin
+*.axf
+*.zip
+*.zip.sha256
+*.o
+*.obj
+*.d
+*.map
+*.pyc
+__pycache__/
+
+# Field captures belong outside Git; source/test data CSVs are not globally ignored.
+/field/
+/captures/
+*.report.txt
+
+# Retain engineering evidence on disk, never in a normal git add -A.
+# Reopen output explicitly: Output/ also matches it on case-insensitive systems.
+!/output/
+/output/*
+!/output/AutoTarget/
+/output/AutoTarget/*
+!/output/AutoTarget/firmware/
+/output/AutoTarget/firmware/*
+!/output/AutoTarget/firmware/SD700_AutoTarget_PressBoost1_RealBench_Release.hex
+!/output/AutoTarget/firmware/SD700_AutoTarget_PressBoost1_RealBench_Release.elf
+
+# ========================
+# IDE & Editor Files
+# ========================
+EIDE/.vscode/launch.json
+EIDE/.settings
+EIDE/.eide/log
+EIDE/.eide.usr.ctx.json
+
+# Keil MDK
+Projects/MDK-ARM/*.uvoptx
+Projects/MDK-ARM/*.uvguix.*
+Projects/MDK-ARM/DebugConfig/
+Projects/MDK-ARM/Listings/
+Projects/MDK-ARM/Objects/
+Projects/MDK-ARM/RTE/
+
+# EIDE template
+*.ept
+*.eide-template
+
+# ========================
+# OS Generated Files
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# Temporary Files
+# ========================
+*.tmp
+*.bak
+*.swp
+*~

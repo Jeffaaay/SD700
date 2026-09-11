@@ -1,0 +1,27 @@
+#ifndef PROTOCOL_PRESSURE_SENSOR_PROTOCOL_H
+#define PROTOCOL_PRESSURE_SENSOR_PROTOCOL_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#define PRESSURE_SENSOR_FRAME_LENGTH       7U
+#define PRESSURE_SENSOR_FRAME_HEADER       0xFDU
+#define PRESSURE_SENSOR_FRAME_MARKER       0xFEU
+#define PRESSURE_SENSOR_FRAME_BCC_INDEX    5U
+
+typedef enum
+{
+    PRESSURE_FRAME_OK = 0,
+    PRESSURE_FRAME_INVALID_ARGUMENT,
+    PRESSURE_FRAME_INVALID_LENGTH,
+    PRESSURE_FRAME_INVALID_HEADER,
+    PRESSURE_FRAME_INVALID_BCC,
+    PRESSURE_FRAME_INVALID_MARKER
+} PressureFrameResult;
+
+typedef struct
+{
+    uint16_t raw_pressure_counts;
+} PressureFrameData;
+
+#endif
