@@ -18,7 +18,7 @@ $autoArguments = @{SelfTest=$SelfTest; ApproachOnly=$ApproachOnly; Port=$Port; T
 # safety/admission, STOP coil, fake serial and clock helpers. No new protocol.
 . "$PSScriptRoot/capture_pressure_response.ps1" -LibraryOnly
 foreach ($entry in $autoArguments.GetEnumerator()) { Set-Variable -Name $entry.Key -Value $entry.Value }
-$script:ExpectedProfile = 'ApproachMeasure1 initial gap measurement + unchanged PressBoost1; Ki=0; NOT TUNED'
+$script:ExpectedProfile = 'PressBoostRetain1 far-band effective-rise boost retention + ApproachMeasure1 search; Ki=0; NOT TUNED'
 
 function Read-AutoWords {
     param([scriptblock]$Exchange, [int]$Address, [int]$Count)
@@ -325,8 +325,8 @@ function Get-AutoReportLines {
     'Observed stability requires 3 seconds in HOLD and +/-5 on new coherent frames, gap <=200 ms, no new request.',
     'Missed frames/transients and polling latency remain unobserved; HOLD alone does not establish stable force.',
     'Request mV/direction/duration are accepted commands, NOT measured terminal voltage. No brake/preload.',
-    'PressBoost1: PRESS base 400..1000 mV for error 5..20, then 1000..3000 over error 20..120; capped above 120. All pulses 10 ms/backstop 40 ms.',
-    'After two normally completed low-response pulses: +300 mV; extra cap 2000 for error >20, 1000 for error 10..20, zero for error <=10. Rise >=2 control units resets boost.',
+    'PressBoostRetain1: PRESS base 400..1000 mV for error 5..20, then 1000..3000 over error 20..120; capped above 120. All pulses 10 ms/backstop 40 ms.',
+    'After two normally completed low-response pulses: +300 mV; extra cap 2000 for error >20, 1000 for error 10..20, zero for error <=10. Qualified rise >=2 clears the low-response count; in the same far band (error >20) it retains existing boost within the cap. Fine/near and band-change resets remain unchanged.',
     'Last PRESS completion/before/observed-peak/settled-after: debugger g_sd700_approach_diagnostics.press after verified STOP; observed_off_fall is sampled evidence, not a measured instantaneous peak.',
     'Coarse first=10000 mV/20 ms; recontact=10000 mV/10 ms; backstops=50/40 ms; OFF settle=50 ms + newer fresh frame; no fixed total approach timeout. Initial search does not consume convergence time; the existing 8000 ms convergence budget starts at first valid MCU contact receive time. Recontact does not reset it.',
     'Approach-only STOP follows PC observation; firmware cancels coarse motion at contact >=20 immediately, then retains existing fine behavior until STOP arrives.',
@@ -691,7 +691,7 @@ if (-not $ConfirmStaticTest -or -not $ConfirmMechanicalLimitChecked) {
     throw 'Requires -ConfirmStaticTest -ConfirmMechanicalLimitChecked after operator checks the permitted mechanical load against the experiment abort threshold. NOT production approved.'
 }
 if ([string]::IsNullOrWhiteSpace($Port) -or [string]::IsNullOrWhiteSpace($OutputCsv)) { throw 'Port and OutputCsv are required' }
-$firmware = Join-Path $PSScriptRoot '../output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex'
+$firmware = Join-Path $PSScriptRoot '../output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex'
 $actualHash = (Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator-confirmed firmware SHA256 must match the bundled AutoTarget Release HEX'

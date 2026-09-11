@@ -831,8 +831,15 @@ static void TestSegmentedPressAndBoost(void)
     Init(30U, 0U); Start(0U); Settled(30U, 50U); now = 51U;
     now = PressResponse(31U, now); AssertPulse(MOTOR_DIRECTION_PRESS, 3000U);
     now = PressResponse(32U, now); AssertPulse(MOTOR_DIRECTION_PRESS, 3300U);
-    now = PressResponse(34U, now); AssertPulse(MOTOR_DIRECTION_PRESS, 3000U);
-    assert(r.machine.press_feedback.boost_mv == 0U); /* exact >=2 reset */
+    now = PressResponse(33U, now);
+    assert(r.machine.press_feedback.low_response_count == 1U);
+    now = PressResponse(35U, now); AssertPulse(MOTOR_DIRECTION_PRESS, 3300U);
+    assert(r.machine.press_feedback.boost_mv == 300U); /* exact >=2 retains far boost */
+    assert(r.machine.press_feedback.low_response_count == 0U);
+    now = PressResponse(36U, now); AssertPulse(MOTOR_DIRECTION_PRESS, 3300U);
+    assert(r.machine.press_feedback.low_response_count == 1U);
+    now = PressResponse(37U, now); AssertPulse(MOTOR_DIRECTION_PRESS, 3600U);
+    assert(r.machine.press_feedback.low_response_count == 0U);
     Stop(now + 1U);
     Init(30U, 0U); Start(0U); Settled(30U, 50U); now = 51U;
     for (i = 1U; i <= 18U; ++i)
@@ -849,15 +856,28 @@ static void TestSegmentedPressAndBoost(void)
         assert(r.machine.cycle_started_ms == 0U);
     }
     now = PressResponse(33U, now); /* >=2 units, not a legacy N criterion */
-    AssertPulse(MOTOR_DIRECTION_PRESS, 3000U);
-    assert(r.machine.press_feedback.boost_mv == 0U && r.machine.press_feedback.low_response_count == 0U);
+    AssertPulse(MOTOR_DIRECTION_PRESS, 5000U);
+    assert(r.machine.press_feedback.boost_mv == 2000U && r.machine.press_feedback.low_response_count == 0U);
     now = PressResponse(33U, now); now = PressResponse(33U, now);
-    AssertPulse(MOTOR_DIRECTION_PRESS, 3300U);
-    now = PressResponse(231U, now); /* band change clears large-error history */
+    AssertPulse(MOTOR_DIRECTION_PRESS, 5000U);
+    now = PressResponse(200U, now); /* same far band, reduced base + retained cap */
+    AssertPulse(MOTOR_DIRECTION_PRESS, 3600U);
+    now = PressResponse(229U, now); AssertPulse(MOTOR_DIRECTION_PRESS, 3020U);
+    now = PressResponse(229U, now);
+    assert(r.machine.press_feedback.low_response_count == 1U);
+    now = PressResponse(230U, now); /* exact error=20 boundary */
+    AssertPulse(MOTOR_DIRECTION_PRESS, 1000U);
+    assert(r.machine.press_feedback.boost_mv == 0U && r.machine.press_feedback.low_response_count == 0U);
+    now = PressResponse(231U, now); /* first low response in the fine band */
     AssertPulse(MOTOR_DIRECTION_PRESS, 960U);
     assert(r.machine.press_feedback.boost_mv == 0U);
     for (i = 0U; i < 10U; ++i) { now = PressResponse(231U, now); }
     AssertPulse(MOTOR_DIRECTION_PRESS, 1960U); /* fine extra max=1000 */
+    now = PressResponse(233U, now); /* same fine band: effective rise still clears */
+    AssertPulse(MOTOR_DIRECTION_PRESS, 880U);
+    assert(r.machine.press_feedback.boost_mv == 0U && r.machine.press_feedback.low_response_count == 0U);
+    for (i = 0U; i < 10U; ++i) { now = PressResponse(233U, now); }
+    AssertPulse(MOTOR_DIRECTION_PRESS, 1880U);
     now = PressResponse(240U, now);
     AssertPulse(MOTOR_DIRECTION_PRESS, 600U);
     for (i = 0U; i < 6U; ++i) { now = PressResponse(240U, now); }
@@ -869,6 +889,99 @@ static void TestSegmentedPressAndBoost(void)
     Feed(200U, now + 1U); AssertPulse(MOTOR_DIRECTION_PRESS, 1600U);
     Stop(now + 2U);
     puts("PRESS_SEGMENTS_TWO_NORMAL_LOW_RESPONSES_CAP_RESET_NEAR_HOLD=PASS SYNTHETIC_INPUT");
+    puts("PRESS_BOOST_RETAIN_FAR_EFFECTIVE_RISE_COUNTER_RESET_CAP_FINE_RETRACTION=PASS SYNTHETIC_INPUT");
+}
+
+static void TestRetainedBoostFeedbackGates(void)
+{
+    unsigned scenario;
+    for (scenario = 0U; scenario < 7U; ++scenario)
+    {
+        uint32_t now = 51U, count;
+        Init(30U, 0U); Start(0U); Settled(30U, 50U);
+        now = PressResponse(30U, now); now = PressResponse(30U, now);
+        now = PressResponse(30U, now);
+        assert(r.machine.press_feedback.boost_mv == 300U);
+        assert(r.machine.press_feedback.low_response_count == 1U);
+        count = FakeMotorHwReal_GetState()->apply_count;
+        if (scenario == 0U)
+        {
+            Feed(32U, now + 5U); /* on-pulse rise cannot consume feedback */
+            assert(r.machine.press_feedback.in_flight && !r.machine.press_feedback.feedback_pending);
+            assert(r.machine.press_feedback.low_response_count == 1U);
+        }
+        Complete(now + 10U);
+        Feed(32U, now + 11U); /* OFF, but before settle delay */
+        assert(r.machine.press_feedback.feedback_pending);
+        assert(r.machine.press_feedback.low_response_count == 1U);
+        Service(now + 60U);
+        if (scenario <= 2U)
+        {
+            if (scenario == 0U) { assert(!FeedAt(32U, seq, now + 61U, now + 61U)); }
+            else { assert(FeedAt(32U, ++seq, now + (scenario == 1U ? 12U : 60U), now + 61U)); }
+            /* Duplicate, cached pre-gate, or gate-equality rise cannot clear count. */
+            FakeMotorStopTimer_GetState()->handler(MOTOR_STOP_TIMER_NORMAL);
+            Service(now + 61U);
+            assert(r.machine.press_feedback.feedback_pending);
+            assert(!g_sd700_approach_diagnostics.press.feedback_valid);
+            assert(r.machine.press_feedback.boost_mv == 300U);
+            assert(r.machine.press_feedback.low_response_count == 1U);
+            assert(FakeMotorHwReal_GetState()->apply_count == count);
+            Feed(32U, now + 62U); AssertPulse(MOTOR_DIRECTION_PRESS, 3300U);
+            assert(g_sd700_approach_diagnostics.press.feedback_valid);
+            assert(r.machine.press_feedback.low_response_count == 0U);
+        }
+        else if (scenario == 3U)
+        {
+            ++r.machine.diagnostic_request_sequence; /* fault-injected request mismatch */
+            Feed(32U, now + 61U); AssertPulse(MOTOR_DIRECTION_PRESS, 3000U);
+            assert(!g_sd700_approach_diagnostics.press.feedback_valid);
+            assert(r.machine.press_feedback.boost_mv == 0U);
+            assert(r.machine.press_feedback.low_response_count == 0U);
+        }
+        else
+        {
+            MachinePressureSample sample = r.machine.pressure;
+            sample.sequence = ++seq;
+            sample.raw_pressure_counts = 32U;
+            sample.control_pressure_units = 32;
+            sample.received_at_ms = now + 61U;
+            if (scenario == 4U) { sample.frame_valid = false; }
+            else if (scenario == 5U) { sample.control_units_valid = false; }
+            else { sample.received_at_ms = now + 62U; } /* future sample */
+            Machine_HandlePressureSample(&r.machine, &sample, now + 61U);
+            assert(r.machine.state == FAULT && MotorExecutor_OutputIsDisabled());
+            assert(!g_sd700_approach_diagnostics.press.feedback_valid);
+            assert(r.machine.press_feedback.boost_mv == 0U);
+            assert(r.machine.press_feedback.low_response_count == 0U);
+            assert(FakeMotorHwReal_GetState()->apply_count == count);
+        }
+        Stop(now + 63U);
+    }
+    puts("PRESS_BOOST_RETAIN_VALIDITY_SETTLE_DUPLICATE_REQUEST_MATCH_GATES=PASS SYNTHETIC_INPUT");
+}
+
+static void TestRetainedBoostContactHoldReleaseReset(void)
+{
+    const uint16_t after[] = {19U, 250U, 300U};
+    unsigned i;
+    for (i = 0U; i < sizeof(after)/sizeof(after[0]); ++i)
+    {
+        uint32_t now = 51U;
+        Init(30U, 0U); Start(0U); Settled(30U, 50U);
+        now = PressResponse(30U, now); now = PressResponse(30U, now);
+        now = PressResponse(32U, now); /* retain after a qualified effective rise */
+        now = PressResponse(32U, now);
+        assert(r.machine.press_feedback.boost_mv == 300U && r.machine.press_feedback.low_response_count == 1U);
+        now = PressResponse(after[i], now);
+        assert(r.machine.press_feedback.boost_mv == 0U && r.machine.press_feedback.low_response_count == 0U);
+        assert(!r.machine.press_feedback.in_flight && !r.machine.press_feedback.feedback_pending);
+        if (i == 0U) { assert(r.machine.state == AUTO_APPROACH); }
+        else if (i == 1U) { assert(r.machine.state == AUTO_HOLD && MotorExecutor_OutputIsDisabled()); }
+        else { AssertPulse(MOTOR_DIRECTION_RELEASE, 400U); }
+        Stop(now + 1U);
+    }
+    puts("PRESS_BOOST_RETAIN_CONTACT_LOSS_HOLD_RELEASE_RESET=PASS SYNTHETIC_INPUT");
 }
 
 static void TestPressFeedbackEligibility(void)
@@ -919,7 +1032,9 @@ static void TestPressBoostStops(void)
         uint32_t now = 51U, count;
         Init(30U, 0U); Start(0U); Settled(30U, 50U);
         now = PressResponse(30U, now); now = PressResponse(30U, now);
+        now = PressResponse(32U, now); now = PressResponse(32U, now);
         assert(r.machine.press_feedback.boost_mv == 300U);
+        assert(r.machine.press_feedback.low_response_count == 1U);
         count = FakeMotorHwReal_GetState()->apply_count;
         if (scenario == 0U) { Stop(now + 1U); }
         else if (scenario == 1U) { Complete(now + 10U); Stop(now + 11U); }
@@ -1117,6 +1232,7 @@ int main(void)
     TestLongInitialApproach(); TestLongApproachStopsAndMeasurement();
     TestPressExecutorNormalCompletion();
     TestSegmentedPressAndBoost(); TestPressFeedbackEligibility(); TestPressBoostStops();
+    TestRetainedBoostFeedbackGates(); TestRetainedBoostContactHoldReleaseReset();
     TestFullCycle(); TestContactStartAndClamp(); TestFeedbackGates(); TestWrap();
     TestNoResponseDeadlines(); TestAbortAndCompletion(); TestStopAllStates();
     TestConfigAndDiagnostics(); TestFaultAllStates(); TestLateRecontactBudget();

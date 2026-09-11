@@ -1,35 +1,41 @@
-# ApproachMeasure1 - current field repository index
+# PressBoostRetain1 - current field repository index
 
-This main candidate measures the production starting gap with the existing
-bounded coarse pulses. It removes the fixed 3000 ms search fault and starts
-the existing 8000 ms convergence budget at first valid contact. PressBoost1
-mapping/boost, Ki=0, RELEASE/HOLD and the execution/safety layers are preserved.
+The only control change from ApproachMeasure1 (`c5af4ed`) retains existing boost
+within the current cap after a fully qualified effective PRESS rise in the same
+far band (error>20), while clearing the low-response count. Base mapping,
+low-response growth, fine/near and transition resets, search, timing, Ki0,
+RELEASE/HOLD, STOP/Fault and execution/safety layers are preserved.
+
+This is a strategy candidate; it does not establish all physical causes.
+**physical test NOT RUN.** All host pressure input is SYNTHETIC_INPUT.
 
 | Review item | Location |
 | --- | --- |
-| Current candidate, SHA256 and clone/update workflow | [README.md](README.md) |
-| ONE START, static full AutoTarget command and measurement/RAM map | [Static test](Docs/AUTO_TARGET_STATIC_TEST.md) |
-| Actual deterministic tests and ARM matrix | [Test results](Docs/APPROACH_MEASURE1_TEST_RESULTS.md) |
-| New Release HEX | [SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex) |
-| Matching Release ELF | [SD700_AutoTarget_ApproachMeasure1_RealBench_Release.elf](output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.elf) |
+| Current candidate, SHA256 and Git update workflow | [README.md](README.md) |
+| COM5 / Target250 / maximum60 s / ONE START and RAM measurements | [Static test](Docs/AUTO_TARGET_STATIC_TEST.md) |
+| Actual test/build results and field-evidence limits | [Test results](Docs/PRESS_BOOST_RETAIN1_TEST_RESULTS.md) |
+| Current Release HEX | [SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex) |
+| Matching Release ELF | [SD700_AutoTarget_PressBoostRetain1_RealBench_Release.elf](output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.elf) |
 | Firmware hashes | [Firmware/SHA256SUMS.txt](Firmware/SHA256SUMS.txt) |
-| All tracked file hashes except itself | [SHA256SUMS.txt](SHA256SUMS.txt) |
-| Timing patch and RAM fields | [machine.c](Application/machine.c), [auto_target_config.h](Application/auto_target_config.h) |
-| Runtime + real executor + fake TIM5/HW regressions | [test_auto_target.c](Tests/Host/test_auto_target.c) |
-| Existing capture path and report | [capture_auto_target_static.ps1](tools/capture_auto_target_static.ps1) |
+| All tracked-file hashes except itself | [SHA256SUMS.txt](SHA256SUMS.txt) |
+| Minimal control patch | [machine.c](Application/machine.c) |
+| Runtime / real executor / fake TIM5/HW tests | [test_auto_target.c](Tests/Host/test_auto_target.c) |
+| Existing capture path, updated candidate identity/report | [capture_auto_target_static.ps1](tools/capture_auto_target_static.ps1) |
 
-HEX_SHA256=8F537F2EF2FFA622BB92F1A6ED2C38972B57627337EC6B905C8283734826D56F
+HEX_SHA256=348F4ED990742346F4C56EED9CDB9C9311CA48AEAC9B29639A660B00ECEB584F
 
-Local execution logs, pre-edit hashes and build metadata are indexed by
-`output/ApproachMeasure1/test_execution.json`; capture tests are in
-`output/ApproachMeasure1/capture_tests.log`. Individual ARM configuration logs
-are `output/AutoTarget/build_*.log`. Generated files are ignored by Git; the
-tracked test-results document records their actual outcomes and log hashes.
-Prior work remains in previous commits/tags and the original local SD700
-workspace. No history was rewritten; previous local firmware was not deleted.
+Main tracks one current HEX/ELF pair. Old firmware and original engineering
+evidence remain locally and in history; no history was rewritten. User-supplied
+field observations are recorded with their limits; original CSV/report were not
+found in this workspace and were not synthesized or overwritten.
 
-Main has one current HEX/ELF pair. Software pressure inputs are SYNTHETIC_INPUT.
-Hardware contact time/count, Target250/HOLD and mechanical safety are not yet
-validated for this candidate. Save starting gap notes and the post-STOP RAM
-dump; serial polling cannot provide exact approach measurements. No hardware
-connection, flash or START was performed.
+Local execution commands/logs: `output/PressBoostRetain1/test_execution.json`.
+Source audit and firmware identity: `source_audit.json` / `firmware_identity.json`
+in the same local directory. The tracked test document records actual outcomes
+and log hashes. Generated logs are ignored and are not included in a clone/ZIP.
+
+Delivery ZIP: `output/SD700_PressBoostRetain1_SourceOfTruth.zip`, created with
+`git archive --format=zip --prefix=SD700/ HEAD` from the pushed delivery commit.
+Its Git ZIP comment identifies the commit; root SHA256SUMS verifies its files.
+The adjacent `.zip.sha256` records the ZIP hash. Both are separately delivered,
+ignored artifacts. No hardware connection, flashing or START was performed.

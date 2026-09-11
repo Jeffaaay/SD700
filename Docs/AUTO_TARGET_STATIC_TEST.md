@@ -1,33 +1,34 @@
-# ApproachMeasure1 - ONE supervised static gap/contact trial
+# PressBoostRetain1 - ONE supervised static Target 250 trial
 
-Candidate: `output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex`.
-Matching ELF is in the same directory. This NEW build removes the fixed
-pre-contact approach timeout, starts convergence timing at first valid contact,
-and retains the existing PressBoost1 control after contact. Contact and Target
-250/HOLD success still require physical evidence.
+Candidate: `output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex`.
+Matching ELF is in the same directory. This build retains boost after a fully
+qualified effective PRESS rise >=2 only in the same far band (error >20), and
+clears the low-response count. Fine/near and band-change resets are preserved.
+The ApproachMeasure1 search and first-contact convergence clock are unchanged.
+This strategy does not establish all physical causes. **physical test NOT RUN.**
 
 ```text
-HEX_SHA256=8F537F2EF2FFA622BB92F1A6ED2C38972B57627337EC6B905C8283734826D56F
-ELF_SHA256=D49382BB519261E40A6453ADF18C660A75383B287F833741995D773FDCC8D546
+HEX_SHA256=348F4ED990742346F4C56EED9CDB9C9311CA48AEAC9B29639A660B00ECEB584F
+ELF_SHA256=E3C5A08788D955881E691600209A4E083A83FB564BC7EFC2C59328F38EF4B022
 ```
 
 1. Operator verifies the permitted mechanical load/travel, fixture, existing
    emergency stop, supply current limit and experiment raw abort325 before
-   powered use. PressBoost1 PRESS candidates reach5000 mV/10 ms; their mechanical
+   powered use. PressBoostRetain1 PRESS candidates reach5000 mV/10 ms; their mechanical
    safety/effectiveness are NOT validated. Verify the loaded firmware against
-   the exact ApproachMeasure1 HEX above. An operator must arrange loading and
+   the exact PressBoostRetain1 HEX above. An operator must arrange loading and
    confirming this candidate; the agent did not connect, flash or start hardware.
    Record approximate starting gap (with units), fixture and visual movement in
    the run notes before START. Supervise throughout with emergency stop ready.
-2. Close other serial clients. From the current Git main repository root, replace COM6 with the
-   actual port and execute ONCE, using full static mode (no ApproachOnly):
+2. Close other serial clients. From the current Git main repository root, use field port COM5 and
+   execute ONCE, using full static mode (no ApproachOnly):
 
 ```powershell
-.\tools\capture_auto_target_static.ps1 -Port COM6 -Target 250 -MaximumSeconds 60 -ConfirmStaticTest -ConfirmMechanicalLimitChecked -ConfirmedFirmwareSha256 8F537F2EF2FFA622BB92F1A6ED2C38972B57627337EC6B905C8283734826D56F -OutputCsv .\output\field\approach-measure1-250.csv
+.\tools\capture_auto_target_static.ps1 -Port COM5 -Target 250 -MaximumSeconds 60 -ConfirmStaticTest -ConfirmMechanicalLimitChecked -ConfirmedFirmwareSha256 348F4ED990742346F4C56EED9CDB9C9311CA48AEAC9B29639A660B00ECEB584F -OutputCsv (".\output\field\press-boost-retain1-250-{0}.csv" -f (Get-Date -Format "yyyyMMdd-HHmmss-fff"))
 ```
 
 3. Require real evidence of contact -> pressure clearly above the previous
-   approximately30 plateau -> approach250 -> enter245..255 -> AUTO_HOLD.
+   observed peak58 -> approach250 -> enter245..255 -> AUTO_HOLD.
    Observe a STATIC FIXED workpiece. Full mode sends at most one START and
    observes up to60 s, then STOP/readback; fault/communication failure or the
    existing qualified stability criterion can finish earlier. Preserve the
@@ -101,9 +102,13 @@ can distinguish retained gain from sampled ON-rise/OFF-fall; it cannot recover
 missed fast transients. The record survives STOP/fault and resets at a new START.
 Only a small last-request/completion record is retained, not a pulse history.
 
-The user-reported peak31/final30/Fault5-Detail8 alone does not prove OFF fall or
-physical request execution. New diagnostics and actual traces are required;
-no powered evidence was collected here and no sustained preload was restored.
+The user-reported prior trial reached observed peak58 without HOLD and ended
+Fault5/Detail8 with StopVerified=True. Approximately 4 s to contact from a 10 mm
+gap is a field estimate. Coherent requests 92 (pressure42/5000 mV) and 94
+(pressure44/3000 mV), plus repeated 5000 mV/10 ms requests, motivate this policy
+trial. They do not establish a per-pulse settled rise or all physical causes.
+Original CSV/report were not found in this workspace; preserve them unchanged.
+No powered evidence for PressBoostRetain1 was collected here.
 
 ## Read-only preflight and generated report
 
@@ -165,7 +170,8 @@ The first profile repeats while searching before first contact. Every pulse
 retains its 50/40 ms backstop and motor-OFF/new-feedback interval. There is no
 fixed total approach timeout. The 8000 ms convergence budget begins at first
 valid contact receive time; already-contacted START begins it at START, and
-recontact during convergence cannot reset it. PRESS bands/boost remain unchanged, max5000 mV and10 ms/backstop40;
+recontact during convergence cannot reset it. PRESS base bands remain unchanged; only same-far-band effective-rise boost
+retention changes. Max5000 mV and10 ms/backstop40;
 settle50, feedback timeout250, freshness200, convergence8000. RELEASE Kp8/cap800,
 10 ms/no boost; Ki0, no D. Target250 remains SENSOR CONTROL UNITS, not certified
 250 N. Mechanical safe limit/calibration are unconfirmed; abort325 is not a

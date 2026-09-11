@@ -222,7 +222,12 @@ static void Machine_ConsumePressFeedback(MachineContext *context)
     if ((rise >= AUTO_TARGET_PRESS_EFFECTIVE_RISE_UNITS) ||
         (Machine_PressBoostLimit(context) == 0U))
     {
-        context->press_feedback.boost_mv = 0U;
+        /* Effective far-band rise clears the low-response streak, retaining
+         * the existing boost within this band's cap. Fine/near still retract. */
+        uint32_t limit = (context->press_feedback.band == 3U) ?
+                         Machine_PressBoostLimit(context) : 0U;
+        if (context->press_feedback.boost_mv > limit)
+        { context->press_feedback.boost_mv = limit; }
         context->press_feedback.low_response_count = 0U;
     }
     else if (++context->press_feedback.low_response_count >= AUTO_TARGET_PRESS_LOW_RESPONSE_PAIRS)

@@ -1,20 +1,35 @@
-# SD700 - ApproachMeasure1 static field measurement
+# SD700 - PressBoostRetain1 static field candidate
 
 ## CURRENT FIELD VERSION
 
-**CURRENT FIELD CANDIDATE:** ApproachMeasure1 / existing PressBoost1 after contact
+**CURRENT FIELD CANDIDATE:** PressBoostRetain1 / ApproachMeasure1 search retained
 
-**HEX:** [SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex)
+**HEX:** [SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex)
 
-Repository path: `output/AutoTarget/firmware/SD700_AutoTarget_ApproachMeasure1_RealBench_Release.hex`
+Repository path: `output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex`
 
-**SHA256:** `8F537F2EF2FFA622BB92F1A6ED2C38972B57627337EC6B905C8283734826D56F`
+**SHA256:** `348F4ED990742346F4C56EED9CDB9C9311CA48AEAC9B29639A660B00ECEB584F`
 
-**STATUS:** Real starting-gap/contact measurement and Target 250 / AUTO_HOLD
-validation pending. Target 250 is SENSOR CONTROL UNITS, not certified Newtons.
+**STATUS: physical test NOT RUN.** Target 250 / AUTO_HOLD validation pending. Target 250 is SENSOR CONTROL UNITS, not certified Newtons.
 No 3500 N, 40 m/min or 60 m/min validation is claimed.
 
-This candidate removes the fixed 3000 ms coarse-approach fault. Initial search
+The only control change from baseline `c5af4edcb9bbcebaf647e85cd89af4139dbdfbf9`
+is: a normally completed PRESS with fully qualified settled rise >=2 clears
+the low-response count but retains boost in the same far band (error >20),
+within its existing cap. Fine/near and all existing resets remain unchanged.
+This is a strategy candidate requiring physical validation, not proof of all
+physical causes.
+
+User-reported ApproachMeasure1 trial: ONE START, approximately 10 mm gap,
+approximately 4 s to contact (field estimate), observed peak 58, Target 250 not
+reached and no HOLD observed; Fault 5 / Detail 8, StopVerified=True. The supplied
+summary reports repeated post-contact PRESS requests at 5000 mV / 10 ms, with
+coherent request 92 at pressure 42 / 5000 mV and request 94 at pressure 44 /
+3000 mV. These are request snapshots, not measured terminal output or per-pulse
+settled response. Original CSV/report were not present in this workspace and
+were not rewritten; this paragraph records user-supplied evidence.
+
+The inherited ApproachMeasure1 change removed the fixed 3000 ms coarse-approach fault. Initial search
 continues with the same bounded pulses, motor OFF, settle and new valid fresh
 feedback until contact or STOP/fault. The existing 8000 ms convergence clock
 starts at first valid MCU contact receive time, not START; an already-contacted
@@ -23,7 +38,7 @@ it. ContactDeadline's completion/error/STOP ordering remains. A per-pulse
 BACKSTOP still faults (Fault 5 / Detail 6); that code no longer means a normal
 3000 ms search expiration in this candidate.
 
-Post-contact PressBoost1 mapping, boost, RELEASE, HOLD, Ki=0, pulse timing,
+Post-contact PRESS base mapping, RELEASE, HOLD, Ki=0, pulse timing,
 MotorExecutor/TIM5/PWM/direction and all pressure/STOP protections are unchanged.
 There is no automatic increase of approach voltage or pulse width. Initial
 search has no firmware total time limit; the operator and existing capture
@@ -57,11 +72,11 @@ Static fixed workpiece, operator supervision, emergency stop/current limit ready
 ONE START, full AutoTarget, **no ApproachOnly**. Do not repeat START to jog down.
 The example's 60-second PC observation window ends with STOP; it is not a new
 firmware approach timeout. No physical result is claimed until field data shows
-contact, rise above the previous approximately 30 plateau, 245..255 and AUTO_HOLD.
+contact, rise above the previous observed peak 58, 245..255 and AUTO_HOLD.
 
 Git tracks one current HEX/ELF pair. Previous firmware and generated logs/builds/
 captures remain ignored local evidence; previous commits/tags are retained.
-Actual tests/build results: [ApproachMeasure1 verification](Docs/APPROACH_MEASURE1_TEST_RESULTS.md).
+Actual tests/build results: [PressBoostRetain1 verification](Docs/PRESS_BOOST_RETAIN1_TEST_RESULTS.md).
 No hardware was connected, flashed or started by this change.
 
 ## Existing build reference (not tonight's test workflow)
@@ -118,7 +133,10 @@ safe for the current mechanics. All fine pulses remain10 ms, backstop40 ms.
 
 After TWO independent normally completed PRESS pulses each has settled rise
 <2 control units, extra boost increases300 mV, then the pair counter resets.
-Rise>=2 retracts all boost. Two units is an explicit initial quantization-scale
+A qualified rise>=2 clears the low-response count. In the same far band
+(error>20), it retains existing boost capped at2000 mV; within the fine band
+(10<error<=20), it still clears boost. Band changes still clear both.
+Two units is an explicit initial quantization-scale
 response threshold, not legacy1 N or a measured noise calibration. Each normal
 completion can qualify once; old/duplicate/in-action frames, absent feedback,
 BACKSTOP/error/cancel cannot raise boost. Existing50 ms OFF settle, strictly
@@ -163,7 +181,7 @@ it is not true instantaneous peak evidence. Read it after verified STOP as in
 [static instructions](Docs/AUTO_TARGET_STATIC_TEST.md). No protocol changes.
 
 All 41 C host variants and the 10 ARM build configurations were run for
-ApproachMeasure1, with policy and capture regressions; see the current test
+PressBoostRetain1, with policy and capture regressions; see the current test
 record for commands, counts and hashes. All pressure inputs in software tests
 are SYNTHETIC_INPUT, not physical response or tuning evidence.
 
