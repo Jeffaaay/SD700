@@ -1,4 +1,4 @@
-# Current firmware: ForceServo1, physical output LOCKED
+# Current tools: ForceServo1 CaptureFix1; firmware unchanged, physical output LOCKED
 
 [Current HEX](../output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.hex)
 
@@ -11,7 +11,11 @@ ELF SHA256: `B6AEFBCAD93DE82A3514C134518A249A6D6851D3E8C4E8DF3EE7C41DC0984EFF`
 Verify from the repository root with `python tools/verify_force_servo_firmware.py`.
 The new [ForceServo1 manifest](ForceServo1.SHA256SUMS.txt) requires the exact pair,
 ELF parameter/contract values, linked controller/executor/TIM5 code, compiled
-false physical-arming function and byte-identical HEX regenerated from the ELF.
+false physical-arming function and exact addressized HEX/ELF load-byte equality.
+Strict ELF32 ARM executable bounds and Intel HEX checksums are checked using
+Python's standard library. Field verification does not need ARM executables.
+The optional `--objcopy-cross-check` is a redundant developer check and requires
+`arm-none-eabi-objcopy`. CaptureFix1 did not rebuild or alter this firmware pair.
 
 **physical test NOT RUN; COMMISSIONING_NOT_TUNED.** No target unlock exists in
 this release. Follow only the [current README](../README.md) and its one next

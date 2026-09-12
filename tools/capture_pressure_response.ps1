@@ -98,7 +98,7 @@ function Get-ModbusResponseLength {
     if (($function -eq 0x05) -or ($function -eq 0x06)) {
         return 8
     }
-    if ($function -eq 0x04) {
+    if (($function -eq 0x03) -or ($function -eq 0x04)) {
         if ($Bytes.Count -lt 3) {
             return -1
         }

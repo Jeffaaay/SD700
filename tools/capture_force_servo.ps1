@@ -2,6 +2,7 @@
 param(
     [ValidateSet('Observe','Parameters','SingleStart')][string]$Mode='Observe',
     [switch]$SelfTest,
+    [switch]$LibraryOnly,
     [string]$Port,
     [string]$ConfirmedFirmwareSha256,
     [string]$OutputCsv,
@@ -16,7 +17,7 @@ param(
 )
 $ErrorActionPreference='Stop'
 # Import the existing length-aware CRC/RTU transport. Preserve this script's options.
-$saved=@{}; foreach ($name in @('Mode','SelfTest','Port','ConfirmedFirmwareSha256','OutputCsv','ParameterFile','Target',
+$saved=@{}; foreach ($name in @('Mode','SelfTest','LibraryOnly','Port','ConfirmedFirmwareSha256','OutputCsv','ParameterFile','Target',
     'MaximumSeconds','ConfirmMotorPowerDisconnected','ConfirmSupervisedMotion','CurrentLimitSetting','InitialGap','FieldNotes')) {
     $saved[$name]=Get-Variable -Name $name -ValueOnly
 }
@@ -66,6 +67,100 @@ function Read-ForceConfig([scriptblock]$Exchange) {
     }
     return [pscustomobject]$values
 }
+function Invoke-ForceCapture {
+    param(
+        [Parameter(Mandatory=$true)][scriptblock]$TransportExchange,
+        [Parameter(Mandatory=$true)]$Watch,
+        [Parameter(Mandatory=$true)][scriptblock]$SleepMilliseconds,
+        [ValidateSet('Observe','Parameters','SingleStart')][string]$Mode,
+        [Parameter(Mandatory=$true)][string]$OutputCsv,
+        [Parameter(Mandatory=$true)][string]$ActualHash,
+        [ValidateRange(1,60)][int]$MaximumSeconds=60,
+        [ValidateRange(1,275)][int]$Target=250,
+        $Desired,
+        [string]$CurrentLimitSetting,
+        [string]$InitialGap,
+        [string]$FieldNotes,
+        [string]$ConfirmedFirmwareSha256
+    )
+    $csvPath=[IO.Path]::GetFullPath($OutputCsv)
+    $reportPath=[IO.Path]::ChangeExtension($csvPath,'.report.txt')
+    $metaPath=[IO.Path]::ChangeExtension($csvPath,'.metadata.json')
+    foreach ($p in @($csvPath,$reportPath,$metaPath)) { if (Test-Path -LiteralPath $p) { throw "Output exists: $p" } }
+    New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName($csvPath)) | Out-Null
+    $rows=New-Object Collections.ArrayList; $errorText=''; $startAttempts=0
+    $activeConfig=$null; $enforceDeadline=$false
+    try {
+        $exchange={param([byte[]]$Request,[int]$TimeoutMs)
+            if ($enforceDeadline) {
+                $remaining=$deadline-$watch.ElapsedMilliseconds
+                if ($remaining -le 0) { throw 'OBSERVATION_DEADLINE' }
+                $TimeoutMs=[int][Math]::Min($TimeoutMs,$remaining)
+            }
+            & $TransportExchange -Request $Request -TimeoutMs $TimeoutMs
+        }
+        $info=@(Read-ForceWords $exchange 4 0x100 8)
+        if ($info[0] -ne $schema.schema -or $info[2] -ne 2*$schema.parameters.Count -or
+            $info[3] -ne 2*($schema.u32.Count+$schema.floats.Count)) { throw 'ForceServo1 capability/schema required' }
+        $activeConfig=Read-ForceConfig $exchange
+        $first=Read-ForceSnapshot $exchange 'PREFLIGHT'; [void]$rows.Add($first)
+        if ($first.state -ne 1 -or $first.output_off -ne 1 -or $first.lease_active -ne 0 -or $first.fault -ne 0) { throw 'IDLE + OFF required' }
+        if ($Mode -eq 'Parameters') {
+            Write-ForceWord $exchange 0x100 0xB101
+            $i=0
+            foreach ($p in $schema.parameters) {
+                [uint32]$bits=[BitConverter]::ToUInt32([BitConverter]::GetBytes([single]$desired.($p.name)),0)
+                Write-ForceWord $exchange (0x110+$i) ($bits -shr 16); $i++
+                Write-ForceWord $exchange (0x110+$i) ($bits -band 65535); $i++
+            }
+            Write-ForceWord $exchange 0x101 0xC101
+            $activeConfig=Read-ForceConfig $exchange
+            foreach ($p in $schema.parameters) { if ([single]$activeConfig.($p.name) -ne [single]$desired.($p.name)) { throw 'Parameter readback mismatch' } }
+        }
+        if ($Mode -eq 'SingleStart') {
+            if ($info[1] -ne 0 -or $first.locked -ne 0) { throw 'PHYSICAL_OUTPUT_LOCKED: no START sent; hardware qualification pending' }
+            Write-ForceWord $exchange 0 $Target
+            $ready=Read-ForceSnapshot $exchange 'TARGET_READBACK'
+            if ($ready.target -ne $Target -or $ready.state -ne 1 -or $ready.fault -ne 0 -or $ready.output_off -ne 1) { throw 'Target/state readback mismatch' }
+            $startAttempts=1 # Set before transmitting. Lost echo never retries START.
+            Send-SingleCoil $exchange 0x10 0xFF00 100
+        }
+        $deadline=$watch.ElapsedMilliseconds+$MaximumSeconds*1000; $enforceDeadline=$true
+        while ($watch.ElapsedMilliseconds -lt $deadline) {
+            $row=Read-ForceSnapshot $exchange $(if ($Mode -eq 'SingleStart') {'RUN'} else {'OBSERVE'})
+            [void]$rows.Add($row)
+            if ($row.fault -ne 0) { break }
+            & $SleepMilliseconds 10
+        }
+    } catch { if ($_.Exception.Message -ne 'OBSERVATION_DEADLINE') { $errorText=$_.Exception.Message } }
+    finally {
+        $enforceDeadline=$false
+        try {
+                Send-SingleCoil $exchange 1 0 100
+                [void]$rows.Add((Read-ForceSnapshot $exchange 'STOP_READBACK'))
+        } catch { $errorText+='; STOP/readback: '+$_.Exception.Message }
+    }
+    if ($rows.Count -gt 0) { $rows | Export-Csv -NoTypeInformation -Encoding UTF8 -LiteralPath $csvPath }
+    else { '"phase","firmware_sha256"' | Set-Content -Encoding UTF8 -LiteralPath $csvPath }
+    @{mode=$Mode;start_attempts=$startAttempts;error=$errorText;config=$activeConfig;
+        current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
+        firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
+        commissioning='COMMISSIONING_NOT_TUNED';physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        maximum_observation_seconds=$MaximumSeconds;capture_wall_ms=$watch.ElapsedMilliseconds;
+        bus='115200 8N1; frozen snapshot in <=11-register chunks; polling misses are reported'} |
+        ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $metaPath
+    & python "$PSScriptRoot/force_servo_data.py" --report $csvPath --metadata $metaPath
+    if ($LASTEXITCODE -ne 0) { throw 'Report generation failed; raw CSV and metadata preserved' }
+    Write-Output "CSV=$csvPath`nREPORT=$reportPath"
+    if ($errorText) { throw $errorText }
+    $last=$rows[$rows.Count-1]
+    if ($last.phase -ne 'STOP_READBACK' -or $last.output_off -ne 1 -or $last.lease_active -ne 0 -or
+        $last.tim2 -ne 0 -or $last.tim3 -ne 0 -or $last.current_committed -ne 0 -or $last.state -notin @(1,9)) {
+        throw 'STOP_NOT_VERIFIED: inspect report and confirm physical shutdown'
+    }
+
+}
+
 if ($SelfTest) {
     & python "$PSScriptRoot/force_servo_data.py" --self-test
     if ($LASTEXITCODE -ne 0) { throw 'Statistics/schema test failed' }
@@ -111,9 +206,13 @@ if ($SelfTest) {
     if ($decoded.control_sequence -ne [uint32]::MaxValue -or $decoded.control_committed -ne -123.5) {
         throw 'Snapshot integer/float endian decode failed'
     }
-    Write-Output 'FORCE_SERVO_CAPTURE_WIRE=PASS SYNTHETIC; NO_SERIAL_PORT'
+    Write-Output 'FORCE_SERVO_CAPTURE_DECODE=PASS SYNTHETIC; NO_SERIAL_PORT'
+    # Exercise production framing and the full Observe runner as part of SelfTest.
+    $testOutput='output/ForceServo1_CaptureFix1/selftest-'+[Guid]::NewGuid().ToString('N')
+    & "$PSScriptRoot/../Tests/Host/test_force_servo_capture.ps1" -OutputDirectory $testOutput
     return
 }
+if ($LibraryOnly) { return }
 if (-not $Port -or -not $OutputCsv) { throw 'Port and new OutputCsv required' }
 if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'Observe/Parameters requires physically disconnected motor power confirmation' }
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
@@ -132,84 +231,24 @@ if ($Mode -eq 'Parameters') {
     if ($LASTEXITCODE -ne 0) { throw 'Invalid parameter group; no serial connection' }
     $desired=Get-Content -Raw -LiteralPath $ParameterFile | ConvertFrom-Json
 }
+# Check all output names before opening a real port as well as inside the common runner.
 $csvPath=[IO.Path]::GetFullPath($OutputCsv)
-$reportPath=[IO.Path]::ChangeExtension($csvPath,'.report.txt')
-$metaPath=[IO.Path]::ChangeExtension($csvPath,'.metadata.json')
-foreach ($p in @($csvPath,$reportPath,$metaPath)) { if (Test-Path -LiteralPath $p) { throw "Output exists: $p" } }
-New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName($csvPath)) | Out-Null
-$rows=New-Object Collections.ArrayList; $serial=$null; $errorText=''; $startAttempts=0
-$activeConfig=$null; $watch=[Diagnostics.Stopwatch]::StartNew(); $enforceDeadline=$false
+foreach ($path in @($csvPath,[IO.Path]::ChangeExtension($csvPath,'.report.txt'),[IO.Path]::ChangeExtension($csvPath,'.metadata.json'))) {
+    if (Test-Path -LiteralPath $path) { throw "Output exists: $path" }
+}
+$serial=$null
 try {
     $serial=New-Object IO.Ports.SerialPort $Port,115200,None,8,One
-    $serial.Handshake=[IO.Ports.Handshake]::None; $serial.ReadTimeout=100;$serial.WriteTimeout=100
+    $serial.Handshake=[IO.Ports.Handshake]::None; $serial.ReadTimeout=100; $serial.WriteTimeout=100
     $serial.DtrEnable=$false; $serial.RtsEnable=$false; $serial.Open()
-    $exchange={param([byte[]]$Request,[int]$TimeoutMs)
-        if ($enforceDeadline) {
-            $remaining=$deadline-$watch.ElapsedMilliseconds
-            if ($remaining -le 0) { throw 'OBSERVATION_DEADLINE' }
-            $TimeoutMs=[int][Math]::Min($TimeoutMs,$remaining)
-        }
+    $transport={param([byte[]]$Request,[int]$TimeoutMs)
         Invoke-SerialExchange -Serial $serial -Request $Request -TimeoutMs $TimeoutMs
     }
-    $info=@(Read-ForceWords $exchange 4 0x100 8)
-    if ($info[0] -ne $schema.schema -or $info[2] -ne 2*$schema.parameters.Count -or
-        $info[3] -ne 2*($schema.u32.Count+$schema.floats.Count)) { throw 'ForceServo1 capability/schema required' }
-    $activeConfig=Read-ForceConfig $exchange
-    $first=Read-ForceSnapshot $exchange 'PREFLIGHT'; [void]$rows.Add($first)
-    if ($first.state -ne 1 -or $first.output_off -ne 1 -or $first.lease_active -ne 0 -or $first.fault -ne 0) { throw 'IDLE + OFF required' }
-    if ($Mode -eq 'Parameters') {
-        Write-ForceWord $exchange 0x100 0xB101
-        $i=0
-        foreach ($p in $schema.parameters) {
-            [uint32]$bits=[BitConverter]::ToUInt32([BitConverter]::GetBytes([single]$desired.($p.name)),0)
-            Write-ForceWord $exchange (0x110+$i) ($bits -shr 16); $i++
-            Write-ForceWord $exchange (0x110+$i) ($bits -band 65535); $i++
-        }
-        Write-ForceWord $exchange 0x101 0xC101
-        $activeConfig=Read-ForceConfig $exchange
-        foreach ($p in $schema.parameters) { if ([single]$activeConfig.($p.name) -ne [single]$desired.($p.name)) { throw 'Parameter readback mismatch' } }
-    }
-    if ($Mode -eq 'SingleStart') {
-        if ($info[1] -ne 0 -or $first.locked -ne 0) { throw 'PHYSICAL_OUTPUT_LOCKED: no START sent; hardware qualification pending' }
-        Write-ForceWord $exchange 0 $Target
-        $ready=Read-ForceSnapshot $exchange 'TARGET_READBACK'
-        if ($ready.target -ne $Target -or $ready.state -ne 1 -or $ready.fault -ne 0 -or $ready.output_off -ne 1) { throw 'Target/state readback mismatch' }
-        $startAttempts=1 # Set before transmitting. Lost echo never retries START.
-        Send-SingleCoil $exchange 0x10 0xFF00 100
-    }
-    $deadline=$watch.ElapsedMilliseconds+$MaximumSeconds*1000; $enforceDeadline=$true
-    while ($watch.ElapsedMilliseconds -lt $deadline) {
-        $row=Read-ForceSnapshot $exchange $(if ($Mode -eq 'SingleStart') {'RUN'} else {'OBSERVE'})
-        [void]$rows.Add($row)
-        if ($row.fault -ne 0) { break }
-        Start-Sleep -Milliseconds 10
-    }
-} catch { if ($_.Exception.Message -ne 'OBSERVATION_DEADLINE') { $errorText=$_.Exception.Message } }
-finally {
-    $enforceDeadline=$false
-    if ($null -ne $serial -and $serial.IsOpen) {
-        try {
-            Send-SingleCoil $exchange 1 0 100
-            [void]$rows.Add((Read-ForceSnapshot $exchange 'STOP_READBACK'))
-        } catch { $errorText+='; STOP/readback: '+$_.Exception.Message }
-    }
+    Invoke-ForceCapture -TransportExchange $transport -Watch ([Diagnostics.Stopwatch]::StartNew()) `
+        -SleepMilliseconds {param($ms) Start-Sleep -Milliseconds $ms} -Mode $Mode `
+        -OutputCsv $OutputCsv -ActualHash $actualHash -MaximumSeconds $MaximumSeconds `
+        -Target $Target -Desired $desired -CurrentLimitSetting $CurrentLimitSetting `
+        -InitialGap $InitialGap -FieldNotes $FieldNotes -ConfirmedFirmwareSha256 $ConfirmedFirmwareSha256
+} finally {
     if ($null -ne $serial) { try { $serial.Close() } finally { $serial.Dispose() } }
-}
-if ($rows.Count -gt 0) { $rows | Export-Csv -NoTypeInformation -Encoding UTF8 -LiteralPath $csvPath }
-else { '"phase","firmware_sha256"' | Set-Content -Encoding UTF8 -LiteralPath $csvPath }
-@{mode=$Mode;start_attempts=$startAttempts;error=$errorText;config=$activeConfig;
-    current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
-    firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
-    commissioning='COMMISSIONING_NOT_TUNED';physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
-    maximum_observation_seconds=$MaximumSeconds;capture_wall_ms=$watch.ElapsedMilliseconds;
-    bus='115200 8N1; frozen snapshot in <=11-register chunks; polling misses are reported'} |
-    ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $metaPath
-& python "$PSScriptRoot/force_servo_data.py" --report $csvPath --metadata $metaPath
-if ($LASTEXITCODE -ne 0) { throw 'Report generation failed; raw CSV and metadata preserved' }
-Write-Output "CSV=$csvPath`nREPORT=$reportPath"
-if ($errorText) { throw $errorText }
-$last=$rows[$rows.Count-1]
-if ($last.phase -ne 'STOP_READBACK' -or $last.output_off -ne 1 -or $last.lease_active -ne 0 -or
-    $last.tim2 -ne 0 -or $last.tim3 -ne 0 -or $last.current_committed -ne 0 -or $last.state -notin @(1,9)) {
-    throw 'STOP_NOT_VERIFIED: inspect report and confirm physical shutdown'
 }

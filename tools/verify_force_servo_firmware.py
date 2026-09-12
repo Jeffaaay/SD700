@@ -1,61 +1,74 @@
 """Exact candidate hashes, ARM ELF data, active control symbols and physical lock."""
-import hashlib, json, struct, subprocess
+import argparse, hashlib, json, struct, subprocess
+from firmware_image import ElfImage, compare_images, require
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
 STEM='SD700_ForceServo1_RealBench_Locked_Release'
 FW=ROOT/'output/ForceServo1/firmware'
+PINNED_HASHES={
+    'hex':'C76059E0FAA126D5E52A6D640599A007E71D669080C022FEEE6180D3AB414B41',
+    'elf':'B6AEFBCAD93DE82A3514C134518A249A6D6851D3E8C4E8DF3EE7C41DC0984EFF',
+}
 
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest().upper()
 
 def symbols(path):
-    data=path.read_bytes()
-    assert data[:6]==b'\x7fELF\x01\x01' and struct.unpack_from('<H',data,18)[0]==40
-    off=struct.unpack_from('<I',data,32)[0]; size,count=struct.unpack_from('<HH',data,46)
-    sections=[struct.unpack_from('<10I',data,off+i*size) for i in range(count)]
-    result={}
-    for section in sections:
-        if section[1]!=2: continue
-        st=sections[section[6]]; strings=data[st[4]:st[4]+st[5]]
-        for pos in range(section[4],section[4]+section[5],section[9]):
-            n,v,length,info,other,idx=struct.unpack_from('<IIIBBH',data,pos)
-            name=strings[n:strings.index(b'\0',n)].decode('ascii')
-            if not length or not 0<idx<len(sections): continue
-            sec=sections[idx]; at=sec[4]+(v&~1 if info&15==2 else v)-sec[3]
-            if sec[1]!=8: result[name]=data[at:at+length]
-    return result
+    return ElfImage(path.read_bytes()).symbols
 
-def verify():
-    entries={}
-    for line in (ROOT/'Firmware/ForceServo1.SHA256SUMS.txt').read_text().splitlines():
-        digest,name=line.split(' *',1); assert name not in entries
-        entries[name]=digest
-    expected={f'../output/ForceServo1/firmware/{STEM}.{ext}' for ext in ('elf','hex')}
-    assert set(entries)==expected,'Exact locked current pair required'
-    for name,digest in entries.items(): assert sha(ROOT/'Firmware'/name)==digest,'Hash mismatch: '+name
-    elf=FW/(STEM+'.elf'); sym=symbols(elf)
-    assert struct.unpack('<8I',sym['g_force_servo_contract'])==(0xF101,0x46530101,0,275,325,30000,5000,800)
+
+def verify_contents(elf_data, hex_data):
+    image=ElfImage(elf_data)
+    sym=image.symbols
+    verify_contract(sym)
+    compare_images(image,hex_data)
+    return image
+
+
+def verify_contract(sym):
+    require(struct.unpack('<8I',sym['g_force_servo_contract'])==(0xF101,0x46530101,0,275,325,30000,5000,800),'Firmware identity/configuration assertion failed')
     defaults=(1,0,0,.02,20,40,1000,250,100,-1000,1000,5,0,5,40,20,50,5,10,45000,5000,50,10000,2)
-    assert sym['g_force_servo_default_config']==struct.pack('<24f',*defaults),'Unexpected default parameter group'
+    require(sym['g_force_servo_default_config']==struct.pack('<24f',*defaults),'Unexpected default parameter group')
     cfg=sym['g_sd700_auto_target_machine_config']
-    assert len(cfg)==76 and struct.unpack_from('<17I',cfg)==(275,20,5,10,200,50,250,10000,20,50,10000,10,40,5000,10,40,30000)
-    assert cfg[68:70]==b'\1\1' and struct.unpack_from('<I',cfg,72)[0]==325
+    require(len(cfg)==76 and struct.unpack_from('<17I',cfg)==(275,20,5,10,200,50,250,10000,20,50,10000,10,40,5000,10,40,30000),'Firmware identity/configuration assertion failed')
+    require(cfg[68:70]==b'\1\1' and struct.unpack_from('<I',cfg,72)[0]==325,'Firmware identity/configuration assertion failed')
     # ARM Thumb release implementation must return literal false, with no runtime bypass.
-    assert sym['MotorHwReal_OutputArmingAllowed']==bytes.fromhex('00207047'),'Physical output is not compiled locked'
+    require(sym['MotorHwReal_OutputArmingAllowed']==bytes.fromhex('00207047'),'Physical output is not compiled locked')
     for name in ('ForceServo_Prepare','ForceServo_Commit','MotorExecutor_UpdateContinuous',
                  'MotorStopTimer_RenewLease','MotorStopTimer_ArmLease','TIM5_IRQHandler',
                  'Machine_HandlePressureSample','ForceServoProtocol_Write','ForceServoProtocol_Read'):
-        assert name in sym and len(sym[name])>0,'Missing active implementation: '+name
-    assert 'Machine_ConsumePressFeedback' not in sym,'Legacy boost owner linked in ForceServo build'
-    # Confirm HEX was generated from this ELF; compare every byte, not just independent hashes.
-    import tempfile
-    with tempfile.TemporaryDirectory() as d:
-        converted=Path(d)/'converted.hex'
-        subprocess.run(['arm-none-eabi-objcopy','-O','ihex',str(elf),str(converted)],check=True)
-        assert converted.read_bytes()==(FW/(STEM+'.hex')).read_bytes(),'HEX/ELF mismatch'
+        require(name in sym and len(sym[name])>0,'Missing active implementation: '+name)
+    require('Machine_ConsumePressFeedback' not in sym,'Legacy boost owner linked in ForceServo build')
+
+
+def verify(objcopy_cross_check=False):
+    entries={}
+    for line in (ROOT/'Firmware/ForceServo1.SHA256SUMS.txt').read_text().splitlines():
+        digest,name=line.split(' *',1)
+        require(name not in entries,'Duplicate firmware manifest entry')
+        entries[name]=digest
+    expected={f'../output/ForceServo1/firmware/{STEM}.{ext}':digest for ext,digest in PINNED_HASHES.items()}
+    require(entries==expected,'Exact pinned locked current pair required')
+    for name,digest in entries.items():
+        require(sha(ROOT/'Firmware'/name)==digest,'Hash mismatch: '+name)
+    elf=FW/(STEM+'.elf')
+    image=verify_contents(elf.read_bytes(),(FW/(STEM+'.hex')).read_bytes())
+    if objcopy_cross_check:
+        # Developer-only redundant byte-format cross-check; never required in field.
+        import shutil, tempfile
+        executable=shutil.which('arm-none-eabi-objcopy')
+        require(executable is not None,'Developer cross-check requires arm-none-eabi-objcopy')
+        with tempfile.TemporaryDirectory() as d:
+            converted=Path(d)/'converted.hex'
+            subprocess.run([executable,'-O','ihex',str(elf),str(converted)],check=True)
+            require(converted.read_bytes()==(FW/(STEM+'.hex')).read_bytes(),'objcopy HEX/ELF mismatch')
     result=dict(configuration='PASS',schema='F101',physical_output='LOCKED',
                 convergence_timeout_ms=30000,total_session_ms=45000,
+                load_bytes_compared=len(image.load_bytes),offline_verifier='PURE_PYTHON',
                 hex_sha256=sha(FW/(STEM+'.hex')),elf_sha256=sha(elf),physical_test='NOT_RUN')
     print(json.dumps(result,indent=2)); return result
 
-if __name__=='__main__': verify()
+if __name__=='__main__':
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--objcopy-cross-check',action='store_true',help='Optional developer-only ARM objcopy comparison')
+    verify(parser.parse_args().objcopy_cross_check)

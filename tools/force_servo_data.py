@@ -97,6 +97,14 @@ def metrics(rows):
     result['coverage_limit']='Snapshot polling can miss peaks. Gaps excluded; no full-bandwidth stability or settling claim.'
     return result
 
+def decode_csv_row(row):
+    # Config readback can fail before STOP diagnostics are collected. Preserve
+    # the unavailable feedback budget as unknown; never invent a numeric value.
+    return {k: (v if k in ('phase', 'firmware_sha256') else
+                None if k == 'feedback_gap_ms' and v == '' else float(v))
+            for k, v in row.items()}
+
+
 def self_test():
     s=schema(); assert len(s['parameters'])==24 and len(s['u32'])==42 and len(s['floats'])==14
     c={p['name']:p['default'] for p in s['parameters']}; validate(c)
@@ -118,7 +126,11 @@ def self_test():
     assert metrics([row,row,r2])['duplicate_polls']==1
     assert metrics([row,dict(r2,session=2)])['qualified_hold_ms'] is None
     assert metrics([row,dict(r2,received_ms=200)])['qualified_hold_ms'] is None
-    print('FORCE_SERVO_DATA_TESTS=9 PASS SYNTHETIC; no serial I/O')
+    assert decode_csv_row({'feedback_gap_ms':''})['feedback_gap_ms'] is None
+    try: decode_csv_row({'raw':''})
+    except ValueError: pass
+    else: raise AssertionError('Missing pressure must not become a valid numeric measurement')
+    print('FORCE_SERVO_DATA_TESTS=11 PASS SYNTHETIC; no serial I/O')
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--self-test',action='store_true')
@@ -132,7 +144,7 @@ def main():
     elif a.report:
         rows=[]
         for r in csv.DictReader(Path(a.report).open(encoding='utf-8-sig')):
-            rows.append({k:(v if k in ('phase','firmware_sha256') else float(v)) for k,v in r.items()})
+            rows.append(decode_csv_row(r))
         result=metrics(rows); metadata=json.loads(Path(a.metadata).read_text(encoding='utf-8-sig'))
         result.update(metadata)
         result['binary_verification']='OPERATOR_ATTESTATION_ONLY_NOT_MCU_BINARY_VERIFICATION'

@@ -1,8 +1,15 @@
-# SD700 — ForceServo1 (physical output LOCKED)
+# SD700 — ForceServo1 CaptureFix1 (physical output LOCKED)
 
-Current candidate: **ForceServo1**, based on ConvergenceMeasure1
-`f24d4a62240ec1630e026fd1eeba491f7c35b11f`. HEAD matched the baseline; existing
-source, old firmware and evidence were retained.
+Current candidate: **ForceServo1 CaptureFix1**, a capture/verifier tool repair on
+reviewed ForceServo1 `29d0a9091b8333c690bcb41f5474dffc3909ef61`. HEAD matched and
+the worktree was clean. Production firmware source and both firmware files are
+unchanged; no ARM rebuild was performed. Previous evidence and ZIPs are retained.
+
+Shared serial framing now supports FC03 parameter replies. Tests exercise the
+production length reader and the complete no-hardware Observe flow, including
+failure cleanup. The field verifier checks exact hashes, addressed ELF/HEX load
+bytes, identity, configuration and the compiled lock using Python's standard
+library; **no ARM toolchain is required for field verification or Observe**.
 
 **physical test NOT RUN. COMMISSIONING_NOT_TUNED.** This firmware cannot enable
 motor output, including approach. Continuous-duty ratings, sensor/control timing,
@@ -27,12 +34,15 @@ No safe continuous output or gain is inferred from the old 10 ms pulse behavior.
 
 ## One next field step
 
-With motor power **physically disconnected**, flash only the identified locked
-HEX and observe pressure receive/telemetry timing on COM5 for at most60 seconds.
+With motor power **physically disconnected** and MCU/pressure sensor correctly
+powered, confirm the identified locked firmware and observe pressure
+receive/telemetry timing on COM5 for at most 60 seconds.
 **ZERO START** in this step. Do not add manual START or use ApproachOnly.
 Record the retained actual current limit and initial gap in the two text fields
-below. Keep originals and return CSV, report and brief field notes; no automatic
-repeat. This is not a force-performance or hardware stop-path qualification.
+below. Do not change the current limit or try pressure 250/500. Keep originals
+and return CSV, report, metadata and one brief field note; no automatic repeat.
+Observation does not validate continuous-mode hardware stopping or authorize
+unlocking the output.
 
 ```powershell
 python tools/verify_force_servo_firmware.py
@@ -42,7 +52,7 @@ $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
   -ConfirmedFirmwareSha256 C76059E0FAA126D5E52A6D640599A007E71D669080C022FEEE6180D3AB414B41 `
   -CurrentLimitSetting '填写原有限流实值；保持不变' -InitialGap '填写初始间隙' `
   -FieldNotes '电机动力已物理断开；记录现场情况' `
-  -OutputCsv "captures/force-servo1-timing-$stamp.csv"
+  -OutputCsv "captures/force-servo1-capturefix1-observe-$stamp.csv"
 ```
 
 Operator hash confirmation attests which image was flashed; it is not an MCU
@@ -56,24 +66,31 @@ The output lock has no tuning-register bypass in this release.
 - [Design, timing, safety coverage and known blockers](Docs/ForceServo1/DESIGN.md)
 - [RAM parameters and versioned protocol](Docs/ForceServo1/PARAMETERS_AND_PROTOCOL.md)
 - [One field step, hardware qualification list and tuning order](Docs/ForceServo1/TUNING_AND_FIELD.md)
-- [Actual verification results](Docs/ForceServo1/TEST_RESULTS.md)
-- [Default parameter JSON ? numerical seeds only](Docs/ForceServo1/default_parameters.json)
+- [CaptureFix1 actual verification and limitations](Docs/ForceServo1_CaptureFix1/TEST_RESULTS.md)
+- [Historical ForceServo1 verification](Docs/ForceServo1/TEST_RESULTS.md)
+- [Default parameter JSON — numerical seeds only](Docs/ForceServo1/default_parameters.json)
 - [Current firmware manifest](Firmware/ForceServo1.SHA256SUMS.txt)
 
 ```powershell
-python tools/run_force_servo_tests.py
-.\tools\capture_force_servo.ps1 -SelfTest
-.\tools\build_gcc.ps1 -MotorMode RealBench -ForceServo -Configuration Release `
-  -RealBenchAck I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION `
-  -BuildDir output/ForceServo1/rebuild
+# Software-only checks; use a new output path to retain prior evidence.
+$checkStamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+python tools/verify_capturefix1.py --output "output/ForceServo1_CaptureFix1/check-$checkStamp"
 python tools/verify_force_servo_firmware.py
+# Optional developer cross-check, requires ARM objcopy:
+# python tools/verify_force_servo_firmware.py --objcopy-cross-check
 ```
 
-The inherited RealBench acknowledgement is still required by the builder;
-ForceServo's additional compiled physical lock takes precedence. It cannot
-be combined with AutoTarget. Original Locked, RealCompileCheck, ScopeTest,
-RealBench and AutoTarget builds retain their separate behavior.
-The existing pulse tests, hash checks and protected safety assertions remain.
+PowerShell and Python 3.9+ are required for capture; GCC is additionally required
+for the host regression runner. No serial port is opened by these software
+checks. CaptureFix1 does not change ForceServo PID, trajectory, executor, TIM5,
+HOLD, limits, deadlines or output lock. Existing safety assertions remain.
+
+Current delivery: `output/SD700_ForceServo1_CaptureFix1_SourceOfTruth.zip`, with
+an adjacent `.zip.sha256`. Its `SOURCE_OF_TRUTH.json` identifies the committed
+source; `ForceServo1_CaptureFix1_PACKAGE_SHA256SUMS.txt` hashes every entry.
+After extracting, run `python tools/verify_force_servo_capturefix1_package.py .`
+from the extracted `SD700` directory before the field command. This offline
+package check also requires only Python and does not open a serial port.
 
 Historical entry point: [ConvergenceMeasure1 README archive](Docs/ForceServo1/ConvergenceMeasure1_README_ARCHIVE.md).
 Its links/commands refer to the repository root and its **previous** candidate.
