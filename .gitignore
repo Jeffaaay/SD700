@@ -35,8 +35,8 @@ __pycache__/
 /output/AutoTarget/*
 !/output/AutoTarget/firmware/
 /output/AutoTarget/firmware/*
-!/output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex
-!/output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.elf
+!/output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex
+!/output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.elf
 
 # ========================
 # IDE & Editor Files

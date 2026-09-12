@@ -1,34 +1,38 @@
-# PressBoostRetain1 - ONE supervised static Target 250 trial
+# ConvergenceMeasure1 - ONE supervised static Target 250 measurement
 
-Candidate: `output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex`.
-Matching ELF is in the same directory. This build retains boost after a fully
-qualified effective PRESS rise >=2 only in the same far band (error >20), and
-clears the low-response count. Fine/near and band-change resets are preserved.
-The ApproachMeasure1 search and first-contact convergence clock are unchanged.
-This strategy does not establish all physical causes. **physical test NOT RUN.**
+Candidate: `output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex`.
+Matching ELF is in the same directory. Only the convergence budget changes:
+8000 ms ->30000 ms. First valid contact starts it; initial search consumes none.
+Already-contacted START starts it immediately. Pulses, rise, boost changes and
+recontact do not renew it. PressBoostRetain1, ApproachMeasure1 and HOLD behavior
+are unchanged. **physical test NOT RUN.** More time does not guarantee Target250.
 
 ```text
-HEX_SHA256=348F4ED990742346F4C56EED9CDB9C9311CA48AEAC9B29639A660B00ECEB584F
-ELF_SHA256=E3C5A08788D955881E691600209A4E083A83FB564BC7EFC2C59328F38EF4B022
+HEX_SHA256=BB5486FB8318045416CE0C65668118CAA556F675AB7C6F403D1ED7F8192B780B
+ELF_SHA256=7E09AB5463A92158459739682B8DE1DE2E257A955347A1EC5DCDC5CEACEC2D2D
 ```
 
 1. Operator verifies the permitted mechanical load/travel, fixture, existing
    emergency stop, supply current limit and experiment raw abort325 before
-   powered use. PressBoostRetain1 PRESS candidates reach5000 mV/10 ms; their mechanical
+   powered use. ConvergenceMeasure1 PRESS requests reach5000 mV/10 ms; their mechanical
    safety/effectiveness are NOT validated. Verify the loaded firmware against
-   the exact PressBoostRetain1 HEX above. An operator must arrange loading and
+   the exact ConvergenceMeasure1 HEX above. An operator must arrange loading and
    confirming this candidate; the agent did not connect, flash or start hardware.
-   Record approximate starting gap (with units), fixture and visual movement in
-   the run notes before START. Supervise throughout with emergency stop ready.
+   Before using the longer window, confirm permitted cumulative action time
+   and thermal load. Keep the existing current limit unchanged; record its actual
+   setting (with units) and initial gap (with units), fixture and movement.
+   Record visible current limiting/voltage sag, abnormal heating or mechanical
+   behavior and stop promptly. Supervise throughout with emergency stop ready.
 2. Close other serial clients. From the current Git main repository root, use field port COM5 and
-   execute ONCE, using full static mode (no ApproachOnly):
+   execute ONCE, using full static mode (no ApproachOnly). The script sends START;
+   do not send another manual START:
 
 ```powershell
-.\tools\capture_auto_target_static.ps1 -Port COM5 -Target 250 -MaximumSeconds 60 -ConfirmStaticTest -ConfirmMechanicalLimitChecked -ConfirmedFirmwareSha256 348F4ED990742346F4C56EED9CDB9C9311CA48AEAC9B29639A660B00ECEB584F -OutputCsv (".\output\field\press-boost-retain1-250-{0}.csv" -f (Get-Date -Format "yyyyMMdd-HHmmss-fff"))
+.\tools\capture_auto_target_static.ps1 -Port COM5 -Target 250 -MaximumSeconds 60 -ConfirmStaticTest -ConfirmMechanicalLimitChecked -ConfirmedFirmwareSha256 BB5486FB8318045416CE0C65668118CAA556F675AB7C6F403D1ED7F8192B780B -OutputCsv (".\output\field\convergence-measure1-250-{0}.csv" -f (Get-Date -Format "yyyyMMdd-HHmmss-fff"))
 ```
 
 3. Require real evidence of contact -> pressure clearly above the previous
-   observed peak58 -> approach250 -> enter245..255 -> AUTO_HOLD.
+   qualified AUTO peak59 -> approach250 -> enter245..255 -> AUTO_HOLD.
    Observe a STATIC FIXED workpiece. Full mode sends at most one START and
    observes up to60 s, then STOP/readback; fault/communication failure or the
    existing qualified stability criterion can finish earlier. Preserve the
@@ -39,10 +43,15 @@ ELF_SHA256=E3C5A08788D955881E691600209A4E083A83FB564BC7EFC2C59328F38EF4B022
    replacement timeout; use STOP/emergency stop sooner if needed. If it ends
    without contact, save the no-contact lower bound rather than manually
    repeating START to jog downward.
-5. Retain CSV, report, starting-gap note and visual observation. If no pressure progress or STOP
-   cannot be verified, follow the existing stop procedure; do not issue another
-   automatic START or raise limits. After verified STOP, inspect the existing
-   RAM diagnostic symbol with the matching ELF, without reset/download:
+5. Return only CSV, report and brief field notes: actual unchanged current-limit
+   setting, initial gap, movement, any current limiting/voltage sag, temperature
+   or mechanical anomaly and early-stop reason. Do not repeat automatically.
+   If STOP cannot be verified, follow the existing stop procedure. Do not raise
+   limits or issue another START. No RAM/current measurement is inferred.
+
+The existing optional RAM reference below is retained; no debugger dump is
+required for this measurement. If independently collected, use the matching ELF
+after verified STOP without reset/download:
 
 ```gdb
 p g_sd700_approach_diagnostics
@@ -79,7 +88,7 @@ than one complete tick wrap. First-contact count is captured at decision time;
 receive/dispatch latency can separate it from the first-contact receive tick.
 
 The report labels these exact MCU values RAM_NOT_READ, because existing Modbus
-registers do not contain them. Retain the actual post-STOP debugger dump beside
+registers do not contain them. If independently collected, retain the actual post-STOP debugger dump beside
 the CSV/report. Do not infer coarse count from PC request-number gaps: polling
 can miss pulses and request numbers also include fine PRESS/RELEASE.
 Approach completion code1=running,2=normal,3=contact,4=STOP,5=BACKSTOP,
@@ -102,13 +111,16 @@ can distinguish retained gain from sampled ON-rise/OFF-fall; it cannot recover
 missed fast transients. The record survives STOP/fault and resets at a new START.
 Only a small last-request/completion record is retained, not a pulse history.
 
-The user-reported prior trial reached observed peak58 without HOLD and ended
-Fault5/Detail8 with StopVerified=True. Approximately 4 s to contact from a 10 mm
-gap is a field estimate. Coherent requests 92 (pressure42/5000 mV) and 94
-(pressure44/3000 mV), plus repeated 5000 mV/10 ms requests, motivate this policy
-trial. They do not establish a per-pulse settled rise or all physical causes.
-Original CSV/report were not found in this workspace; preserve them unchanged.
-No powered evidence for PressBoostRetain1 was collected here.
+User-reported PressBoostRetain1 trial:
+`press-boost-retain1-250-20260912-095632-272.csv` and the same-stem `.report.txt`.
+Qualified AUTO peak59; valid stopped readback60 (separate from the AUTO peak).
+Target250 was not reached and HOLD was not observed. Fault5/Detail8;
+StopVerified=True. Late request readbacks stayed5000 mV/10 ms. Coherent
+request94/pressure49 and request106/pressure59 were1224 ms apart in PC time.
+This supports continued rise before shutdown;60 is not established as a physical
+ceiling, and more time is not guaranteed to reach250. These files were not found
+in the workspace; this records user-supplied evidence without fabricating files,
+RAM values or current measurements.
 
 ## Read-only preflight and generated report
 
@@ -145,7 +157,7 @@ requires the +/-10 pressure band and remains unchanged. Stability is still
 The report also lists EVERY required PRESS diagnostic as RAM_NOT_READ and gives
 its field under g_sd700_approach_diagnostics.press. No Modbus register provides
 these RAM values; the capture script does not read/debug the device. After
-verified STOP, retain the actual debugger dump beside the CSV/report; do not
+verified STOP, if independently collected, retain the actual debugger dump beside the CSV/report; do not
 replace NOT_READ with an inferred count or zero. Read the dump before reset or
 another START. The fields are:
 
@@ -168,11 +180,13 @@ mechanism just to obtain a dump. No large logger or protocol change was added.
 APPROACH remains10000/20 ms (first),10000/10 ms (recontact), contact20.
 The first profile repeats while searching before first contact. Every pulse
 retains its 50/40 ms backstop and motor-OFF/new-feedback interval. There is no
-fixed total approach timeout. The 8000 ms convergence budget begins at first
+fixed total approach timeout. The 30000 ms convergence budget begins at first
 valid contact receive time; already-contacted START begins it at START, and
-recontact during convergence cannot reset it. PRESS base bands remain unchanged; only same-far-band effective-rise boost
-retention changes. Max5000 mV and10 ms/backstop40;
-settle50, feedback timeout250, freshness200, convergence8000. RELEASE Kp8/cap800,
+pulses, pressure rise, boost changes and recontact cannot reset it. Existing
+HOLD entry clears the clock; HOLD stays exempt, and HOLD exit starts the existing
+new correction cycle. PRESS base bands and PressBoostRetain1 retention stay
+unchanged. Max5000 mV and10 ms/backstop40;
+settle50, feedback timeout250, freshness200, convergence30000. RELEASE Kp8/cap800,
 10 ms/no boost; Ki0, no D. Target250 remains SENSOR CONTROL UNITS, not certified
 250 N. Mechanical safe limit/calibration are unconfirmed; abort325 is not a
 proven mechanical ceiling. No rotating/speed modes, gain scheduling or preload.

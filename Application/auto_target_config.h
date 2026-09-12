@@ -46,7 +46,7 @@
 #define AUTO_TARGET_FEEDBACK_TIMEOUT_MS          250U
 #define AUTO_TARGET_PRESSURE_FRESHNESS_MS        200U
 /* ApproachMeasure1: initial contact search has no total motion timeout. */
-#define AUTO_TARGET_CONVERGENCE_TIMEOUT_MS      8000U
+#define AUTO_TARGET_CONVERGENCE_TIMEOUT_MS     30000U
 
 extern const MachineConfig g_sd700_auto_target_machine_config;
 extern const ForcePiConfig g_sd700_auto_target_force_pi_config;

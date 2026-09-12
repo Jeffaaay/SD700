@@ -1,41 +1,41 @@
-# PressBoostRetain1 - current field repository index
+# ConvergenceMeasure1 - current field repository index
 
-The only control change from ApproachMeasure1 (`c5af4ed`) retains existing boost
-within the current cap after a fully qualified effective PRESS rise in the same
-far band (error>20), while clearing the low-response count. Base mapping,
-low-response growth, fine/near and transition resets, search, timing, Ki0,
-RELEASE/HOLD, STOP/Fault and execution/safety layers are preserved.
-
-This is a strategy candidate; it does not establish all physical causes.
-**physical test NOT RUN.** All host pressure input is SYNTHETIC_INPUT.
+The only production change from PressBoostRetain1 (`c36a1da`) increases the
+convergence timeout from8000 to30000 ms. Timing anchors and HOLD semantics,
+PressBoostRetain1, base mapping, limits, pulses, feedback gates and all execution/
+safety behavior are preserved. This remains a bounded measurement candidate.
+Continued rise before the prior timeout does not prove60 is a physical ceiling
+or that more time will achieve250. **physical test NOT RUN.**
 
 | Review item | Location |
 | --- | --- |
-| Current candidate, SHA256 and Git update workflow | [README.md](README.md) |
-| COM5 / Target250 / maximum60 s / ONE START and RAM measurements | [Static test](Docs/AUTO_TARGET_STATIC_TEST.md) |
-| Actual test/build results and field-evidence limits | [Test results](Docs/PRESS_BOOST_RETAIN1_TEST_RESULTS.md) |
-| Current Release HEX | [SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex) |
-| Matching Release ELF | [SD700_AutoTarget_PressBoostRetain1_RealBench_Release.elf](output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.elf) |
-| Firmware hashes | [Firmware/SHA256SUMS.txt](Firmware/SHA256SUMS.txt) |
+| Current candidate and Git workflow | [README.md](README.md) |
+| Longer action/thermal confirmation; COM5 / Target250 / maximum60 s / one script START | [Static test](Docs/AUTO_TARGET_STATIC_TEST.md) |
+| Actual tests/builds and field-evidence limits | [Test results](Docs/CONVERGENCE_MEASURE1_TEST_RESULTS.md) |
+| Current Release HEX | [SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex) |
+| Matching Release ELF | [SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.elf](output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.elf) |
+| Firmware SHA256 | [Firmware/SHA256SUMS.txt](Firmware/SHA256SUMS.txt) |
 | All tracked-file hashes except itself | [SHA256SUMS.txt](SHA256SUMS.txt) |
-| Minimal control patch | [machine.c](Application/machine.c) |
-| Runtime / real executor / fake TIM5/HW tests | [test_auto_target.c](Tests/Host/test_auto_target.c) |
-| Existing capture path, updated candidate identity/report | [capture_auto_target_static.ps1](tools/capture_auto_target_static.ps1) |
+| Single macro change | [auto_target_config.h](Application/auto_target_config.h) |
+| Host timing and safety regressions | [test_auto_target.c](Tests/Host/test_auto_target.c) |
+| Strict current hash/ELF configuration check | [verify_current_auto_target_firmware.py](tools/verify_current_auto_target_firmware.py) |
+| Existing capture path and updated report | [capture_auto_target_static.ps1](tools/capture_auto_target_static.ps1) |
 
-HEX_SHA256=348F4ED990742346F4C56EED9CDB9C9311CA48AEAC9B29639A660B00ECEB584F
+HEX_SHA256=BB5486FB8318045416CE0C65668118CAA556F675AB7C6F403D1ED7F8192B780B
+ELF_SHA256=7E09AB5463A92158459739682B8DE1DE2E257A955347A1EC5DCDC5CEACEC2D2D
 
-Main tracks one current HEX/ELF pair. Old firmware and original engineering
-evidence remain locally and in history; no history was rewritten. User-supplied
-field observations are recorded with their limits; original CSV/report were not
-found in this workspace and were not synthesized or overwritten.
+Main tracks one current pair. Historical firmware, ZIPs, tests and evidence remain
+locally and in history. The named field CSV/report were not found in the workspace;
+the supplied observations are recorded without inventing files, RAM/current values.
+No history was rewritten and no hardware connection, flashing or START occurred.
 
-Local execution commands/logs: `output/PressBoostRetain1/test_execution.json`.
-Source audit and firmware identity: `source_audit.json` / `firmware_identity.json`
-in the same local directory. The tracked test document records actual outcomes
-and log hashes. Generated logs are ignored and are not included in a clone/ZIP.
+Local verification index: `output/ConvergenceMeasure1/test_execution.json`,
+`source_audit.json`, `firmware_identity.json` and `firmware_verification.log`.
+The tracked test record contains actual outcomes and log hashes. Raw generated
+logs remain local, not in Git/ZIP.
 
-Delivery ZIP: `output/SD700_PressBoostRetain1_SourceOfTruth.zip`, created with
-`git archive --format=zip --prefix=SD700/ HEAD` from the pushed delivery commit.
-Its Git ZIP comment identifies the commit; root SHA256SUMS verifies its files.
-The adjacent `.zip.sha256` records the ZIP hash. Both are separately delivered,
-ignored artifacts. No hardware connection, flashing or START was performed.
+Source-of-truth ZIP: `output/SD700_ConvergenceMeasure1_SourceOfTruth.zip`, created
+with `git archive --format=zip --prefix=SD700/ HEAD` at the pushed delivery commit.
+The ZIP comment identifies the commit, root SHA256SUMS verifies its contents and
+the adjacent `.zip.sha256` verifies the archive. These are separately delivered,
+ignored artifacts. All host pressure input is SYNTHETIC_INPUT.

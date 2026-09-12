@@ -1,37 +1,37 @@
-# SD700 - PressBoostRetain1 static field candidate
+# SD700 - ConvergenceMeasure1 static measurement candidate
 
 ## CURRENT FIELD VERSION
 
-**CURRENT FIELD CANDIDATE:** PressBoostRetain1 / ApproachMeasure1 search retained
+**CURRENT FIELD CANDIDATE:** ConvergenceMeasure1 / PressBoostRetain1 and ApproachMeasure1 retained
 
-**HEX:** [SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex)
+**HEX:** [SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex](output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex)
 
-Repository path: `output/AutoTarget/firmware/SD700_AutoTarget_PressBoostRetain1_RealBench_Release.hex`
+Repository path: `output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex`
 
-**SHA256:** `348F4ED990742346F4C56EED9CDB9C9311CA48AEAC9B29639A660B00ECEB584F`
+**SHA256:** `BB5486FB8318045416CE0C65668118CAA556F675AB7C6F403D1ED7F8192B780B`
 
 **STATUS: physical test NOT RUN.** Target 250 / AUTO_HOLD validation pending. Target 250 is SENSOR CONTROL UNITS, not certified Newtons.
 No 3500 N, 40 m/min or 60 m/min validation is claimed.
 
-The only control change from baseline `c5af4edcb9bbcebaf647e85cd89af4139dbdfbf9`
-is: a normally completed PRESS with fully qualified settled rise >=2 clears
-the low-response count but retains boost in the same far band (error >20),
-within its existing cap. Fine/near and all existing resets remain unchanged.
-This is a strategy candidate requiring physical validation, not proof of all
-physical causes.
+The only control change from baseline `c36a1da1f9892b583fafbbc3b27feaaf78d48ff7`
+is `AUTO_TARGET_CONVERGENCE_TIMEOUT_MS`:8000U ->30000U. Timing semantics,
+PressBoostRetain1 boost retention and every other control/safety setting remain
+unchanged. This is a bounded measurement candidate, not proof of physical causes.
 
-User-reported ApproachMeasure1 trial: ONE START, approximately 10 mm gap,
-approximately 4 s to contact (field estimate), observed peak 58, Target 250 not
-reached and no HOLD observed; Fault 5 / Detail 8, StopVerified=True. The supplied
-summary reports repeated post-contact PRESS requests at 5000 mV / 10 ms, with
-coherent request 92 at pressure 42 / 5000 mV and request 94 at pressure 44 /
-3000 mV. These are request snapshots, not measured terminal output or per-pulse
-settled response. Original CSV/report were not present in this workspace and
-were not rewritten; this paragraph records user-supplied evidence.
+User-reported PressBoostRetain1 trial:
+`press-boost-retain1-250-20260912-095632-272.csv` and the same-stem `.report.txt`.
+Qualified AUTO peak59; valid stopped readback60 (separate from the AUTO peak).
+Target250 was not reached and HOLD was not observed. Fault5/Detail8;
+StopVerified=True. Late request readbacks stayed5000 mV/10 ms. Coherent
+request94/pressure49 and request106/pressure59 were1224 ms apart in PC time.
+This supports continued rise before shutdown;60 is not established as a physical
+ceiling, and more time is not guaranteed to reach250. These files were not found
+in the workspace; this records user-supplied evidence without fabricating files,
+RAM values or current measurements.
 
 The inherited ApproachMeasure1 change removed the fixed 3000 ms coarse-approach fault. Initial search
 continues with the same bounded pulses, motor OFF, settle and new valid fresh
-feedback until contact or STOP/fault. The existing 8000 ms convergence clock
+feedback until contact or STOP/fault. The 30000 ms convergence clock
 starts at first valid MCU contact receive time, not START; an already-contacted
 START begins the clock immediately. Recontact during convergence cannot reset
 it. ContactDeadline's completion/error/STOP ordering remains. A per-pulse
@@ -69,14 +69,19 @@ git pull --ff-only
 
 Use only the firmware above and the [static test instructions](Docs/AUTO_TARGET_STATIC_TEST.md).
 Static fixed workpiece, operator supervision, emergency stop/current limit ready,
-ONE START, full AutoTarget, **no ApproachOnly**. Do not repeat START to jog down.
+ONE script START, full AutoTarget, **no ApproachOnly**; do not add a manual START.
+First confirm that longer cumulative action time and thermal load are permitted.
+Keep the existing current limit unchanged and record its actual setting and the
+initial gap. Record visible current limiting/voltage sag, abnormal heating or
+mechanical behavior and stop promptly. Return only CSV, report and brief field
+notes; do not automatically repeat the test.
 The example's 60-second PC observation window ends with STOP; it is not a new
 firmware approach timeout. No physical result is claimed until field data shows
-contact, rise above the previous observed peak 58, 245..255 and AUTO_HOLD.
+contact, rise beyond the previous qualified AUTO peak59, 245..255 and AUTO_HOLD.
 
 Git tracks one current HEX/ELF pair. Previous firmware and generated logs/builds/
 captures remain ignored local evidence; previous commits/tags are retained.
-Actual tests/build results: [PressBoostRetain1 verification](Docs/PRESS_BOOST_RETAIN1_TEST_RESULTS.md).
+Actual tests/build results: [ConvergenceMeasure1 verification](Docs/CONVERGENCE_MEASURE1_TEST_RESULTS.md).
 No hardware was connected, flashed or started by this change.
 
 ## Existing build reference (not tonight's test workflow)
@@ -159,15 +164,18 @@ min(8*positive excess,800) mV in the original direction path,10 ms, no boost.
 If already in HOLD at Pressure240, error10 is still inside the original exit
 band: output stays OFF, with NO request. The table is requested amplitude,
 not measured terminal voltage. No duration boost, integrator, unlimited ramp,
-automatic restart or convergence-time extension. Persistent low response still faults
-at the original8000 ms convergence budget (Fault5/Detail8).
+automatic restart or renewal of the running budget. Persistent low response
+still faults at the configured30000 ms convergence budget (Fault5/Detail8).
 
 ## Preserved limits and evidence
 
 APPROACH: FIRST10000 mV/20 ms/backstop50, RECONTACT10000/10/40; contact20;
 No total approach deadline. First profile repeats before first contact as before.
-The 8000 ms convergence budget starts at first valid contact receive time;
-already-contacted START begins it at START. Recontact does not reset it.
+The 30000 ms convergence budget starts at first valid contact receive time;
+already-contacted START begins it at START. Pulses, rise, boost changes and
+recontact cannot renew the active budget. Existing HOLD behavior remains: entry
+clears the cycle clock; HOLD itself is exempt from convergence timeout, and
+leaving HOLD starts the existing new correction cycle.
 ContactDeadline receive/dispatch ordering and all safety priorities are unchanged.
 Raw abort325 is an experiment threshold, NOT a known mechanical safety limit.
 Target maximum275; HOLD enter/exit5/10. No electrical brake or energized preload.
@@ -181,7 +189,7 @@ it is not true instantaneous peak evidence. Read it after verified STOP as in
 [static instructions](Docs/AUTO_TARGET_STATIC_TEST.md). No protocol changes.
 
 All 41 C host variants and the 10 ARM build configurations were run for
-PressBoostRetain1, with policy and capture regressions; see the current test
+ConvergenceMeasure1, with policy and capture regressions; see the current test
 record for commands, counts and hashes. All pressure inputs in software tests
 are SYNTHETIC_INPUT, not physical response or tuning evidence.
 
@@ -191,5 +199,8 @@ Target250/HOLD and OFF-fall diagnosis remain NOT RUN for this candidate.
 
 [Legacy evidence](Docs/LEGACY_CONTROL_EVIDENCE.md) and
 [reference constants](Config/legacy_control_reference.h) remain historical.
+Verify the shipped pair and actual ELF constants with
+`python tools/verify_current_auto_target_firmware.py`; it requires30000 ms and
+all existing amplitude, timing, PI and pressure-safety values.
 Root SHA256SUMS.txt covers every Git-tracked file except itself. Generated
 engineering evidence is local under output/ and is not supplied by a clone.
