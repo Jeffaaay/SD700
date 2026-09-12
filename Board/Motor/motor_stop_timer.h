@@ -25,4 +25,6 @@ bool MotorStopTimer_IsHealthy(void);
 MotorFailureStage MotorStopTimer_GetLastFailureStage(void);
 void MotorStopTimer_IrqHandler(void);
 
+bool MotorStopTimer_ArmLease(uint32_t remaining_ms);
+bool MotorStopTimer_RenewLease(uint32_t remaining_ms);
 #endif

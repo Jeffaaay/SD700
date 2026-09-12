@@ -6,10 +6,16 @@ param(
     [string]$BuildDir = "build",
     [string]$ScopeTestAck = "",
     [string]$RealBenchAck = "",
-    [switch]$AutoTarget
+    [switch]$AutoTarget,
+    [switch]$ForceServo
 )
 
 $ErrorActionPreference = "Stop"
+if ($ForceServo -and ($AutoTarget -or $MotorMode -ne 'RealBench')) {
+    throw 'ForceServo requires RealBench and excludes AutoTarget'
+}
+if ($ForceServo) { Write-Host 'FORCE_SERVO1_PHYSICAL_OUTPUT_LOCKED; COMMISSIONING_NOT_TUNED' }
+
 
 if ($AutoTarget -and $MotorMode -ne 'RealBench') {
     throw 'AutoTarget requires -MotorMode RealBench and its acknowledgement'
@@ -32,7 +38,9 @@ if ($MotorMode -eq "RealBench") {
     Write-Host "REAL_BENCH_ONLY"
     Write-Host "REAL_MOTOR_MAY_MOVE"
     Write-Host "LOW_ENERGY_SUPPLY_ESTOP_AND_CLEARANCE_REQUIRED"
-    if ($AutoTarget) {
+    if ($ForceServo) {
+        Write-Host 'FORCE_SERVO_CONTROLLER_IMPLEMENTED; ALL_TARGET_OUTPUT_LOCKED'
+    } elseif ($AutoTarget) {
         Write-Host 'AUTO_TARGET_OPERATOR_START_ENABLED; BOOT_SAFE_TO_IDLE'
         Write-Host 'P_ONLY_INITIAL_VALUES_UNVALIDATED; POWERED_TEST_NOT_RUN'
     } else {
@@ -70,7 +78,9 @@ $size = Find-Tool "arm-none-eabi-size" $sizeFallback
 $nm = Find-Tool "arm-none-eabi-nm" $nmFallback
 
 $root = (Resolve-Path "$PSScriptRoot\..").Path
-$modeBuildDir = if ($AutoTarget) {
+$modeBuildDir = if ($ForceServo) {
+    Join-Path $BuildDir 'RealBench_ForceServo'
+} elseif ($AutoTarget) {
     Join-Path $BuildDir 'RealBench_AutoTarget'
 } elseif ($MotorMode -eq "Locked") {
     $BuildDir
@@ -106,6 +116,7 @@ if ($MotorMode -eq "RealBench") {
     )
 }
 if ($AutoTarget) { $defines += 'SD700_AUTO_TARGET_ENABLED=1' }
+if ($ForceServo) { $defines += 'SD700_FORCE_SERVO_ENABLED=1' }
 
 $includes = @(
     ".",
@@ -181,6 +192,11 @@ if ($MotorMode -eq "Locked") {
     )
 }
 
+if ($ForceServo) {
+    $sources += @('Application/force_servo.c', 'Application/force_servo_machine.c',
+                  'Transport/Modbus/force_servo_protocol.c')
+}
+
 $cpuFlags = @("-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard")
 $commonFlags = @("-ffunction-sections", "-fdata-sections", "-Wall", "-Wextra", "-Wno-unused-parameter")
 $debugFlags = if ($Configuration -eq "Debug") { @("-Og", "-g3") } else { @("-O2", "-g") }
@@ -216,6 +232,7 @@ $ldScript = Join-Path $root "linker/STM32F411RCTx_FLASH.ld"
 $linkArgs = @()
 $linkArgs += $cpuFlags
 $linkArgs += @("-T$ldScript", "-Wl,-Map=$map", "-Wl,--gc-sections", "-Wl,--no-warn-rwx-segments", "--specs=nano.specs", "--specs=nosys.specs")
+if ($ForceServo) { $linkArgs += @('-Wl,-u,g_force_servo_contract','-Wl,-u,g_force_servo_default_config') }
 $linkArgs += $objects
 $linkArgs += @("-Wl,--start-group", "-lc", "-lm", "-Wl,--end-group", "-o", $elf)
 Invoke-Checked $gcc $linkArgs

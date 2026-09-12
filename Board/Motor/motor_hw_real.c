@@ -348,3 +348,28 @@ MotorFailureStage MotorHwReal_GetLastFailureStage(void)
 {
     return s_last_failure_stage;
 }
+
+/* Caller holds the executor critical section and a live timer lease. Same
+ * direction only: update one preloaded compare without disabling the carriers. */
+bool MotorHwReal_Update(bool press, uint16_t duty_counts)
+{
+    uint16_t previous = (uint16_t)(press ? TIM3->CCR3 : TIM2->CCR3);
+    if (!s_initialized || !MotorHwReal_OutputArmingAllowed() || previous == 0 ||
+        duty_counts == 0 || duty_counts > MOTOR_HW_PWM_PERIOD_COUNTS ||
+        !MotorHwReal_PwmConfigurationIsValid() ||
+        !MotorHwReal_ActiveCompareIsValid(press, previous))
+        return MotorHwReal_FailApply(MOTOR_FAILURE_STAGE_HW_APPLY_ACTIVE_COMPARE_VERIFY);
+    if (press) TIM3->CCR3 = duty_counts; else TIM2->CCR3 = duty_counts;
+    __DSB();
+    if (!MotorHwReal_ActiveCompareIsValid(press, duty_counts))
+        return MotorHwReal_FailApply(MOTOR_FAILURE_STAGE_HW_APPLY_ACTIVE_COMPARE_VERIFY);
+    return true;
+}
+
+bool MotorHwReal_MatchesPlan(uint16_t t2,uint16_t t3)
+{
+    if (t2==0 && t3==0) return MotorHwReal_IsDisabled();
+    if (t2!=0 && t3!=0) return false;
+    return MotorHwReal_PwmConfigurationIsValid() &&
+           MotorHwReal_ActiveCompareIsValid(t3!=0,t3!=0?t3:t2);
+}

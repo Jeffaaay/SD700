@@ -1,6 +1,24 @@
 #ifndef APPLICATION_MOTION_BUILD_POLICY_H
 #define APPLICATION_MOTION_BUILD_POLICY_H
 
+#ifndef SD700_FORCE_SERVO_ENABLED
+#define SD700_FORCE_SERVO_ENABLED 0
+#endif
+#if (SD700_FORCE_SERVO_ENABLED != 0) && (SD700_FORCE_SERVO_ENABLED != 1)
+#error "ForceServo enable must be 0 or 1"
+#endif
+#if SD700_FORCE_SERVO_ENABLED
+#if defined(SD700_AUTO_TARGET_ENABLED) && SD700_AUTO_TARGET_ENABLED
+#error "ForceServo and AutoTarget are mutually exclusive output owners"
+#endif
+#if !defined(SD700_MOTOR_MODE_REAL_BENCH) || !SD700_MOTOR_MODE_REAL_BENCH
+#error "ForceServo requires the RealBench backend (physical output remains locked)"
+#endif
+#endif
+/* There is deliberately no target unlock macro in ForceServo1. Timing, ratings,
+ * and the new stop path require hardware qualification before a later release. */
+
+
 /* Permission for operator AUTO_START; never a power-on start. */
 #ifndef SD700_AUTO_TARGET_ENABLED
 #define SD700_AUTO_TARGET_ENABLED 0

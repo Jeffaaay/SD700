@@ -27,7 +27,8 @@ typedef enum
     MOTOR_ACTION_PRESS_RUN,
     MOTOR_ACTION_RELEASE_RUN,
     MOTOR_ACTION_PRESS_PULSE,
-    MOTOR_ACTION_RELEASE_PULSE
+    MOTOR_ACTION_RELEASE_PULSE,
+    MOTOR_ACTION_CONTINUOUS
 } MotorAction;
 
 typedef enum
@@ -35,7 +36,8 @@ typedef enum
     MOTOR_COMPLETION_NONE = 0,
     MOTOR_COMPLETION_NORMAL,
     MOTOR_COMPLETION_BACKSTOP,
-    MOTOR_COMPLETION_ERROR
+    MOTOR_COMPLETION_ERROR,
+    MOTOR_COMPLETION_LEASE
 } MotorCompletion;
 
 typedef struct
@@ -80,5 +82,13 @@ MotorResult MotorExecutor_PlanCommand(MotorDirection direction,
                                       uint32_t command_mv,
                                       uint16_t *planned_tim2_ccr3,
                                       uint16_t *planned_tim3_ccr3);
+
+/* Continuous mode is available only in the mutually exclusive ForceServo build.
+ * Tokens become invalid on STOP/expiry. Deadline is anchored to sample reception. */
+bool MotorExecutor_ContinuousExpired(void);
+MotorResult MotorExecutor_BeginContinuous(uint32_t *token);
+MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
+    uint32_t received_ms, uint32_t now_ms, uint32_t lease_ms, uint32_t max_age_ms,
+    uint32_t deadtime_ms, int32_t requested_mv, int32_t *committed_mv, bool *interlocked);
 
 #endif

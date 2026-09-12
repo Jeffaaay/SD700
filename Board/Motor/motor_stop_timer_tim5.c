@@ -234,3 +234,44 @@ void MotorStopTimer_IrqHandler(void)
     s_handler(event);
     MotorStopTimer_Cancel();
 }
+
+/* ForceServo's free-running compare lease. Caller serializes IRQ/STOP/update.
+ * Renewal never stops the counter or clears SR/NVIC pending events. */
+bool MotorStopTimer_ArmLease(uint32_t remaining_ms)
+{
+    if (!s_initialized || !s_healthy || s_armed || remaining_ms <= 1U || remaining_ms > 100U)
+        return false;
+    MotorStopTimer_Cancel(); /* Only legal with verified output OFF, new session. */
+    TIM5->CR1 = TIM_CR1_URS;
+    TIM5->PSC = s_prescaler;
+    TIM5->ARR = UINT32_MAX;
+    TIM5->CCR1 = (remaining_ms - 1U) * MOTOR_STOP_TIMER_TICKS_PER_MS;
+    TIM5->CNT = 0U;
+    TIM5->EGR = TIM_EGR_UG;
+    TIM5->SR = 0U;
+    TIM5->DIER = TIM_DIER_CC1IE | TIM_DIER_UIE;
+    s_armed = true;
+    TIM5->CR1 |= TIM_CR1_CEN;
+    return MotorStopTimer_CommitArm();
+}
+
+bool MotorStopTimer_RenewLease(uint32_t remaining_ms)
+{
+    uint32_t counter = TIM5->CNT;
+    uint32_t old_deadline = TIM5->CCR1;
+    if (!MotorStopTimer_IsArmed() || !s_healthy || remaining_ms <= 1U || remaining_ms > 100U)
+        return false;
+    if ((TIM5->SR & (TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC1OF)) != 0U) {
+        MotorStopTimer_IrqHandler();
+        return false;
+    }
+    if ((int32_t)(counter - old_deadline) >= 0) {
+        s_handler(MOTOR_STOP_TIMER_NORMAL);
+        MotorStopTimer_Cancel();
+        return false;
+    }
+    TIM5->CCR1 = counter + (remaining_ms - 1U) * MOTOR_STOP_TIMER_TICKS_PER_MS;
+    __DSB();
+    /* A compare event between the read and write remains latched. Never revive it. */
+    return MotorStopTimer_CommitArm();
+}

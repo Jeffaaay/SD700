@@ -1,31 +1,23 @@
-# Current firmware identity
+# Current firmware: ForceServo1, physical output LOCKED
 
-Current field candidate: **ConvergenceMeasure1**, with convergence timeout
-30000 ms. PressBoostRetain1 retention and ApproachMeasure1 search are preserved. The only Git-tracked HEX is:
+[Current HEX](../output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.hex)
 
-`../output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex`
+SHA256: `C76059E0FAA126D5E52A6D640599A007E71D669080C022FEEE6180D3AB414B41`
 
-SHA256: `BB5486FB8318045416CE0C65668118CAA556F675AB7C6F403D1ED7F8192B780B`
+[Matching ELF](../output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.elf)
 
-Matching ELF: `../output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.elf`
+ELF SHA256: `B6AEFBCAD93DE82A3514C134518A249A6D6851D3E8C4E8DF3EE7C41DC0984EFF`
 
-ELF SHA256: `7E09AB5463A92158459739682B8DE1DE2E257A955347A1EC5DCDC5CEACEC2D2D`
+Verify from the repository root with `python tools/verify_force_servo_firmware.py`.
+The new [ForceServo1 manifest](ForceServo1.SHA256SUMS.txt) requires the exact pair,
+ELF parameter/contract values, linked controller/executor/TIM5 code, compiled
+false physical-arming function and byte-identical HEX regenerated from the ELF.
 
-Both files were produced by this task's actual RealBench AutoTarget Release
-build. [SHA256SUMS.txt](SHA256SUMS.txt) paths are relative to this directory.
-Prior PressBoostRetain1/ApproachMeasure1/PressBoost1/FieldReady1 firmware remains in Git history and may exist
-locally as ignored evidence. It is not this candidate.
+**physical test NOT RUN; COMMISSIONING_NOT_TUNED.** No target unlock exists in
+this release. Follow only the [current README](../README.md) and its one next
+power-disconnected timing observation. Continuous stop/enable/deadtime/timing,
+static250 and rotating performance remain NOT_VALIDATED.
 
-See [the full static test](../Docs/AUTO_TARGET_STATIC_TEST.md). Contact timing,
-Target 250 / AUTO_HOLD and mechanical safety remain unvalidated in hardware.
-Verify hashes and all actual ELF configuration values from the repository root:
-
-```powershell
-python tools/verify_current_auto_target_firmware.py
-```
-
-The verifier explicitly requires30000 ms, Ki0, and the unchanged timing, amplitude
-and pressure-safety settings. Historical FieldReady1 packaging assertions remain
-unchanged; they are not the current candidate verifier.
-
-**physical test NOT RUN.**
+The historical [AutoTarget manifest](SHA256SUMS.txt), its strict verifier and
+ConvergenceMeasure1 HEX/ELF remain unchanged. They are separate historical
+artifacts, not an alternate field test for ForceServo.

@@ -1,5 +1,16 @@
 #include "Board/Motor/motor_executor.h"
 
+#include "Application/motion_build_policy.h"
+#if SD700_FORCE_SERVO_ENABLED
+#include "Board/Motor/motor_atomic.h"
+static volatile bool s_servo_open;
+static uint32_t s_servo_generation;
+static uint64_t s_servo_sequence;
+static bool s_servo_has_sequence;
+static int32_t s_servo_committed;
+static int s_servo_last_sign;
+static uint32_t s_servo_off_ms;
+#endif
 #include <stddef.h>
 #include <string.h>
 
@@ -116,6 +127,9 @@ static void MotorExecutor_StopTimerExpiredFromIsr(
     /* ISR ordering: output off, timer cleared, minimal event latched. */
     MotorHwReal_DisableImmediate();
     MotorStopTimer_Cancel();
+#if SD700_FORCE_SERVO_ENABLED
+    s_servo_open = false;
+#endif
     MotorExecutor_LatchCompletion(event);
 }
 
@@ -145,6 +159,11 @@ static MotorResult MotorExecutor_PublishCompletion(
             MOTOR_FAILURE_STAGE_UNSPECIFIED);
     }
 
+#if SD700_FORCE_SERVO_ENABLED
+    if (s_motor.last_action == MOTOR_ACTION_CONTINUOUS && event == MOTOR_STOP_TIMER_NORMAL)
+        s_motor.last_completion = MOTOR_COMPLETION_LEASE;
+    else
+#endif
     s_motor.last_completion = MotorExecutor_MapCompletion(event);
     MotorExecutor_ClearActivePlan();
     return result;
@@ -193,6 +212,9 @@ MotorResult MotorExecutor_Initialize(void)
     MotorHwReal_DisableImmediate();
     (void)memset(&s_motor, 0, sizeof(s_motor));
     s_initialized = false;
+#if SD700_FORCE_SERVO_ENABLED
+    s_servo_open = false;
+#endif
     MotorExecutor_ClearPendingCompletion();
     s_motor.last_action = MOTOR_ACTION_DISABLED;
     MotorExecutor_ClearFailure();
@@ -233,7 +255,11 @@ MotorResult MotorExecutor_Initialize(void)
     return MOTOR_RESULT_OK;
 }
 
+#if SD700_FORCE_SERVO_ENABLED
+static MotorResult MotorExecutor_DisableInternal(void)
+#else
 MotorResult MotorExecutor_Disable(void)
+#endif
 {
     bool output_disabled;
     bool timer_armed;
@@ -272,6 +298,17 @@ MotorResult MotorExecutor_Disable(void)
     return MOTOR_RESULT_OK;
 }
 
+#if SD700_FORCE_SERVO_ENABLED
+MotorResult MotorExecutor_Disable(void)
+{
+    uint32_t key = MotorAtomic_Enter();
+    s_servo_open = false;
+    MotorResult r = MotorExecutor_DisableInternal();
+    MotorAtomic_Leave(key);
+    return r;
+}
+#endif
+
 static MotorResult MotorExecutor_FailStart(MotorResult result)
 {
     MotorHwReal_DisableImmediate();
@@ -293,6 +330,9 @@ static MotorResult MotorExecutor_Start(MotorDirection direction,
     uint16_t tim3_plan;
     MotorResult result;
 
+#if SD700_FORCE_SERVO_ENABLED
+    if (s_servo_open) return MOTOR_RESULT_BUSY;
+#endif
     if (s_motor.logical_active)
     {
         return MOTOR_RESULT_BUSY;
@@ -532,7 +572,11 @@ MotorResult MotorExecutor_Service(uint32_t now_ms)
         return MotorExecutor_PublishCompletion(
             MOTOR_STOP_TIMER_ERROR);
     }
-    if (s_motor.physical_output_disabled)
+    if (s_motor.physical_output_disabled
+#if SD700_FORCE_SERVO_ENABLED
+        && !(s_servo_open && s_motor.last_action == MOTOR_ACTION_CONTINUOUS && s_servo_committed == 0)
+#endif
+       )
     {
         if (MotorExecutor_TakeCompletion(&event))
         {
@@ -662,6 +706,16 @@ MotorResult MotorExecutor_GuardOutput(void)
 
 bool MotorExecutor_ActiveRequestIsValid(void)
 {
+#if SD700_FORCE_SERVO_ENABLED
+    if (s_motor.last_action == MOTOR_ACTION_CONTINUOUS && !s_completion_event_pending) {
+        bool valid = s_servo_open && s_motor.logical_active && MotorStopTimer_IsHealthy() &&
+            MotorStopTimer_IsArmed() && MotorHwReal_OutputArmingAllowed() &&
+            (MotorHwReal_IsDisabled() == (s_servo_committed == 0)) &&
+            MotorHwReal_MatchesPlan(s_motor.planned_tim2_ccr3,s_motor.planned_tim3_ccr3);
+        if (!s_completion_event_pending) return valid && s_servo_open;
+    }
+#endif
+
     MotorExecutor_SetPhysicalStatus();
     if (!s_motor.logical_active)
     {
@@ -721,3 +775,102 @@ const MotorExecutorSnapshot *MotorExecutor_GetSnapshot(void)
     MotorExecutor_SetPhysicalStatus();
     return &s_motor;
 }
+
+#if SD700_FORCE_SERVO_ENABLED
+MotorResult MotorExecutor_BeginContinuous(uint32_t *token)
+{
+    uint32_t key=MotorAtomic_Enter();
+    MotorResult r=MOTOR_RESULT_INVALID;
+    if (token && s_initialized && !s_servo_open && !s_motor.logical_active &&
+        !s_completion_event_pending && MotorHwReal_IsDisabled() &&
+        !MotorStopTimer_IsArmed() && MotorStopTimer_IsHealthy() && MotorHwReal_OutputArmingAllowed()) {
+        if (++s_servo_generation==0) ++s_servo_generation;
+        *token=s_servo_generation; s_servo_open=true; s_servo_has_sequence=false;
+        s_servo_committed=0; s_servo_last_sign=0;
+        s_motor.last_action=MOTOR_ACTION_CONTINUOUS; s_motor.last_completion=MOTOR_COMPLETION_NONE;
+        r=MOTOR_RESULT_OK;
+    }
+    MotorAtomic_Leave(key); return r;
+}
+
+MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
+    uint32_t received_ms, uint32_t now_ms, uint32_t lease_ms, uint32_t max_age_ms,
+    uint32_t deadtime_ms, int32_t requested_mv, int32_t *committed_mv, bool *interlocked)
+{
+    uint32_t key=MotorAtomic_Enter();
+    MotorResult result=MOTOR_RESULT_INVALID;
+    uint16_t t2=0,t3=0;
+    now_ms=MotorAtomic_Now(now_ms);
+    uint32_t age=now_ms-received_ms;
+    uint64_t distance=sequence-s_servo_sequence;
+    /* Rejected old tokens/duplicates never mutate or renew the current session. */
+    if (!s_servo_open || token!=s_servo_generation || !committed_mv || !interlocked)
+        goto done;
+    if (s_servo_has_sequence && (distance==0 || distance>=(UINT64_C(1)<<63))) goto done;
+    if (s_completion_event_pending || lease_ms<3 || lease_ms>100 || max_age_ms>=lease_ms ||
+        age>max_age_ms || age>=lease_ms-1 || deadtime_ms<1 || deadtime_ms>100 ||
+        requested_mv>5000 || requested_mv<-800 || !MotorHwReal_OutputArmingAllowed()) goto fail;
+    if (s_servo_has_sequence &&
+        (!MotorStopTimer_IsArmed() || !MotorExecutor_ActiveRequestIsValid() ||
+         (int32_t)(now_ms-s_motor.logical_deadline_ms)>=0)) goto fail;
+    *interlocked=false;
+    int sign=requested_mv>0 ? 1 : requested_mv<0 ? -1 : 0;
+    int32_t actual=requested_mv;
+    if (s_servo_committed!=0 && sign!=0 && sign!=s_servo_last_sign) {
+        MotorHwReal_DisableImmediate();
+        if (!MotorHwReal_IsDisabled()) goto fail;
+        s_servo_committed=0; s_servo_off_ms=now_ms;
+        actual=0; *interlocked=true;
+    } else if (sign!=0 && s_servo_last_sign!=0 && sign!=s_servo_last_sign &&
+               (uint32_t)(now_ms-s_servo_off_ms)<deadtime_ms) {
+        actual=0; *interlocked=true;
+    }
+    /* Arm before enabling; renew while live without clearing any pending expiry.
+     * Failure at any later stage revokes the lease and forces OFF. */
+    if (!(s_servo_has_sequence ? MotorStopTimer_RenewLease(lease_ms-age) :
+                                MotorStopTimer_ArmLease(lease_ms-age))) goto fail;
+    if (!s_servo_open || s_completion_event_pending) goto fail;
+    if (actual==0) {
+        if (s_servo_committed!=0) s_servo_off_ms=now_ms;
+        MotorHwReal_DisableImmediate();
+        if (!MotorHwReal_IsDisabled()) goto fail;
+    } else {
+        MotorDirection dir=actual>0 ? MOTOR_DIRECTION_PRESS : MOTOR_DIRECTION_RELEASE;
+        uint32_t magnitude=(uint32_t)(actual>0 ? actual : -actual);
+        if (MotorExecutor_PlanCommand(dir,magnitude,&t2,&t3)!=MOTOR_RESULT_OK) goto fail;
+        bool ok = s_servo_committed!=0 ? MotorHwReal_Update(actual>0,actual>0?t3:t2) :
+            (actual>0 ? MotorHwReal_ApplyPress(t3) : MotorHwReal_ApplyRelease(t2));
+        if (!ok || MotorHwReal_IsDisabled()) goto fail;
+        s_servo_last_sign=actual>0 ? 1 : -1;
+    }
+    if (!MotorStopTimer_CommitArm() || !s_servo_open || s_completion_event_pending) goto fail;
+    s_servo_sequence=sequence; s_servo_has_sequence=true; s_servo_committed=actual;
+    s_motor.last_action=MOTOR_ACTION_CONTINUOUS; s_motor.logical_active=true;
+    s_motor.last_completion=MOTOR_COMPLETION_NONE;
+    s_motor.direction=actual<0 ? MOTOR_DIRECTION_RELEASE : MOTOR_DIRECTION_PRESS;
+    s_motor.command_mv=(uint32_t)(actual<0 ? -actual : actual);
+    s_motor.requested_duration_ms=0;
+    s_motor.planned_tim2_ccr3=t2; s_motor.planned_tim3_ccr3=t3;
+    s_motor.logical_deadline_ms=received_ms+lease_ms;
+    s_motor.logical_backstop_ms=s_motor.logical_deadline_ms;
+    ++s_motor.request_sequence;
+    *committed_mv=actual; result=MOTOR_RESULT_OK; goto done;
+fail:
+    s_servo_open=false;
+    MotorHwReal_DisableImmediate(); MotorStopTimer_Cancel();
+    /* Preserve the ISR's event classification for Service. */
+    if (!s_completion_event_pending) MotorExecutor_LatchCompletion(MOTOR_STOP_TIMER_ERROR);
+    result=MOTOR_RESULT_HARDWARE_ERROR;
+done:
+    MotorExecutor_SetPhysicalStatus();
+    MotorAtomic_Leave(key); return result;
+}
+#endif
+
+#if SD700_FORCE_SERVO_ENABLED
+bool MotorExecutor_ContinuousExpired(void)
+{
+    return s_motor.last_action==MOTOR_ACTION_CONTINUOUS &&
+           (!s_servo_open || s_completion_event_pending);
+}
+#endif

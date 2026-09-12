@@ -2,7 +2,7 @@
 
 #include "Application/bench_config.h"
 #include "Application/motion_build_policy.h"
-#if SD700_AUTO_TARGET_ENABLED
+#if SD700_AUTO_TARGET_ENABLED || SD700_FORCE_SERVO_ENABLED
 #include "Application/auto_target_config.h"
 #endif
 #include "Application/runtime.h"
@@ -36,7 +36,7 @@ int main(void)
         SafeIdle_Run();
     }
     ApplicationRuntime_Initialize(&s_runtime,
-#if SD700_AUTO_TARGET_ENABLED
+#if SD700_AUTO_TARGET_ENABLED || SD700_FORCE_SERVO_ENABLED
                                   &g_sd700_auto_target_machine_config,
 #else
                                   &g_sd700_bench_machine_config,
@@ -67,10 +67,15 @@ int main(void)
     {
         now_ms = HAL_GetTick();
 
+#if SD700_FORCE_SERVO_ENABLED
+        /* Drain bounded ingress and apply any queued STOP before new PID work. */
+        ModbusUart2_ServiceMain();
+        stop_processed = ModbusUart2_ProcessPendingStop(HAL_GetTick());
+#endif
         /* 1. Deliver each accepted USART6 pressure sequence at most once. */
         if (PressureUart6_ReadSnapshot(&pressure_snapshot))
         {
-#if SD700_AUTO_TARGET_ENABLED
+#if SD700_AUTO_TARGET_ENABLED || SD700_FORCE_SERVO_ENABLED
             /* The receive ISR can publish across a tick after loop entry.
              * Date the copied snapshot with current time, not an older tick. */
             now_ms = HAL_GetTick();

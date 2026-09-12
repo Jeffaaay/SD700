@@ -51,6 +51,12 @@ bool ApplicationRuntime_ServicePressure(
 {
     MachinePressureSample sample = {0};
 
+#if SD700_FORCE_SERVO_ENABLED
+    if (runtime == NULL || pressure == NULL ||
+        (!runtime->machine.servo.have_sample && pressure->sample_sequence == 0U) ||
+        (runtime->machine.servo.have_sample &&
+         pressure->sample_sequence == runtime->delivered_pressure_sequence)) return false;
+#else
     if ((runtime == NULL) || (pressure == NULL) ||
         (pressure->sample_sequence == 0U) ||
         (pressure->sample_sequence <=
@@ -59,6 +65,13 @@ bool ApplicationRuntime_ServicePressure(
         return false;
     }
 
+#endif
+
+#if SD700_FORCE_SERVO_ENABLED
+    /* Receiver ISR interval extrema are distinct from intervals delivered by main. */
+    runtime->machine.servo.diagnostic.rx_interval_min_ms=pressure->frame_interval_min_ms;
+    runtime->machine.servo.diagnostic.rx_interval_max_ms=pressure->frame_interval_max_ms;
+#endif
     sample.sequence = pressure->sample_sequence;
     sample.received_at_ms = pressure->received_at_ms;
     sample.raw_pressure_counts = pressure->raw_pressure_counts;

@@ -1,3 +1,7 @@
+#include "Application/motion_build_policy.h"
+#if SD700_FORCE_SERVO_ENABLED
+#include "Transport/Modbus/force_servo_protocol.h"
+#endif
 #include "Transport/Modbus/modbus_rtu_server.h"
 
 #include <string.h>
@@ -210,12 +214,16 @@ static void ModbusRtuServer_ProcessWrite(ModbusRtuServer *server,
         &server->active_request[4]);
     MachineCommandResult result;
 
-    if (((function == MODBUS_FUNCTION_WRITE_SINGLE_REGISTER) &&
+    if (
+#if SD700_FORCE_SERVO_ENABLED
+        !ForceServoProtocol_WriteAddress(function,address) &&
+#endif
+        (((function == MODBUS_FUNCTION_WRITE_SINGLE_REGISTER) &&
          (address != MODBUS_HOLDING_TARGET_PRESSURE)) ||
         ((function == MODBUS_FUNCTION_WRITE_SINGLE_COIL) &&
          (address != MODBUS_COIL_AUTO_PRESSURE) &&
          (address != MODBUS_COIL_DIRECT_RELEASE_PULSE) &&
-         (address != MODBUS_COIL_DIRECT_PRESS_PULSE)))
+         (address != MODBUS_COIL_DIRECT_PRESS_PULSE))))
     {
         ModbusRtuServer_BuildException(
             server,

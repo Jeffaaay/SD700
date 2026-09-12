@@ -72,3 +72,11 @@ desktop.ini
 *.bak
 *.swp
 *~
+
+# ForceServo1 keeps a separate locked candidate; previous evidence remains intact.
+!/output/ForceServo1/
+/output/ForceServo1/*
+!/output/ForceServo1/firmware/
+/output/ForceServo1/firmware/*
+!/output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.hex
+!/output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.elf

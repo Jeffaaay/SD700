@@ -92,6 +92,11 @@ extern RCC_TypeDef g_fake_rcc;
 
 #define TIM5_IRQn                50
 
+#if defined(SD700_FORCE_SERVO_ENABLED) && SD700_FORCE_SERVO_ENABLED
+void FakeForceServo_Dsb(void);
+#define __DSB() FakeForceServo_Dsb()
+#else
 #define __DSB()                  ((void)0)
+#endif
 
 #endif

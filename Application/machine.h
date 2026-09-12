@@ -5,6 +5,10 @@
 #include <stdint.h>
 
 #include "Application/force_pi.h"
+#include "Application/motion_build_policy.h"
+#if SD700_FORCE_SERVO_ENABLED
+#include "Application/force_servo_machine.h"
+#endif
 #include "Protocol/PressureSensor/pressure_sensor_protocol.h"
 
 /* Real automatic motion requires the explicit AutoTarget build policy. */
@@ -22,7 +26,10 @@ typedef enum
     COMPLETE,
     FAULT,
     DIRECT_PRESS_PULSE,
-    DIRECT_RELEASE_PULSE
+    DIRECT_RELEASE_PULSE,
+    FORCE_APPROACH,
+    FORCE_BUILD,
+    FORCE_HOLD
 } MachineState;
 
 typedef enum
@@ -36,7 +43,8 @@ typedef enum
     CMD_ACK_COMPLETE,
     CMD_SET_TARGET,
     CMD_DIRECT_PRESS_PULSE,
-    CMD_DIRECT_RELEASE_PULSE
+    CMD_DIRECT_RELEASE_PULSE,
+    CMD_FORCE_START
 } MachineCommandType;
 
 typedef enum
@@ -65,7 +73,13 @@ typedef enum
     FAULT_DETAIL_MOTOR_REQUEST_REJECTED,
     FAULT_DETAIL_MOTOR_HARDWARE,
     FAULT_DETAIL_INTERNAL_STATE,
-    FAULT_DETAIL_DIRECT_PULSE_TIMEOUT
+    FAULT_DETAIL_DIRECT_PULSE_TIMEOUT,
+    FAULT_DETAIL_LEASE_EXPIRED,
+    FAULT_DETAIL_CONTACT_LOST,
+    FAULT_DETAIL_SESSION_TIMEOUT,
+    FAULT_DETAIL_SATURATION_TIMEOUT,
+    FAULT_DETAIL_TRACKING_TIMEOUT,
+    FAULT_DETAIL_NUMERIC
 } FaultDetail;
 
 typedef enum
@@ -201,6 +215,9 @@ typedef struct
         bool in_flight;
         bool feedback_pending;
     } press_feedback;
+#endif
+#if SD700_FORCE_SERVO_ENABLED
+    ForceServoMachine servo;
 #endif
 } MachineContext;
 

@@ -59,28 +59,35 @@ foreach ($optimization in @('O0', 'O2')) {
     }
 }
 
-# Static check complements the runtime/fake tests: STOP still precedes normal
-# Modbus requests, after pressure -> safety service -> output guard.
-$main = Get-Content -LiteralPath (Join-Path $root 'User\main.c') -Raw
-$loopAt = $main.IndexOf('for (;;)', [StringComparison]::Ordinal)
-if ($loopAt -lt 0) { throw 'Main loop was not found.' }
-$loop = $main.Substring($loopAt)
-$previous = -1
-foreach ($call in @(
-    'PressureUart6_ReadSnapshot(',
-    'ApplicationRuntime_ServicePressure(',
-    'ApplicationRuntime_ServiceSafety(',
-    'MotorExecutor_GuardOutput(',
-    'ModbusUart2_ServiceMain(',
-    'ModbusUart2_ProcessPendingStop(',
-    'if (!stop_processed)',
-    'ModbusUart2_ProcessOneNormalRequest('
-)) {
-    $position = $loop.IndexOf($call, [StringComparison]::Ordinal)
-    if ($position -le $previous) {
-        throw "Main-loop safety/STOP order is invalid at $call"
+# Check the actual preprocessed loops for BOTH owners. ForceServo adds an early
+# STOP pass before PID consumption; the legacy ordering assertion stays intact.
+foreach ($servo in @(0,1)) {
+    $preArgs=@('-E','-P','-DUSE_HAL_DRIVER','-DSTM32F411xE',
+        "-DSD700_FORCE_SERVO_ENABLED=$servo",'-DSD700_MOTOR_MODE_REAL_BENCH=1',
+        '-DSD700_REAL_BENCH_ACKNOWLEDGED=1','-DSD700_REAL_OUTPUT_ARMING_ENABLED=1')
+    foreach ($inc in @('.','User','Drivers','Drivers/CMSIS/Device/ST/STM32F4xx/Include',
+                      'Drivers/CMSIS/Include','Drivers/STM32F4xx_HAL_Driver/Inc')) {
+        $preArgs += "-I$(Join-Path $root $inc)"
     }
-    $previous = $position
+    $preArgs += Join-Path $root 'User/main.c'
+    $main=(& arm-none-eabi-gcc @preArgs) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw 'Main preprocessing failed' }
+    $loopAt=$main.IndexOf('for (;;)',[StringComparison]::Ordinal)
+    if ($loopAt -lt 0) { throw 'Main loop was not found.' }
+    $loop=$main.Substring($loopAt)
+    $calls=@()
+    if ($servo) { $calls+=@('ModbusUart2_ServiceMain(','ModbusUart2_ProcessPendingStop(') }
+    $calls+=@('PressureUart6_ReadSnapshot(','ApplicationRuntime_ServicePressure(',
+        'ApplicationRuntime_ServiceSafety(','MotorExecutor_GuardOutput(',
+        'ModbusUart2_ServiceMain(','ModbusUart2_ProcessPendingStop(',
+        'if (!stop_processed)','ModbusUart2_ProcessOneNormalRequest(')
+    $previous=-1
+    foreach ($call in $calls) {
+        $position=$loop.IndexOf($call,$previous+1,[StringComparison]::Ordinal)
+        if ($position -le $previous) { throw "Main-loop safety/STOP order invalid owner=$servo at $call" }
+        $previous=$position
+    }
+    Write-Output "MAIN_OWNER_ORDER=$servo PASS"
 }
 Write-Output 'MAIN_PRESSURE_SAFETY_GUARD_STOP_ORDER=PASS'
 Write-Output 'COMPLETION_RACE_SUITE=PASS'

@@ -1,3 +1,6 @@
+#include "Application/motion_build_policy.h"
+#include "Application/machine.h"
+#if !SD700_FORCE_SERVO_ENABLED
 #include "Application/machine.h"
 
 #include <limits.h>
@@ -1620,3 +1623,5 @@ void Machine_Tick(MachineContext *context, uint32_t now_ms)
             break;
     }
 }
+
+#endif

@@ -5,6 +5,9 @@
 
 #include "Application/bench_config.h"
 #include "Application/motion_build_policy.h"
+#if SD700_FORCE_SERVO_ENABLED
+#include "Transport/Modbus/force_servo_protocol.h"
+#endif
 #include "Board/Motor/motor_executor.h"
 #include "Protocol/Modbus/modbus_protocol_constants.h"
 #include "Protocol/Modbus/modbus_register_map.h"
@@ -21,6 +24,10 @@ MachineCommandResult ModbusSemantic_ApplyWrite(MachineContext *context,
                                                uint32_t now_ms)
 {
     MachineCommand command = {CMD_STOP, 0};
+#if SD700_FORCE_SERVO_ENABLED
+    if (ForceServoProtocol_WriteAddress(function,address))
+        return ForceServoProtocol_Write(context,function,address,value,now_ms);
+#endif
 
     if (context == NULL)
     {
@@ -73,6 +80,9 @@ bool ModbusSemantic_ReadHolding(const MachineContext *context,
                                 uint16_t address,
                                 uint16_t *value)
 {
+#if SD700_FORCE_SERVO_ENABLED
+    if (ForceServoProtocol_Read(context,true,address,value)) return true;
+#endif
     if ((context == NULL) || (value == NULL) ||
         (address != MODBUS_HOLDING_TARGET_PRESSURE))
     {
@@ -89,6 +99,9 @@ bool ModbusSemantic_ReadInput(const MachineContext *context,
                               uint32_t now_ms,
                               uint16_t *value)
 {
+#if SD700_FORCE_SERVO_ENABLED
+    if (ForceServoProtocol_Read(context,false,address,value)) return true;
+#endif
     const MotorExecutorSnapshot *motor;
     uint16_t flags = 0U;
 
