@@ -1,5 +1,9 @@
 # PressBoostRetain1 - actual verification
 
+Historical engineering record. Current delivery uses GitHub main; the old
+archive workflow and generated build copies have been retired. Follow the
+[current README](../README.md), not historical delivery instructions below.
+
 Base and initial HEAD: `c5af4edcb9bbcebaf647e85cd89af4139dbdfbf9` (ApproachMeasure1).
 Initial worktree was clean; fetched origin/main had no newer commits. No rollback.
 

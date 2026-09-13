@@ -1,5 +1,9 @@
 # ConvergenceMeasure1 - actual verification
 
+Historical engineering record. Current delivery uses GitHub main; the old
+archive workflow and generated build copies have been retired. Follow the
+[current README](../README.md), not historical delivery instructions below.
+
 Baseline and initial HEAD: `c36a1da1f9892b583fafbbc3b27feaaf78d48ff7`
 (PressBoostRetain1). Initial worktree was clean; fetched origin/main matched.
 No rollback, history rewrite or overwrite of existing evidence.

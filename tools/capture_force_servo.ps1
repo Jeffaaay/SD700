@@ -221,10 +221,10 @@ if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $Curren
 $firmware=Join-Path $PSScriptRoot '../output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
-    throw 'Operator flash attestation must match the bundled HEX; this is not MCU binary verification'
+    throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'
 }
 & python "$PSScriptRoot/verify_force_servo_firmware.py"
-if ($LASTEXITCODE -ne 0) { throw 'Bundled firmware verification failed; no serial connection' }
+if ($LASTEXITCODE -ne 0) { throw 'Repository firmware verification failed; no serial connection' }
 if ($Mode -eq 'Parameters') {
     if (-not $ParameterFile) { throw 'Parameters mode requires a complete JSON file' }
     & python "$PSScriptRoot/force_servo_data.py" --validate $ParameterFile

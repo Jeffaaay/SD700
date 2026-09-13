@@ -6,7 +6,7 @@ EIDE/build/
 build/
 
 # Generated executables, firmware, archives and compiler/test output.
-# The two exact current field firmware files are allowed explicitly below.
+# The current field pair and retained historical pair are allowed below.
 *.exe
 *.log
 *.hex
@@ -14,13 +14,22 @@ build/
 *.bin
 *.axf
 *.zip
-*.zip.sha256
+*.zip.*
+*.tar
+*.tar.*
+*.tgz
 *.o
 *.obj
 *.d
 *.map
 *.pyc
 __pycache__/
+*.dep
+*.lst
+*.crf
+*.lnp
+zip_verification/
+CaptureFix1_ExtractCheck_*/
 
 # Field captures belong outside Git; source/test data CSVs are not globally ignored.
 /field/

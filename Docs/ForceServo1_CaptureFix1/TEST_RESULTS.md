@@ -1,5 +1,12 @@
 # ForceServo1 CaptureFix1 — software verification
 
+Historical results at `ab23cb440d08d2695e7cd231d13fe6766bb9e3e4`. The later
+repository cleanup retired ZIP delivery, removed package-only tools/tests,
+archives, extraction trees and regenerable outputs. Counts and preservation
+claims below describe that earlier verification, not current disk contents.
+The current delivery policy is [GitHub main](../../README.md); none of the
+historical package procedures below is required or supported for field use.
+
 Baseline: `29d0a9091b8333c690bcb41f5474dffc3909ef61`. HEAD matched and the initial
 worktree was clean. This is a tool repair. Production C/H, control architecture,
 PID, trajectory, executor, TIM5 lease, HOLD, limits, deadlines and the compiled
@@ -110,15 +117,14 @@ and callback-scope fixture issues; the unavailable-budget report failure; and
 an absolute-path test-runner issue. These are local software results, not field
 captures. Their corrections are covered by the final successful runs.
 
-The new packager checks clean committed main against remote main, baseline
+The former packager checked clean committed main against remote main, baseline
 production/evidence preservation, current verification source hashes, historical
 source hashes at the reviewed commit, all referenced historical log hashes,
 current root source manifest, strict locked firmware and every packaged entry.
-It refuses to overwrite an existing delivery. The ZIP contains the source,
+It refused to overwrite an existing delivery. The historical ZIP contained the source,
 unchanged HEX/ELF, actual logs/results and synthetic captures. Its package
-manifest and `SOURCE_OF_TRUTH.json` identify the exact delivered contents/commit.
-`verify_force_servo_capturefix1_package.py` checks either the ZIP or its extracted
-directory offline; a separate `.zip.sha256` gives the archive's actual digest.
+manifest and metadata identified its delivered contents/commit. That package
+verifier and its sidecars have been removed under the repository-only policy.
 
 ARM rebuild: **NOT RUN**, because production source and binaries are unchanged.
 Physical serial timing, MCU binary readback, hardware stop path, current/voltage,

@@ -3,13 +3,37 @@ import hashlib
 from pathlib import Path
 import struct
 
-# Reuse only the ELF reader. The historical FieldReady1 packager and its
-# original hash/configuration assertions remain unchanged and are not run here.
-from package_auto_target import elf_symbols
+# Keep the historical ELF reader here; firmware verification has no delivery-tool dependency.
 
 
 ROOT = Path(__file__).resolve().parent.parent
 STEM = "SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release"
+
+
+def elf_symbols(path):
+    data = path.read_bytes()
+    assert data[:6] == b'\x7fELF\x01\x01', 'Expected ELF32 little endian'
+    assert struct.unpack_from('<H', data, 18)[0] == 40, 'Expected ARM target'
+    shoff = struct.unpack_from('<I', data, 32)[0]
+    entsize, count = struct.unpack_from('<HH', data, 46)
+    sections = [struct.unpack_from('<10I', data, shoff + i*entsize) for i in range(count)]
+    found = {}
+    for s in sections:
+        if s[1] != 2:
+            continue
+        strings = sections[s[6]]
+        text = data[strings[4]:strings[4] + strings[5]]
+        for offset in range(s[4], s[4] + s[5], s[9]):
+            name, value, size, info, other, section = struct.unpack_from('<IIIBBH', data, offset)
+            name = text[name:text.index(b'\0', name)].decode('ascii')
+            if name in ('g_sd700_auto_target_machine_config', 'g_sd700_auto_target_force_pi_config'):
+                source = sections[section]
+                at = source[4] + value - source[3]
+                found[name] = data[at:at+size]
+            if name == 'g_sd700_approach_diagnostics':
+                found['approach_diagnostics_ram'] = {'address': hex(value), 'size_bytes': size,
+                                                    'section_type': sections[section][1]}
+    return found
 
 
 def verify():

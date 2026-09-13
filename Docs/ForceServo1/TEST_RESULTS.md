@@ -1,5 +1,9 @@
 # Actual ForceServo1 software verification
 
+Historical engineering record. Archive delivery and its generated artifacts
+have since been retired. Current delivery uses GitHub main as described in
+[README](../../README.md); historical ZIP references below are not instructions.
+
 **physical test NOT RUN.** No serial connection, flashing, motor enable or powered
 trial was performed. The new continuous stop path has no inherited physical PASS.
 

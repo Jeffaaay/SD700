@@ -32,7 +32,6 @@ def main():
         ('force_host', py+['tools/run_force_servo_tests.py', '--output', str(out/'host')]),
         ('data_schema', py+['tools/force_servo_data.py', '--self-test']),
         ('verifier_rejections', py+['Tests/Host/test_force_servo_verifier.py']),
-        ('package_rejections', py+['Tests/Host/test_capturefix1_package.py']),
         ('offline_firmware', py+['tools/verify_force_servo_firmware.py']),
         ('historical_auto_firmware', py+['tools/verify_current_auto_target_firmware.py']),
     ]

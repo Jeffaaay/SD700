@@ -2,8 +2,12 @@
 
 Current candidate: **ForceServo1 CaptureFix1**, a capture/verifier tool repair on
 reviewed ForceServo1 `29d0a9091b8333c690bcb41f5474dffc3909ef61`. HEAD matched and
-the worktree was clean. Production firmware source and both firmware files are
-unchanged; no ARM rebuild was performed. Previous evidence and ZIPs are retained.
+the worktree was clean. Production firmware source and both firmware files remain
+unchanged. Repository cleanup on CaptureFix1 `ab23cb440d08d2695e7cd231d13fe6766bb9e3e4`
+retires archive delivery and removes generated build/test copies. Useful
+historical records and unique field evidence are retained.
+
+**GitHub main is the source of truth. The only delivery is the pushed Git commit.**
 
 Shared serial framing now supports FC03 parameter replies. Tests exercise the
 production length reader and the complete no-hardware Observe flow, including
@@ -33,6 +37,9 @@ Target max275, contact20 and raw abort325 remain; units are sensor control units
 No safe continuous output or gain is inferred from the old 10 ms pulse behavior.
 
 ## One next field step
+
+Update the repository and verify its firmware as described under Repository
+delivery below. Use the current HEX/ELF directly from the repository.
 
 With motor power **physically disconnected** and MCU/pressure sensor correctly
 powered, confirm the identified locked firmware and observe pressure
@@ -85,12 +92,38 @@ for the host regression runner. No serial port is opened by these software
 checks. CaptureFix1 does not change ForceServo PID, trajectory, executor, TIM5,
 HOLD, limits, deadlines or output lock. Existing safety assertions remain.
 
-Current delivery: `output/SD700_ForceServo1_CaptureFix1_SourceOfTruth.zip`, with
-an adjacent `.zip.sha256`. Its `SOURCE_OF_TRUTH.json` identifies the committed
-source; `ForceServo1_CaptureFix1_PACKAGE_SHA256SUMS.txt` hashes every entry.
-After extracting, run `python tools/verify_force_servo_capturefix1_package.py .`
-from the extracted `SD700` directory before the field command. This offline
-package check also requires only Python and does not open a serial port.
+## Repository delivery
+
+After a validated software change: build/test, retain the current field HEX/ELF
+in Git, update README and the firmware/source manifests, commit, then push
+`origin/main`. Do not generate or hand off ZIPs, archive sidecars, extracted
+verification copies or nested delivery bundles. No package verification is
+required before field use. This policy supersedes all historical ZIP workflows.
+
+Existing checkout:
+
+```powershell
+git switch main
+git pull --ff-only
+git rev-parse HEAD
+python tools/verify_force_servo_firmware.py
+```
+
+For a new computer:
+
+```powershell
+git clone https://github.com/Jeffaaay/SD700.git
+cd SD700
+git switch main
+git rev-parse HEAD
+python tools/verify_force_servo_firmware.py
+```
+
+Then use the current repository firmware identified above and in
+`Firmware/ForceServo1.SHA256SUMS.txt`. Firmware verification remains strict and
+requires only Python; no archive or ARM executable is needed for this check.
+Keep field captures and useful test records. Remove regenerable objects,
+caches and temporary build/test trees after recording their results.
 
 Historical entry point: [ConvergenceMeasure1 README archive](Docs/ForceServo1/ConvergenceMeasure1_README_ARCHIVE.md).
 Its links/commands refer to the repository root and its **previous** candidate.

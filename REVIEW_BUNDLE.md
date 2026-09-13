@@ -1,4 +1,8 @@
-# ConvergenceMeasure1 - current field repository index
+# ConvergenceMeasure1 - historical engineering index
+
+This is a historical record. The current firmware, field instructions and
+GitHub-main delivery policy are in [README.md](README.md). Former archive
+delivery has been retired; this index does not authorize the old field test.
 
 The only production change from PressBoostRetain1 (`c36a1da`) increases the
 convergence timeout from8000 to30000 ms. Timing anchors and HOLD semantics,
@@ -24,8 +28,9 @@ or that more time will achieve250. **physical test NOT RUN.**
 HEX_SHA256=BB5486FB8318045416CE0C65668118CAA556F675AB7C6F403D1ED7F8192B780B
 ELF_SHA256=7E09AB5463A92158459739682B8DE1DE2E257A955347A1EC5DCDC5CEACEC2D2D
 
-Main tracks one current pair. Historical firmware, ZIPs, tests and evidence remain
-locally and in history. The named field CSV/report were not found in the workspace;
+At this release, main tracked one current pair. Historical firmware, tests and
+engineering records remain available. Generated archives have since been removed.
+The named field CSV/report were not found in the workspace;
 the supplied observations are recorded without inventing files, RAM/current values.
 No history was rewritten and no hardware connection, flashing or START occurred.
 
@@ -34,8 +39,5 @@ Local verification index: `output/ConvergenceMeasure1/test_execution.json`,
 The tracked test record contains actual outcomes and log hashes. Raw generated
 logs remain local, not in Git/ZIP.
 
-Source-of-truth ZIP: `output/SD700_ConvergenceMeasure1_SourceOfTruth.zip`, created
-with `git archive --format=zip --prefix=SD700/ HEAD` at the pushed delivery commit.
-The ZIP comment identifies the commit, root SHA256SUMS verifies its contents and
-the adjacent `.zip.sha256` verifies the archive. These are separately delivered,
-ignored artifacts. All host pressure input is SYNTHETIC_INPUT.
+This historical release used a source ZIP. The current workflow delivers only
+the pushed Git commit. All host pressure input is SYNTHETIC_INPUT.

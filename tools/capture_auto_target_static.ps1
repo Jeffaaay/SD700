@@ -695,7 +695,7 @@ if ([string]::IsNullOrWhiteSpace($Port) -or [string]::IsNullOrWhiteSpace($Output
 $firmware = Join-Path $PSScriptRoot '../output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex'
 $actualHash = (Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
-    throw 'Operator-confirmed firmware SHA256 must match the bundled AutoTarget Release HEX'
+    throw 'Operator-confirmed firmware SHA256 must match the repository AutoTarget Release HEX'
 }
 $csvPath = [IO.Path]::GetFullPath($OutputCsv)
 $reportPath = [IO.Path]::ChangeExtension($csvPath, '.report.txt')
