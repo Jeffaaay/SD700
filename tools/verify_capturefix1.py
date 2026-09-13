@@ -38,6 +38,7 @@ def main():
         ('historical_auto_firmware', py+['tools/verify_current_auto_target_firmware.py']),
     ]
     if args.commissioning:
+        commands.append(('continuous2_range_fixture', py+['tools/run_force_servo_tests.py','--commissioning','--range-fixture','--output',str(out/'range_fixture')]))
         commands.append(('commissioning_gate', py+['Tests/Host/test_commissioning_gate.py', '--output', str(out/'gate')]))
     if args.objcopy_cross_check:
         commands.append(('developer_objcopy', py+['tools/verify_force_servo_firmware.py', '--objcopy-cross-check']))

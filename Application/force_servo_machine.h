@@ -10,11 +10,12 @@
  X(locked) X(output_off) X(contact_count) X(contact_lost_count) X(contact_at_ms) \
  X(contact_raw) X(contact_lost_raw) X(contact_threshold) X(session_started_ms) \
  X(saturated_ms) X(tracking_ms) X(skipped_samples) X(rx_interval_min_ms) X(rx_interval_max_ms) X(latest_sample_hi) X(latest_sample_lo) X(latest_received_ms) X(latest_raw) X(delivered_interval_min_ms) X(delivered_interval_max_ms) \
- X(start_pending) X(start_requested_ms) X(last_command_result)
+ X(start_pending) X(start_requested_ms) X(last_command_result) \
+ X(session_peak_raw) X(session_peak_received_ms)
 #define FORCE_SERVO_DIAG_FLOAT(X) \
  X(dt_s) X(filtered) X(target) X(reference) X(reference_rate) X(error) \
  X(p) X(i) X(d) X(ff) X(raw_output) X(control_committed) X(next_integral) X(current_committed) \
- X(control_pressure) X(requested_output)
+ X(control_pressure) X(requested_output) X(post_limit_output)
 typedef struct {
 #define FS_U32(n) uint32_t n;
  FORCE_SERVO_DIAG_U32(FS_U32)

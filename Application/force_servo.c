@@ -9,11 +9,14 @@ const ForceServoConfig g_force_servo_default_config = {
  FORCE_SERVO_PARAMETERS(FS_DEFAULT)
 #undef FS_DEFAULT
 };
-const uint32_t g_force_servo_contract[12] = {
+const uint32_t g_force_servo_contract[16] = {
  FORCE_SERVO_SCHEMA, FORCE_SERVO_BUILD_ID, SD700_FORCE_SERVO_COMMISSIONING, FORCE_SERVO_MAX_TARGET,
  FORCE_SERVO_RAW_ABORT, FORCE_SERVO_BUILD_MS,
- FORCE_SERVO_COMMISSIONING_OUTPUT_MV, FORCE_SERVO_COMMISSIONING_OUTPUT_MV,
- FORCE_SERVO_TARGET250, FORCE_SERVO_START_WAIT_MS, FS_FEEDBACK_GAP, FS_LEASE
+ FS_PRESS_PROFILE_CEILING, FS_RELEASE_PROFILE_CEILING,
+ FORCE_SERVO_TARGET250, FORCE_SERVO_START_WAIT_MS, FS_FEEDBACK_GAP, FS_LEASE,
+ FS_PRESS_OPERATING_CAP, FS_RELEASE_OPERATING_CAP,
+ SD700_FORCE_SERVO_COMMISSIONING, /* immediate magnitude reduction; ramp increases */
+ FS_POWERED_TEST_READY
 };
 static float clamp(float x, float lo, float hi) { return fminf(hi,fmaxf(lo,x)); }
 bool ForceServo_SequenceAfter(uint64_t a, uint64_t b)
@@ -77,8 +80,17 @@ bool ForceServo_Prepare(ForceServo *s,const ForceServoConfig *c,float m,float dt
  o->raw_output=o->p+o->i+o->d+o->ff;
  float amplitude=clamp(o->raw_output,-c->release_cap,c->press_cap);
  if (amplitude!=o->raw_output) o->limits|=FS_LIMIT_AMPLITUDE;
+#if SD700_FORCE_SERVO_COMMISSIONING
+ /* Ramp only increasing magnitude. A smaller demand must not retain PRESS
+  * (or RELEASE). Opposite demand ramps from zero; executor still enforces OFF
+  * and deadtime before changing direction. Safety stops bypass this function. */
+ float origin=amplitude*s->previous_committed>0 ? s->previous_committed : 0;
+ o->limited_output=amplitude>=0 ? fminf(amplitude,origin+c->output_rate*dt) :
+                                fmaxf(amplitude,origin-c->output_rate*dt);
+#else
  o->limited_output=clamp(amplitude,s->previous_committed-c->output_rate*dt,
                                    s->previous_committed+c->output_rate*dt);
+#endif
  if (o->limited_output!=amplitude) o->limits|=FS_LIMIT_RATE;
  return isfinite(o->raw_output) && isfinite(o->limited_output) && isfinite(s->derivative);
 }

@@ -3,18 +3,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "Application/motion_build_policy.h"
+#include "Application/force_servo_output_profile.h"
 
-#define FORCE_SERVO_SCHEMA 0xF102U
-#define FORCE_SERVO_BUILD_ID 0x46530103U
+#define FORCE_SERVO_SCHEMA 0xF103U
+#define FORCE_SERVO_BUILD_ID 0x46530104U
 #define FORCE_SERVO_MAX_TARGET 275U
 #define FORCE_SERVO_RAW_ABORT 325U
 #define FORCE_SERVO_CONTACT 20U
 #define FORCE_SERVO_BUILD_MS 30000U
 #define FORCE_SERVO_TARGET250 250U
-/* Commissioning ceiling: the lower original continuous default (release_cap
- * 100 mV, ForceServo1 29d0a90). A command limit, NOT a measured safe coil voltage.
- * No continuous rating has been established by the old pulse observations. */
-#define FORCE_SERVO_COMMISSIONING_OUTPUT_MV 100U
 #define FORCE_SERVO_COMMISSIONING_LEASE_MS 130U
 #define FORCE_SERVO_COMMISSIONING_AGE_MS 20U
 #define FORCE_SERVO_COMMISSIONING_DEADTIME_MS 2U
@@ -35,10 +32,10 @@
 #endif
 /* Plain locked ForceServo keeps its previous defaults/bounds. */
 #define FORCE_SERVO_PARAMETERS(X) \
- X(kp,1.0f,0,1000) X(ki,0,0,1000) X(kd,0,0,100) \
+ X(kp,FS_INITIAL_KP,0,1000) X(ki,0,0,1000) X(kd,0,0,100) \
  X(d_filter_s,0.02f,0.001f,1) X(reference_rate,FS_REFERENCE_RATE,0.1f,200) \
  X(reference_acceleration,FS_REFERENCE_ACCEL,0.1f,1000) X(output_rate,1000,1,100000) \
- X(press_cap,100,1,100) X(release_cap,100,1,100) \
+ X(press_cap,FS_PRESS_OPERATING_CAP,1,FS_PRESS_PROFILE_CEILING) X(release_cap,FS_RELEASE_OPERATING_CAP,1,FS_RELEASE_PROFILE_CEILING) \
  X(integral_min,-1000,-5000,0) X(integral_max,1000,0,5000) \
  X(tracking_gain,5,0.01f,100) X(measurement_filter_s,0,0,1) \
  X(control_min_ms,5,1,50) X(feedback_gap_ms,FS_FEEDBACK_GAP,2,FS_FEEDBACK_GAP) \
@@ -56,7 +53,7 @@ typedef struct {
 #define FORCE_SERVO_CONFIG_WORDS (sizeof(ForceServoConfig)/2U)
 extern const ForceServoConfig g_force_servo_default_config;
 /* Kept in the ELF as a verifiable candidate contract; not a hardware certificate. */
-extern const uint32_t g_force_servo_contract[12];
+extern const uint32_t g_force_servo_contract[16];
 typedef struct {
  float reference, reference_rate, filtered, derivative, integral;
  float start, target, trajectory_s, elapsed_s, previous_committed;

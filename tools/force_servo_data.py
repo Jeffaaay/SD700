@@ -5,10 +5,11 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parent.parent
 
 def schema():
-    header=(ROOT/'Application/force_servo.h').read_text()
+    header=(ROOT/'Application/force_servo.h').read_text(encoding='utf-8')
     # Current field profile only. The locked C profile retains its old defaults.
     profile=header.split('#if SD700_FORCE_SERVO_COMMISSIONING',1)[1].split('#else',1)[0]
-    constants=dict(re.findall(r'#define (FS_\w+) ([0-9.]+)',profile))
+    output_profile=(ROOT/'Application/force_servo_output_profile.h').read_text(encoding='utf-8')
+    constants=dict(re.findall(r'#define (FS_\w+) ([0-9.]+f?)',output_profile+'\n'+profile))
     def number(value): return float(constants.get(value,value).rstrip('f'))
     params=[]
     for n,d,lo,hi in re.findall(r'X\((\w+),([^,]+),([^,]+),([^\)]+)\)',header):
@@ -18,6 +19,9 @@ def schema():
     build_id=int(re.search(r'#define FORCE_SERVO_BUILD_ID (0x[0-9A-Fa-f]+)U',header)[1],16)
     schema_id=int(re.search(r'#define FORCE_SERVO_SCHEMA (0x[0-9A-Fa-f]+)U',header)[1],16)
     return dict(schema=schema_id,build_id=build_id,parameters=params,
+                powered_test_ready=bool(number('FS_POWERED_TEST_READY')),
+                press_profile_ceiling=number('FS_PRESS_PROFILE_CEILING'),
+                release_profile_ceiling=number('FS_RELEASE_PROFILE_CEILING'),
                 u32=re.findall(r'X\((\w+)\)',u),floats=re.findall(r'X\((\w+)\)',f.split('typedef struct')[0]))
 
 def digest(config):
@@ -57,12 +61,30 @@ def target250_summary(rows, valid):
     def elapsed(r, key='latest_received_ms'):
         return delta(r.get(key,r.get('received_ms',0)),origin) if r and origin is not None else None
     saturation=sum(bool(r.get('saturated',int(r['limits'])&1)) for r in valid)
+    session=control.get('session') if control else None
+    peaks=[r for r in rows if session is not None and r.get('session')==session and
+           not r.get('start_pending') and 'session_peak_raw' in r]
+    mcu_peak=max((r['session_peak_raw'] for r in peaks),default=None)
+    left=None; previously_saturated=False
+    for r in valid:
+        saturated=bool(int(r['limits'])&1)
+        if previously_saturated and not saturated and left is None: left=elapsed(r,'control_at_ms')
+        previously_saturated |= saturated
+    initial=pre[-1].get('latest_raw') if pre else None
     return dict(target_units=250,initial_pressure_units=pre[-1].get('latest_raw') if pre else None,
         initial_pressure_source=pre[-1]['phase'] if pre else 'UNAVAILABLE',
         time_to_control_start_ms=elapsed(control,'session_started_ms'),
         time_to_first_nonzero_command_ms=elapsed(commanded,'control_at_ms'),motion_start='NOT_MEASURED',
         time_to_90_ms=elapsed(ninety),time_to_first_250_ms=elapsed(reached),
-        peak_pressure_units=peak,overshoot_units=max(0,peak-250) if peak is not None else None,
+        peak_pressure_units=peak,peak_source='PC_SAMPLED_PEAK',
+        mcu_session_peak_units=mcu_peak,mcu_peak_source='VALID_ORDERED_FRESH_SESSION_SAMPLES' if peaks else 'UNAVAILABLE',
+        mcu_peak_overshoot_units=max(0,mcu_peak-250) if mcu_peak is not None else None,
+        sampled_pressure_rise_units=peak-initial if peak is not None and initial is not None else None,
+        first_observed_amplitude_saturation_exit_ms=left,
+        maximum_reported_saturation_ms=max((r.get('saturated_ms',0) for r in runs),default=0),
+        operator_reported_physical_motion='NOT_REPORTED; see field_notes',
+        operator_reported_physical_stop='NOT_REPORTED; see field_notes',
+        overshoot_units=max(0,peak-250) if peak is not None else None,
         peak_minus_target_units=peak-250 if peak is not None else None,
         final_pressure_units=final,final_error_units=250-final if final is not None else None,
         pre_stop_pressure_units=runs[-1].get('latest_raw',runs[-1]['raw']) if runs else None,
@@ -105,7 +127,8 @@ def metrics(rows):
                                and int(stops[-1].get('output_off',0))==1 and int(stops[-1].get('start_pending',0))==0
                                and int(stops[-1].get('state',0)) in (1,9))
     result.update(target250_summary(rows,valid))
-    # Register readback is software stop evidence only, independent scope/driver validation remains NOT_VALIDATED.
+    # tim2/tim3 are planned counts; output_off includes the hardware guard's register checks.
+    # Neither is an externally measured waveform or physical-stop certificate.
     if not valid: return result
     result['observed_peak_units']=max(r['raw'] for r in valid)
     result['observed_overshoot_units']=max(0,max(r['raw']-r['target'] for r in valid))
@@ -151,7 +174,7 @@ def decode_csv_row(row):
 
 
 def self_test():
-    s=schema(); assert len(s['parameters'])==24 and len(s['u32'])==45 and len(s['floats'])==16
+    s=schema(); assert len(s['parameters'])==24 and len(s['u32'])==47 and len(s['floats'])==17
     c={p['name']:p['default'] for p in s['parameters']}; validate(c)
     bad=dict(c,lease_ms=10)
     try: validate(bad)

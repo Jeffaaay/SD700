@@ -172,7 +172,7 @@ static MotorResult update(uint32_t token,int32_t requested,int32_t *actual,bool 
 #define TEST_OUTPUT_A 40
 #define TEST_OUTPUT_B 80
 #define TEST_OUTPUT_C 100
-#define TEST_OUTPUT_INVALID 101
+#define TEST_OUTPUT_INVALID (FS_PRESS_PROFILE_CEILING+1)
 #else
 #define TEST_OUTPUT_A 200
 #define TEST_OUTPUT_B 250
@@ -423,13 +423,13 @@ static void TestCommissioningEnable(void)
  assert(MotorExecutor_GuardOutput()==MOTOR_RESULT_OK);
  ForceServoConfig c=g_force_servo_default_config;
  assert(c.press_cap==100 && c.release_cap==100);
- c.press_cap=101; assert(!ForceServo_ConfigValid(&c));
- c=g_force_servo_default_config; c.release_cap=101; assert(!ForceServo_ConfigValid(&c));
+ c.press_cap=FS_PRESS_PROFILE_CEILING+1; assert(!ForceServo_ConfigValid(&c));
+ c=g_force_servo_default_config; c.release_cap=FS_RELEASE_PROFILE_CEILING+1; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.lease_ms=131; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.feedback_gap_ms=126; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.sample_age_ms=21; assert(!ForceServo_ConfigValid(&c));
- assert(update(token,101,&actual,&interlock)==MOTOR_RESULT_HARDWARE_ERROR); off();
- token=continuous(); assert(update(token,-101,&actual,&interlock)==MOTOR_RESULT_HARDWARE_ERROR); off();
+ assert(update(token,FS_PRESS_PROFILE_CEILING+1,&actual,&interlock)==MOTOR_RESULT_HARDWARE_ERROR); off();
+ token=continuous(); assert(update(token,-FS_RELEASE_PROFILE_CEILING-1,&actual,&interlock)==MOTOR_RESULT_HARDWARE_ERROR); off();
 }
 static void TestCommissioningSameDirection(void)
 {
@@ -502,6 +502,7 @@ static void TestCommissioningReverseOff(void)
 
 #if SD700_FORCE_SERVO_COMMISSIONING
 #include "Tests/Host/test_target250_cases.h"
+#include "Tests/Host/test_continuous2_cases.h"
 #endif
 int main(void)
 {
@@ -518,6 +519,8 @@ int main(void)
  RUN(TestTarget250StartFrame) RUN(TestTarget250PendingCancel) RUN(TestTarget250PendingValidation)
  RUN(TestTarget250BuildHold) RUN(TestTarget250SmallIntegral) RUN(TestTarget250FieldCadence)
  RUN(TestTarget250SyntheticPI)
+ RUN(TestContinuous2Range) RUN(TestContinuous2Sweep) RUN(TestContinuous2Ramp)
+ RUN(TestContinuous2Pwm) RUN(TestContinuous2Peak) RUN(TestContinuous2OldSaturation)
 #endif
  printf("FORCE_SERVO_TEST_GROUPS=%u PASS; physical test NOT RUN\n",count);
  return 0;

@@ -1,29 +1,31 @@
-# Current firmware: Target250MVP1
+# Current firmware: Target250Continuous2
 
-[HEX](../output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.hex)
+**POWERED_TEST_READY=NO; physical test NOT RUN.**
+This is a software configuration/scaling and reduction-path repair. The explicit
+RealBench image retains the previous100/100 output ceilings and arming gate;
+it is not a locked image. Higher continuous output is not justified or armed.
+Default ForceServo builds remain LOCKED. Do not repeat the unchanged100-cap
+powered trial as a solved performance issue. See [current README](../README.md).
 
-SHA256: `4277556949A4AD6A2D5D24E49F8A1DEA97C7D8906CA48AA9878D68B5DF924055`
+[HEX](../output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.hex)
 
-[ELF](../output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.elf)
+SHA256: `2B99E36C3694BDC8A9E9A0145161CBA537432607AA3A2268176CD62A18D0CA83`
 
-SHA256: `06B8281B8D089D97D5639C6176A94F962AB5297FE04EEAE9CC32AF5B5DB31B01`
+[ELF](../output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.elf)
 
-Verify from the repository root: `python tools/verify_force_servo_firmware.py`.
-The exact pair is pinned by [ForceServo1.SHA256SUMS.txt](ForceServo1.SHA256SUMS.txt).
-SchemaF102/build46530103, Target250, OFF pending wait250 ms, active gap125 ms,
-lease130 ms, age20 ms, exact P-first defaults,100 mV caps, target max275/raw abort325,
-build30000 ms and total45000 ms defaults are checked in the actual ELF.30068
-addressed load bytes match the HEX. The existing hardware gate/guard and linked
-continuous executor/TIM5 symbols are required. Strict checks use Python's standard
-library; optional `--objcopy-cross-check` additionally requires ARM objcopy.
+SHA256: `CE5CF188C03AA229288B57DF766615BF5819B0FD9E9494BDB9BF3967C62E35AA`
 
-The previous [CommissioningUnlock1 manifest](CommissioningUnlock1.SHA256SUMS.txt),
-[locked ForceServo manifest](ForceServo1_Locked.SHA256SUMS.txt), historical
-[AutoTarget manifest](SHA256SUMS.txt) and their original files remain intact.
-They are historical candidates, not alternate current field instructions.
+`python tools/verify_force_servo_firmware.py` checks the exact pair against
+[ForceServo1.SHA256SUMS.txt](ForceServo1.SHA256SUMS.txt), strict ELF/HEX load bytes,
+identityF103/build46530104,24 exact defaults,16-word contract including direction
+ceilings100/100, operating caps100/100, readiness0 and immediate-reduction policy1.
+Target250, max275/raw325, wait250, age20/gap125/lease130, build30000/session45000
+and saturation5000 remain.30312 addressed load bytes match. Python standard library
+suffices offline; objcopy is optional developer cross-check only. No checks skipped.
 
-GitHub main is the only source of truth; no ZIP. Use the
-[current README's one supervised Target250 session](../README.md), with the
-physical0.5 A current limit unchanged. The100 mV command cap is not a verified
-continuous-duty rating. **FIELD_STATUS=NOT_RUN.** Software PASS cannot certify
-physical output, STOP, Target250 response, thermal duty or HOLD stability.
+The previous [Target250MVP1 manifest](Target250MVP1.SHA256SUMS.txt),
+[CommissioningUnlock1 manifest](CommissioningUnlock1.SHA256SUMS.txt),
+[locked manifest](ForceServo1_Locked.SHA256SUMS.txt) and [AutoTarget manifest](SHA256SUMS.txt)
+and their firmware remain unchanged. Historical instructions do not authorize a
+current powered trial. GitHub main is source of truth; no ZIP. Physical STOP,
+HOLD/Target250, motor current, thermal duty and rotating load are NOT_VALIDATED.

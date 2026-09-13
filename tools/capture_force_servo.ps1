@@ -70,7 +70,22 @@ function Read-ForceConfig([scriptblock]$Exchange) {
         [uint32]$u=[uint64]$words[$i]*65536+[uint64]$words[$i+1]; $i+=2
         $values[$p.name]=[BitConverter]::ToSingle([BitConverter]::GetBytes($u),0)
     }
-    return [pscustomobject]$values
+    $config=[pscustomobject]$values
+    Assert-ForceConfig $config
+    return $config
+}
+function Assert-ForceConfig($Config) {
+    foreach ($p in $schema.parameters) {
+        $v=[single]$Config.($p.name)
+        if ($null -eq $Config.($p.name) -or [Single]::IsNaN($v) -or [Single]::IsInfinity($v) -or
+            $v -lt $p.minimum -or $v -gt $p.maximum -or
+            ($p.name.EndsWith('_ms') -and [Math]::Floor($v) -ne $v)) { throw "Invalid active config: $($p.name)" }
+    }
+    $c=$Config
+    if ($c.integral_min -ge $c.integral_max -or $c.hold_enter -ge $c.hold_exit -or
+        $c.control_min_ms -ge $c.feedback_gap_ms -or $c.feedback_gap_ms -ge $c.lease_ms -or
+        $c.sample_age_ms -ge $c.lease_ms -or $c.tracking_gain*$c.feedback_gap_ms*0.001 -gt 1 -or
+        $c.saturation_ms -gt $c.session_ms -or $c.tracking_ms -gt $c.session_ms) { throw 'Invalid active config relationships' }
 }
 function Invoke-ForceCapture {
     param(
@@ -126,7 +141,8 @@ function Invoke-ForceCapture {
         }
         if ($Mode -eq 'SingleStart') {
             if ($info[1] -ne 0 -or $first.locked -ne 0) { throw 'PHYSICAL_OUTPUT_LOCKED: no START sent; hardware qualification pending' }
-            if ($Target -ne 250) { throw 'Target250MVP1 requires Target=250; no START sent' }
+            if ($Target -ne 250) { throw 'Target250Continuous2 requires Target=250; no START sent' }
+            if ($activeConfig.ki -ne 0 -or $activeConfig.kd -ne 0) { throw 'Initial candidate requires Ki=0 and Kd=0; no START sent' }
             Write-ForceWord $exchange 0 $Target
             $ready=Read-ForceSnapshot $exchange 'TARGET_READBACK'
             [void]$rows.Add($ready)
@@ -165,7 +181,8 @@ function Invoke-ForceCapture {
     @{mode=$Mode;start_attempts=$startAttempts;start_accepted=$startAccepted;stop_reason=$stopReason;error=$errorText;config=$activeConfig;
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
-        commissioning='COMMISSIONING_NOT_TUNED';physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        commissioning='Target250Continuous2';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        pwm_counts='tim2/tim3 are PLANNED; no external electrical measurement';
         maximum_observation_seconds=$MaximumSeconds;capture_wall_ms=$watch.ElapsedMilliseconds;
         bus='115200 8N1; frozen snapshot in <=11-register chunks; polling misses are reported'} |
         ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $metaPath
@@ -233,12 +250,15 @@ if ($SelfTest) {
     return
 }
 if ($LibraryOnly) { return }
+if ($Mode -eq 'SingleStart' -and -not $schema.powered_test_ready) {
+    throw 'POWERED_TEST_READY=NO: higher continuous motor/board rating evidence missing; no serial connection or START'
+}
 if (-not $Port -or -not $OutputCsv) { throw 'Port and new OutputCsv required' }
 if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'Observe/Parameters requires physically disconnected motor power confirmation' }
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'

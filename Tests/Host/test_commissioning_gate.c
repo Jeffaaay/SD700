@@ -1,3 +1,4 @@
+#include "Application/force_servo_output_profile.h"
 #include <assert.h>
 #include <stdio.h>
 #include "Application/motion_build_policy.h"

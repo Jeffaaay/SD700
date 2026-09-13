@@ -47,7 +47,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     $caseDir=Join-Path $testOutput $Name
     Check (-not (Test-Path -LiteralPath $caseDir)) "Do not overwrite existing test evidence: $caseDir"
     New-Item -ItemType Directory -Path $caseDir -Force | Out-Null
-    $defaults=Get-Content -Raw "$root/Docs/Target250MVP1/default_parameters.json" | ConvertFrom-Json
+    $defaults=Get-Content -Raw "$root/Docs/Target250Continuous2/default_parameters.json" | ConvertFrom-Json
     $configWords=@()
     foreach ($parameter in $schema.parameters) {
         [uint32]$bits=[BitConverter]::ToUInt32([BitConverter]::GetBytes([single]$defaults.($parameter.name)),0)
@@ -77,7 +77,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
             } else {
             & $assert ($a -eq 0x102 -and $n -eq 0xD101) 'Only target and snapshot latch writes allowed'
             $sim.Latches++; $values=@{schema=$schema.schema;build_id=$schema.build_id;state=1;locked=[int](-not $Commissioning);output_off=1;
-                config_version=1;now_ms=$clock.ElapsedMilliseconds;latest_raw=$InitialPressure;latest_received_ms=$clock.ElapsedMilliseconds}
+                session_peak_raw=267;session_peak_received_ms=123;config_version=1;now_ms=$clock.ElapsedMilliseconds;latest_raw=$InitialPressure;latest_received_ms=$clock.ElapsedMilliseconds}
             if ($sim.Starts -eq 1 -and -not $sim.Stopped) { $values.state=13;$values.start_pending=0 }
             if ($Failure -eq 'DeviceFault' -and $sim.Latches -ge 2) { $values.state=9;$values.fault=2;$values.detail=2 }
             if ($Failure -eq 'RunningFault' -and $sim.Starts -eq 1) { $values.state=9;$values.fault=2;$values.detail=2 }
@@ -87,7 +87,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
                 $sim.Frozen+=@(($u -shr 16),($u -band 65535))
             }
             foreach ($name in $schema.floats) {
-                [single]$value=if ($name -eq 'target') {$sim.Target} else {0}
+                [single]$value=if ($name -eq 'target') {$sim.Target} elseif ($name -eq 'post_limit_output') {98.5} else {0}
                 [uint32]$u=[BitConverter]::ToUInt32([BitConverter]::GetBytes($value),0)
                 $sim.Frozen+=@(($u -shr 16),($u -band 65535))
             }
@@ -132,7 +132,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     if ($Failure -like '*Timeout') { Check ($caught -like 'Partial Modbus response:*') "Expected bounded timeout, got: $caught" }
     elseif ($CaptureMode -eq 'SingleStart' -and -not $Commissioning) { Check ($caught -like 'PHYSICAL_OUTPUT_LOCKED*') "Lock refusal missing: $caught" }
     elseif ($Commissioning -and $Target -ne 250) {
-        Check ($caught -like 'Target250MVP1 requires*') "Commissioning admission refusal missing: $caught"
+        Check ($caught -like 'Target250Continuous2 requires*') "Commissioning admission refusal missing: $caught"
         Check (@($sim.Requests | Where-Object {$_.Function -eq 6 -and $_.Address -eq 0}).Count -eq 0) 'Refused session wrote target'
     }
     else { Check ($caught -eq '') "Observe failed: $caught" }
@@ -143,6 +143,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     $report=Get-Content -Raw ([IO.Path]::ChangeExtension($csv,'.report.txt')) | ConvertFrom-Json
     $rows=@(Import-Csv -LiteralPath $csv)
     Check ($rows.Count -gt 0 -and $rows[-1].phase -eq 'STOP_READBACK') 'CSV STOP row missing'
+    Check ([int]$rows[-1].session_peak_raw -eq 267 -and [single]$rows[-1].post_limit_output -eq 98.5) 'New peak/post-limit wire fields lost'
     Check ($report.StopVerified -eq $true -and $metadata.start_attempts -eq $expectedStarts) 'Report/metadata STOP and START count proof'
     Check ($report.data_status -eq 'INSUFFICIENT_DATA') 'Observe must not imply powered tracking acceptance'
     if ($Failure -eq 'StartEchoTimeout') { Check ($null -eq $metadata.start_accepted) 'Lost echo must be unknown, never retried or called rejected' }
@@ -174,6 +175,21 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     $sim.Requests | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $caseDir 'wire_requests.json') -Encoding UTF8
     $script:caseCount++; Write-Output "CAPTURE_FLOW=$Name PASS STARTS=$expectedStarts; SYNTHETIC_NO_SERIAL"
 }
+# Public CLI must refuse before any SerialPort construction, even with a named port.
+$savedErrorAction=$ErrorActionPreference; $ErrorActionPreference='Continue'
+$blocked=& powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/../../tools/capture_force_servo.ps1" -Mode SingleStart -Port NEVER_OPEN_THIS_PORT 2>&1
+$blockedExit=$LASTEXITCODE; $ErrorActionPreference=$savedErrorAction
+Check ($blockedExit -ne 0 -and "$blocked" -like '*POWERED_TEST_READY=NO*') 'Not-ready CLI must fail before serial connection'
+$script:caseCount++
+$good=& python "$PSScriptRoot/../../tools/force_servo_data.py" --defaults | ConvertFrom-Json
+Assert-ForceConfig $good
+foreach ($name in @('press_cap','release_cap')) {
+    $original=$good.$name; $good.$name=101; $rejected=$false
+    try { Assert-ForceConfig $good } catch { $rejected=$true }
+    Check $rejected "Above-profile $name accepted by capture"
+    $good.$name=$original
+}
+$script:caseCount++
 Invoke-ObserveCase CompleteObserve
 Invoke-ObserveCase ConfigTimeout ConfigTimeout
 Invoke-ObserveCase DiagnosticTimeout DiagnosticTimeout

@@ -1,15 +1,15 @@
-"""Exact Target250MVP1 hashes, ARM ELF data and bounded arming profile."""
+"""Exact Target250Continuous2 hashes, ARM ELF data and bounded arming profile."""
 import argparse, hashlib, json, struct, subprocess
 from firmware_image import ElfImage, compare_images, require
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
-STEM='SD700_ForceServo1_Target250MVP1_RealBench_Release'
-FW_RELATIVE='output/Target250MVP1/firmware'
+STEM='SD700_ForceServo1_Target250Continuous2_RealBench_Release'
+FW_RELATIVE='output/Target250Continuous2/firmware'
 FW=ROOT/FW_RELATIVE
 PINNED_HASHES={
-    'hex':'4277556949A4AD6A2D5D24E49F8A1DEA97C7D8906CA48AA9878D68B5DF924055',
-    'elf':'06B8281B8D089D97D5639C6176A94F962AB5297FE04EEAE9CC32AF5B5DB31B01',
+    'hex':'2B99E36C3694BDC8A9E9A0145161CBA537432607AA3A2268176CD62A18D0CA83',
+    'elf':'CE5CF188C03AA229288B57DF766615BF5819B0FD9E9494BDB9BF3967C62E35AA',
 }
 
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest().upper()
@@ -27,7 +27,7 @@ def verify_contents(elf_data, hex_data):
 
 
 def verify_contract(sym):
-    require(sym['g_force_servo_contract']==struct.pack('<12I',0xF102,0x46530103,1,275,325,30000,100,100,250,250,125,130),'Firmware identity/configuration assertion failed')
+    require(sym['g_force_servo_contract']==struct.pack('<16I',0xF103,0x46530104,1,275,325,30000,100,100,250,250,125,130,100,100,1,0),'Firmware identity/configuration assertion failed')
     defaults=(1,0,0,.02,200,1000,1000,100,100,-1000,1000,5,0,5,125,20,130,5,10,45000,5000,50,10000,2)
     require(sym['g_force_servo_default_config']==struct.pack('<24f',*defaults),'Unexpected default parameter group')
     cfg=sym['g_sd700_auto_target_machine_config']
@@ -64,8 +64,9 @@ def verify(objcopy_cross_check=False):
             converted=Path(d)/'converted.hex'
             subprocess.run([executable,'-O','ihex',str(elf),str(converted)],check=True)
             require(converted.read_bytes()==(FW/(STEM+'.hex')).read_bytes(),'objcopy HEX/ELF mismatch')
-    result=dict(configuration='PASS',candidate='Target250MVP1',schema='F102',build_id='46530103',physical_output='COMMISSIONING_ARMED',
-                target=250,start_wait_ms=250,continuous_command_cap_mv=100,lease_timeout_ms=130,sample_age_ms=20,feedback_gap_ms=125,
+    result=dict(configuration='PASS',candidate='Target250Continuous2',schema='F103',build_id='46530104',physical_output='COMMISSIONING_ARMED',
+                target=250,start_wait_ms=250,press_profile_ceiling=100,release_profile_ceiling=100,press_operating_cap=100,release_operating_cap=100,
+                powered_test_ready=False,output_reduction='IMMEDIATE_MAGNITUDE_REDUCTION',lease_timeout_ms=130,sample_age_ms=20,feedback_gap_ms=125,
                 convergence_timeout_ms=30000,total_session_ms=45000,
                 load_bytes_compared=len(image.load_bytes),offline_verifier='PURE_PYTHON',
                 hex_sha256=sha(FW/(STEM+'.hex')),elf_sha256=sha(elf),physical_test='NOT_RUN')

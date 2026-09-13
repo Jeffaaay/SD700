@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'tools'))
-from force_servo_data import metrics
+from force_servo_data import metrics, schema, validate
 
 def sample(seq, raw, state=13, limits=0, **extra):
     return dict(phase='RUN',control_sequence=seq,session=1,config_version=1,config_digest=1,
@@ -13,6 +13,32 @@ def sample(seq, raw, state=13, limits=0, **extra):
         limits=limits,feedback_gap_ms=125,current_committed=extra.pop('current_committed',50),**extra)
 
 class Target250DataTests(unittest.TestCase):
+    def test_continuous2_peaks_and_exit(self):
+        a=sample(1,22,limits=1,session_peak_raw=260,saturated_ms=4900)
+        b=sample(3,249,limits=0,session_peak_raw=260)
+        stop=dict(phase='STOP_READBACK',session=1,session_peak_raw=261,latest_raw=249,
+                  current_committed=0,tim2=0,tim3=0,lease_active=0,output_off=1,state=1)
+        m=metrics([dict(phase='PREFLIGHT',latest_raw=22),a,b,stop])
+        self.assertEqual(m['peak_pressure_units'],249)
+        self.assertEqual(m['peak_source'],'PC_SAMPLED_PEAK')
+        self.assertEqual(m['mcu_session_peak_units'],261)
+        self.assertEqual(m['mcu_peak_overshoot_units'],11)
+        self.assertEqual(m['sampled_pressure_rise_units'],227)
+        self.assertEqual(m['maximum_reported_saturation_ms'],4900)
+        self.assertEqual(m['first_observed_amplitude_saturation_exit_ms'],300)
+        self.assertEqual(m['observed_saturation_ms'],0) # no interpolation over missing control updates
+        self.assertIsNone(metrics([dict(a,start_pending=1,state=1,lease_active=0)])['mcu_session_peak_units'])
+
+    def test_direction_limits_from_authoritative_profile(self):
+        s=schema(); c={p['name']:p['default'] for p in s['parameters']}
+        self.assertFalse(s['powered_test_ready'])
+        self.assertEqual((c['ki'],c['kd']),(0,0))
+        for name in ('press','release'):
+            bound=s[name+'_profile_ceiling']; good=dict(c,**{name+'_cap':bound})
+            validate(good)
+            for v in (0,bound+1,float('nan')):
+                with self.assertRaises(AssertionError): validate(dict(c,**{name+'_cap':v}))
+
     def test_full_curve(self):
         rows=[dict(phase='TARGET_READBACK',latest_raw=23)]
         rows += [sample(1,23,limits=1),sample(2,225,limits=1),sample(3,250,14),

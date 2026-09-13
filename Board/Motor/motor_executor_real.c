@@ -178,7 +178,8 @@ MotorResult MotorExecutor_PlanCommand(MotorDirection direction,
     uint32_t duty;
 
 #if SD700_FORCE_SERVO_COMMISSIONING
-    if (command_mv > FORCE_SERVO_COMMISSIONING_OUTPUT_MV) return MOTOR_RESULT_INVALID;
+    if ((direction==MOTOR_DIRECTION_PRESS && command_mv>FS_PRESS_PROFILE_CEILING) ||
+        (direction==MOTOR_DIRECTION_RELEASE && command_mv>FS_RELEASE_PROFILE_CEILING)) return MOTOR_RESULT_INVALID;
 #endif
     if ((!MotorExecutor_DirectionIsValid(direction)) ||
         (command_mv == 0U) ||
@@ -816,8 +817,8 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
         goto done;
     if (s_servo_has_sequence && (distance==0 || distance>=(UINT64_C(1)<<63))) goto done;
 #if SD700_FORCE_SERVO_COMMISSIONING
-    if (requested_mv>(int32_t)FORCE_SERVO_COMMISSIONING_OUTPUT_MV ||
-        requested_mv<-(int32_t)FORCE_SERVO_COMMISSIONING_OUTPUT_MV ||
+    if (requested_mv>(int32_t)FS_PRESS_PROFILE_CEILING ||
+        requested_mv<-(int32_t)FS_RELEASE_PROFILE_CEILING ||
         lease_ms>FORCE_SERVO_COMMISSIONING_LEASE_MS || max_age_ms>FORCE_SERVO_COMMISSIONING_AGE_MS ||
         deadtime_ms<FORCE_SERVO_COMMISSIONING_DEADTIME_MS) goto fail;
 #endif
@@ -827,7 +828,10 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
 #endif
         max_age_ms>=lease_ms ||
         age>max_age_ms || age>=lease_ms-1 || deadtime_ms<1 || deadtime_ms>100 ||
-        requested_mv>5000 || requested_mv<-800 || !MotorHwReal_OutputArmingAllowed()) goto fail;
+#if !SD700_FORCE_SERVO_COMMISSIONING
+        requested_mv>5000 || requested_mv<-800 ||
+#endif
+        !MotorHwReal_OutputArmingAllowed()) goto fail;
     if (s_servo_has_sequence &&
         (!MotorStopTimer_IsArmed() || !MotorExecutor_ActiveRequestIsValid() ||
          (int32_t)(now_ms-s_motor.logical_deadline_ms)>=0)) goto fail;

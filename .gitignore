@@ -105,3 +105,11 @@ desktop.ini
 /output/Target250MVP1/firmware/*
 !/output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.hex
 !/output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.elf
+
+# Target250Continuous2 software candidate; POWERED_TEST_READY=NO.
+!/output/Target250Continuous2/
+/output/Target250Continuous2/*
+!/output/Target250Continuous2/firmware/
+/output/Target250Continuous2/firmware/*
+!/output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.hex
+!/output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.elf

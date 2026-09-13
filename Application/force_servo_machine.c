@@ -101,6 +101,8 @@ static MachineCommandResult begin_session(MachineContext *m,uint32_t now)
  if (++s->session==0) ++s->session;
  memset(&s->diagnostic,0,sizeof(s->diagnostic));
  s->diagnostic.raw=m->pressure.raw_pressure_counts;
+ s->diagnostic.session_peak_raw=m->pressure.raw_pressure_counts;
+ s->diagnostic.session_peak_received_ms=m->pressure.received_at_ms;
  s->diagnostic.control_pressure=(float)m->pressure.control_pressure_units;
  s->diagnostic.received_ms=m->pressure.received_at_ms;
  s->diagnostic.sample_hi=(uint32_t)(m->pressure.sequence>>32);
@@ -211,6 +213,13 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  /* Check the old feedback deadline before a newly arrived sample can hide a gap. */
  Machine_CheckPressureSafety(m,now);
  m->pressure=*p; s->have_sample=true;
+ /* Valid, ordered, fresh session samples, including samples skipped by the
+  * control grid and the raw-abort sample. STOP/fault preserve this record. */
+ if (s->active && Machine_IsPressureFresh(m,now) &&
+     p->raw_pressure_counts>s->diagnostic.session_peak_raw) {
+     s->diagnostic.session_peak_raw=p->raw_pressure_counts;
+     s->diagnostic.session_peak_received_ms=p->received_at_ms;
+ }
  if (p->raw_pressure_counts>=FORCE_SERVO_RAW_ABORT) {
      fault(m,FAULT_OVERPRESSURE,FAULT_DETAIL_NONE,now); return;
  }
@@ -273,6 +282,7 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  d->p=step.p; d->i=step.i; d->d=step.d; d->ff=step.ff;
  d->raw_output=step.raw_output; d->control_committed=(float)committed;
  d->requested_output=(float)requested;
+ d->post_limit_output=step.limited_output;
  d->next_integral=step.next_integral; d->limits=step.limits;
  bool saturated=(step.limits&FS_LIMIT_AMPLITUDE)!=0;
  bool tracking=fabsf(step.error)>s->config.tracking_error;

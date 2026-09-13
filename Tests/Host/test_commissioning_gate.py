@@ -13,7 +13,9 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     common = {'SD700_FORCE_SERVO_ENABLED':1, 'SD700_MOTOR_MODE_REAL_BENCH':1,
               'SD700_REAL_BENCH_ACKNOWLEDGED':1, 'SD700_REAL_OUTPUT_ARMING_ENABLED':1}
-    cases = [('locked', {}, ''), ('commissioning', {'SD700_FORCE_SERVO_COMMISSIONING':1}, ''),
+    cases = [('unsupported_press', {'FS_PRESS_PROFILE_CEILING':101}, 'requires hardware rating review'),
+             ('unsupported_release', {'FS_RELEASE_PROFILE_CEILING':101}, 'requires hardware rating review'),
+             ('locked', {}, ''), ('commissioning', {'SD700_FORCE_SERVO_COMMISSIONING':1}, ''),
              ('bad_flag', {'SD700_FORCE_SERVO_COMMISSIONING':2}, 'commissioning must be 0 or 1'),
              ('no_force', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_SERVO_ENABLED':0}, 'requires ForceServo'),
              ('no_ack', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_REAL_BENCH_ACKNOWLEDGED':0}, 'explicit RealBench acknowledgement'),
@@ -40,7 +42,7 @@ def main():
                             compile_exit_code=result.returncode, result='PASS'))
         print(name+': PASS')
     (out/'results.json').write_text(json.dumps(results, indent=2)+'\n', encoding='utf-8')
-    print('COMMISSIONING_GATE_TESTS=7 PASS; NO_HARDWARE')
+    print('COMMISSIONING_GATE_TESTS=9 PASS; NO_HARDWARE')
 
 
 if __name__ == '__main__':
