@@ -87,6 +87,11 @@ MotorResult MotorExecutor_PlanCommand(MotorDirection direction,
  * Tokens become invalid on STOP/expiry. Deadline is anchored to sample reception. */
 bool MotorExecutor_ContinuousExpired(void);
 MotorResult MotorExecutor_BeginContinuous(uint32_t *token);
+/* Fixed monotonic deadlines; timer compare is min(receive lease, session,
+ * active high-output deadline). A new sample cannot extend either budget. */
+bool MotorExecutor_SetContinuousBudget(uint32_t token,uint32_t now_ms,uint32_t duration_ms,int32_t normal_cap);
+bool MotorExecutor_ArmContinuousBoost(uint32_t token,uint32_t now_ms,uint32_t duration_ms);
+bool MotorExecutor_EndContinuousBoost(uint32_t token);
 MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     uint32_t received_ms, uint32_t now_ms, uint32_t lease_ms, uint32_t max_age_ms,
     uint32_t deadtime_ms, int32_t requested_mv, int32_t *committed_mv, bool *interlocked);

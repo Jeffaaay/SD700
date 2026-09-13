@@ -59,6 +59,11 @@ static void fixture(void)
  critical=0; enter_hook=NULL; dsb_hook=NULL; now=100; seq=1;
  FakeStm32Hal_Reset(); assert(MotorExecutor_Initialize()==MOTOR_RESULT_OK);
  Machine_Initialize(&machine,&g_sd700_auto_target_machine_config,now);
+ /* Historical controller/long synthetic regressions use an explicit count
+  * fixture envelope, NOT the live five-second profile. New Static tests below
+  * restore g_force_servo_profile for all production-envelope checks. */
+ machine.servo.profile.energized_ms=60000; machine.servo.profile.session_ms=60000;
+ machine.servo.profile.build_ms=30000; machine.servo.profile.capture_ms=60000;
  Machine_CompleteBoot(&machine,true,now); assert(machine.state==IDLE);
  sample_at(30,seq,now,true);
 }
@@ -91,7 +96,7 @@ static void TestTrajectory(void)
      }
      assert(fabsf(s.reference-(float)targets[j])<0.001f);
  }
- assert(!ForceServo_Init(&s,&c,30,276)); assert(!ForceServo_Init(&s,&c,30,0));
+ assert(ForceServo_Init(&s,&c,30,3000)); /* Arithmetic is unit-agnostic; machine profile gates live targets. */ assert(!ForceServo_Init(&s,&c,30,0));
 }
 static void TestNumericAndD(void)
 {
@@ -108,7 +113,7 @@ static void TestNumericAndD(void)
  assert(!ForceServo_Prepare(&s,&c,INFINITY,0.01f,&o));
  c.kp=NAN; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.lease_ms=c.sample_age_ms; assert(!ForceServo_ConfigValid(&c));
- c=g_force_servo_default_config; c.press_cap=5000; assert(!ForceServo_ConfigValid(&c));
+ c=g_force_servo_default_config; c.press_cap=FS_PRESS_PROFILE_CEILING+1; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.release_cap=800; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.ki=INFINITY; assert(!ForceServo_ConfigValid(&c));
 }
@@ -297,11 +302,11 @@ static void TestBoundedTracking(void)
 {
  fixture(); machine.servo.config.kp=100; machine.servo.config.press_cap=5;
  machine.servo.config.saturation_ms=100; start(250);
- for (int i=0;i<100 && machine.state!=FAULT;i++) sample(30,10);
+ for (int i=0;i<4000 && machine.state!=FAULT;i++) sample(30,10);
  assert(machine.fault_detail==FAULT_DETAIL_SATURATION_TIMEOUT); off();
  fixture(); machine.servo.config.kp=0; machine.servo.config.tracking_error=1;
  machine.servo.config.tracking_ms=100; start(250);
- for (int i=0;i<100 && machine.state!=FAULT;i++) sample(30,10);
+ for (int i=0;i<4000 && machine.state!=FAULT;i++) sample(30,10);
  assert(machine.fault_detail==FAULT_DETAIL_TRACKING_TIMEOUT); off();
 }
 static MachineCommandResult write_reg(uint16_t a,uint16_t v)
@@ -504,6 +509,7 @@ static void TestCommissioningReverseOff(void)
 #include "Tests/Host/test_target250_cases.h"
 #include "Tests/Host/test_continuous2_cases.h"
 #include "Tests/Host/test_authority1_cases.h"
+#include "Tests/Host/test_static_force_cases.h"
 #endif
 int main(void)
 {
@@ -523,6 +529,11 @@ int main(void)
  RUN(TestContinuous2Range) RUN(TestContinuous2Sweep) RUN(TestContinuous2Ramp)
  RUN(TestContinuous2Pwm) RUN(TestContinuous2Peak) RUN(TestContinuous2OldSaturation)
  RUN(TestAuthority1Sweep) RUN(TestAuthority1Ramp) RUN(TestAuthority1Safety)
+ RUN(TestStaticUnitsAndQualification) RUN(TestStaticPlanAndAbsoluteBudget)
+ RUN(TestStaticProgressNoiseAndCreep) RUN(TestStaticStopStagesAndReadback)
+#if FS_PRESS_PROFILE_CEILING >= 6000
+ RUN(TestStaticBoostDeadlineAndTransfer) RUN(TestStaticBoostBudgetAndStop)
+#endif
 #endif
  printf("FORCE_SERVO_TEST_GROUPS=%u PASS; physical test NOT RUN\n",count);
  return 0;

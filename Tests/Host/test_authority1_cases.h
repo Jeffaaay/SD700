@@ -60,7 +60,7 @@ static void TestAuthority1Safety(void)
      if (cause==3) {
          while (machine.state!=FAULT && now<10000) sample(22,5);
          assert(machine.fault==FAULT_MOTION_TIMEOUT && machine.fault_detail==FAULT_DETAIL_SATURATION_TIMEOUT);
-         assert(machine.servo.diagnostic.saturated_ms>=5000 && machine.servo.diagnostic.saturated_ms<5005);
+         assert(machine.servo.diagnostic.no_response_ms>=5000 && machine.servo.diagnostic.no_response_ms<5005);
      }
      off(); assert(machine.state==FAULT && !MotorStopTimer_IsArmed());
      assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);

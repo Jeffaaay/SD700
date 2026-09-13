@@ -24,7 +24,7 @@ static void freeze(MachineContext *m)
 bool ForceServoProtocol_WriteAddress(uint8_t f,uint16_t a)
 {
  return (f==5 && (a==FS_COIL_START || a==FS_COIL_RESET)) ||
-        (f==6 && ((a>=FS_REG_BEGIN && a<=FS_REG_SNAPSHOT) ||
+        (f==6 && ((a>=FS_REG_BEGIN && a<=FS_REG_PROFILE_SELECT) ||
          (a>=FS_REG_CONFIG && a<FS_REG_CONFIG+FORCE_SERVO_CONFIG_WORDS)));
 }
 MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16_t a,uint16_t v,uint32_t now)
@@ -42,6 +42,15 @@ MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16
  }
  if (m->state!=IDLE || s->active || s->start_pending || !MotorExecutor_OutputIsDisabled() ||
      MotorExecutor_GetSnapshot()->logical_active) return COMMAND_BUSY;
+ if (a==FS_REG_PROFILE_SELECT) {
+     if (v!=(uint16_t)s->profile.id) { s->diagnostic.rejection=FS_PROFILE_INVALID; m->target_valid=false; return COMMAND_INVALID_VALUE; }
+     return COMMAND_ACCEPTED; /* Confirm immutable reviewed profile; never unlock. */
+ }
+ if (a==FS_REG_TARGET_N) {
+     s->diagnostic.rejection=ForceServo_TargetAllowed(&s->profile,(float)v,true);
+     if (s->diagnostic.rejection!=FS_PROFILE_OK) { m->target_valid=false; Machine_Tick(m,now); return COMMAND_INVALID_VALUE; }
+     MachineCommand c={CMD_SET_TARGET,(int32_t)v}; return Machine_HandleCommand(m,&c,now);
+ }
  if (a==FS_REG_BEGIN) {
      if (v!=0xB101) return COMMAND_INVALID_VALUE;
      s->staging_mask=0; s->staging_version=s->config_version;
@@ -59,7 +68,7 @@ MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16
 #define FS_DECODE(n,d,l,h) u=((uint32_t)s->staging[i]<<16)|s->staging[i+1]; i+=2; memcpy(&candidate.n,&u,4);
      FORCE_SERVO_PARAMETERS(FS_DECODE)
 #undef FS_DECODE
-     if (!ForceServo_ConfigValid(&candidate)) { s->staging_open=false; return COMMAND_INVALID_VALUE; }
+     if (!ForceServo_ProfileConfigValid(&s->profile,&candidate)) { s->staging_open=false; return COMMAND_INVALID_VALUE; }
      uint32_t key=MotorAtomic_Enter();
      if (m->state!=IDLE || s->active || s->start_pending || !MotorExecutor_OutputIsDisabled()) {
          MotorAtomic_Leave(key); return COMMAND_BUSY;
@@ -77,6 +86,13 @@ bool ForceServoProtocol_Read(const MachineContext *m,bool holding,uint16_t a,uin
 {
  if (!m || !v) return false;
  const ForceServoMachine *s=&m->servo;
+ if (holding && a>=FS_REG_PROFILE && a<FS_REG_PROFILE+FORCE_SERVO_PROFILE_WORDS) {
+     uint32_t bits; unsigned index=(a-FS_REG_PROFILE)/2;
+     memcpy(&bits,(const unsigned char*)&s->profile+index*4,4);
+     *v=(uint16_t)((a-FS_REG_PROFILE)%2 ? bits : bits>>16); return true;
+ }
+ if (holding && a==FS_REG_PROFILE_SELECT) { *v=(uint16_t)s->profile.id; return true; }
+ if (holding && a==FS_REG_TARGET_N) { *v=s->profile.unit==1 && m->target_valid ? (uint16_t)m->target_pressure_units : 0; return true; }
  if (holding && a>=FS_REG_CONFIG && a<FS_REG_CONFIG+FORCE_SERVO_CONFIG_WORDS) {
      uint32_t bits; unsigned index=(a-FS_REG_CONFIG)/2;
      memcpy(&bits,(const unsigned char*)&s->config+index*4,4);

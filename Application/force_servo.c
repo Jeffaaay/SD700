@@ -9,11 +9,113 @@ const ForceServoConfig g_force_servo_default_config = {
  FORCE_SERVO_PARAMETERS(FS_DEFAULT)
 #undef FS_DEFAULT
 };
+const ForceServoProfile g_force_servo_profile = {
+#define FS_PROFILE_DEFAULT(n,d) .n=d,
+ FORCE_SERVO_PROFILE_FIELDS(FS_PROFILE_DEFAULT)
+#undef FS_PROFILE_DEFAULT
+};
+uint32_t ForceServo_ProfileDigest(const ForceServoProfile *p)
+{
+ uint32_t h=2166136261U,u; unsigned j;
+ if (!p) return 0;
+#define FS_PROFILE_HASH(n,d) memcpy(&u,&p->n,4); for(j=0;j<4;j++) { h^=(u>>(j*8))&255U; h*=16777619U; }
+ FORCE_SERVO_PROFILE_FIELDS(FS_PROFILE_HASH)
+#undef FS_PROFILE_HASH
+ return h;
+}
+bool ForceServo_ProfileValid(const ForceServoProfile *p)
+{
+ if (!p) return false;
+#define FS_PROFILE_FINITE(n,d) if (!isfinite(p->n)) return false;
+ FORCE_SERVO_PROFILE_FIELDS(FS_PROFILE_FINITE)
+#undef FS_PROFILE_FINITE
+ if (p->id<1 || p->id>65535 || floorf(p->id)!=p->id ||
+     (p->unit!=0 && p->unit!=1) || p->qualifications<0 || p->qualifications>15 ||
+     floorf(p->qualifications)!=p->qualifications || p->raw_min<0 ||
+     p->raw_trip>65535 || p->raw_min>=p->raw_trip ||
+     floorf(p->raw_min)!=p->raw_min || floorf(p->raw_trip)!=p->raw_trip ||
+     p->scale<=0 || p->operating_max<=0 || p->operating_max>=p->force_trip ||
+     p->force_trip>FORCE_SERVO_REPRESENTABLE || p->contact<0 || p->contact>=p->operating_max ||
+     p->continuous_press<1 || p->continuous_press>FS_PRESS_PROFILE_CEILING ||
+     p->release<1 || p->release>FS_RELEASE_PROFILE_CEILING ||
+     p->peak_press<0 || p->peak_press>6000 || p->boost_ms<0 || p->boost_total_ms<0 || p->taper_margin<0)
+     return false;
+ if (p->energized_ms<1 || p->energized_ms>60000 || p->session_ms<p->energized_ms ||
+     p->session_ms>60000 || p->capture_ms<1 || p->capture_ms>p->energized_ms ||
+     p->build_ms<1 || p->build_ms>p->energized_ms || p->progress_window_ms<1 ||
+     p->progress_window_ms>p->no_response_ms || p->progress_units<=0 ||
+     p->no_response_ms>p->session_ms || p->boost_ms>p->energized_ms ||
+     p->boost_total_ms>60000 || p->boost_ms>p->boost_total_ms) return false;
+ const float times[]={p->energized_ms,p->session_ms,p->capture_ms,p->build_ms,
+     p->progress_window_ms,p->no_response_ms,p->boost_ms,p->boost_total_ms};
+ for (unsigned i=0;i<sizeof(times)/sizeof(times[0]);i++) if (floorf(times[i])!=times[i]) return false;
+ if (p->unit==0) return p->scale==1 && p->offset==0 && p->peak_press==0;
+ /* Numeric margin must lie below BOTH the actuator/mechanical boundary and
+  * calibration coverage. The missing qualification bits are reported separately. */
+ return p->hardware_boundary>p->force_trip && p->hardware_boundary<=FORCE_SERVO_REPRESENTABLE &&
+        p->calibration_min>=0 && p->calibration_min<p->operating_max &&
+        p->calibration_max>=p->force_trip && p->calibration_max<=FORCE_SERVO_REPRESENTABLE &&
+        p->raw_min*p->scale+p->offset<=p->calibration_min &&
+        p->raw_trip*p->scale+p->offset>=p->force_trip;
+}
+ForceServoRejection ForceServo_TargetAllowed(const ForceServoProfile *p,float t,bool newtons)
+{
+ if (!p || !isfinite(p->qualifications) || p->qualifications<0 || p->qualifications>15) return FS_PROFILE_INVALID;
+ /* Asking for N on the legacy profile reports the actual missing prerequisite. */
+ if (newtons || p->unit==1) {
+     unsigned q=(unsigned)p->qualifications;
+     if (!(q&1)) return FS_MISSING_SENSOR_RANGE;
+     if (!(q&2)) return FS_MISSING_CALIBRATION;
+     if (!(q&4)) return FS_MISSING_MECHANICAL_LIMIT;
+     if (!(q&8)) return FS_MISSING_CURRENT_TIME_LIMIT;
+ }
+ if (!ForceServo_ProfileValid(p)) return FS_PROFILE_INVALID;
+ if (newtons!=(p->unit==1)) return FS_WRONG_TARGET_UNIT;
+ if (!isfinite(t) || t<=0 || t>p->operating_max) return FS_TARGET_OUTSIDE_OPERATING_RANGE;
+ if (p->unit==1 && (t<p->calibration_min || t>p->calibration_max)) return FS_TARGET_OUTSIDE_CALIBRATION;
+ return FS_PROFILE_OK;
+}
+bool ForceServo_Measure(const ForceServoProfile *p,uint32_t raw,int32_t control,float *m)
+{
+ if (!m || !ForceServo_ProfileValid(p) || raw<p->raw_min || raw>=p->raw_trip) return false;
+ *m=p->unit==1 ? raw*p->scale+p->offset : (float)control;
+ return isfinite(*m) && *m>=0 && *m<p->force_trip &&
+     (p->unit!=1 || (*m>=p->calibration_min && *m<=p->calibration_max));
+}
+bool ForceServo_BoostQualified(const ForceServoProfile *p)
+{
+ return ForceServo_ProfileValid(p) && p->unit==1 && p->qualifications==15 &&
+     p->peak_press>p->continuous_press && p->peak_press<=FS_PRESS_PROFILE_CEILING &&
+     p->boost_ms>0 && p->boost_total_ms>=p->boost_ms && p->taper_margin>0;
+}
+float ForceServo_TrajectorySeconds(const ForceServoConfig *c,float m,float t)
+{
+ float distance=fabsf(t-m);
+ return fmaxf(1.5f*distance/c->reference_rate,sqrtf(6.0f*distance/c->reference_acceleration));
+}
+bool ForceServo_ProfileConfigValid(const ForceServoProfile *p,const ForceServoConfig *c)
+{
+ return ForceServo_ProfileValid(p) && ForceServo_ConfigValid(c) &&
+     c->press_cap<=p->continuous_press && c->release_cap<=p->release;
+}
+ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const ForceServoConfig *c,
+    float m,float t,float *seconds)
+{
+ if (!seconds || !ForceServo_ProfileConfigValid(p,c) || !isfinite(m) || m<0 || m>=p->force_trip)
+     return FS_PROFILE_INVALID;
+ ForceServoRejection r=ForceServo_TargetAllowed(p,t,p->unit==1);
+ if (r!=FS_PROFILE_OK) return r;
+ *seconds=ForceServo_TrajectorySeconds(c,m,t);
+ float budget=fminf(p->energized_ms,fminf(p->session_ms,c->session_ms));
+ if (*seconds*1000+c->hold_dwell_ms>budget || *seconds*1000>p->build_ms)
+     return FS_TRAJECTORY_EXCEEDS_BUDGET;
+ return FS_PROFILE_OK;
+}
 const uint32_t g_force_servo_contract[16] = {
- FORCE_SERVO_SCHEMA, FORCE_SERVO_BUILD_ID, SD700_FORCE_SERVO_COMMISSIONING, FORCE_SERVO_MAX_TARGET,
- FORCE_SERVO_RAW_ABORT, FORCE_SERVO_BUILD_MS,
+ FORCE_SERVO_SCHEMA, FORCE_SERVO_BUILD_ID, SD700_FORCE_SERVO_COMMISSIONING, FS_LEGACY_OPERATING_MAX,
+ FS_LEGACY_RAW_TRIP, FS_EXPERIMENT_BUDGET_MS,
  FS_PRESS_PROFILE_CEILING, FS_RELEASE_PROFILE_CEILING,
- FORCE_SERVO_TARGET250, FORCE_SERVO_START_WAIT_MS, FS_FEEDBACK_GAP, FS_LEASE,
+ FORCE_SERVO_DEFAULT_TARGET, FORCE_SERVO_START_WAIT_MS, FS_FEEDBACK_GAP, FS_LEASE,
  FS_PRESS_OPERATING_CAP, FS_RELEASE_OPERATING_CAP,
  SD700_FORCE_SERVO_COMMISSIONING, /* immediate magnitude reduction; ramp increases */
  FS_POWERED_TEST_READY
@@ -34,7 +136,7 @@ bool ForceServo_ConfigValid(const ForceServoConfig *c)
  floorf(c->control_min_ms)==c->control_min_ms && floorf(c->feedback_gap_ms)==c->feedback_gap_ms &&
  floorf(c->sample_age_ms)==c->sample_age_ms && floorf(c->lease_ms)==c->lease_ms &&
  floorf(c->session_ms)==c->session_ms && floorf(c->saturation_ms)==c->saturation_ms &&
- floorf(c->tracking_ms)==c->tracking_ms && floorf(c->reverse_deadtime_ms)==c->reverse_deadtime_ms;
+ floorf(c->hold_dwell_ms)==c->hold_dwell_ms && floorf(c->tracking_ms)==c->tracking_ms && floorf(c->reverse_deadtime_ms)==c->reverse_deadtime_ms;
 }
 uint32_t ForceServo_ConfigDigest(const ForceServoConfig *c)
 {
@@ -47,19 +149,17 @@ uint32_t ForceServo_ConfigDigest(const ForceServoConfig *c)
 }
 bool ForceServo_Init(ForceServo *s,const ForceServoConfig *c,float m,float target)
 {
- if (!s || !ForceServo_ConfigValid(c) || !isfinite(m) || m<0 || m>325 ||
-     !isfinite(target) || target<=0 || target>275) return false;
+ if (!s || !ForceServo_ConfigValid(c) || !isfinite(m) || m<0 || m>FORCE_SERVO_REPRESENTABLE ||
+     !isfinite(target) || target<=0 || target>FORCE_SERVO_REPRESENTABLE) return false;
  memset(s,0,sizeof(*s)); s->start=m; s->filtered=m; s->reference=m; s->target=target;
  /* Cubic smoothstep: max velocity=1.5*distance/T, max acceleration=6*distance/T^2. */
- float distance=fabsf(target-m);
- s->trajectory_s=fmaxf(1.5f*distance/c->reference_rate,
-                       sqrtf(6.0f*distance/c->reference_acceleration));
+ s->trajectory_s=ForceServo_TrajectorySeconds(c,m,target);
  s->initialized=true; return true;
 }
 bool ForceServo_Prepare(ForceServo *s,const ForceServoConfig *c,float m,float dt,ForceServoStep *o)
 {
  if (!s || !o || !s->initialized || !ForceServo_ConfigValid(c) || !isfinite(m) ||
-     m<0 || m>325 || !isfinite(dt) || dt<c->control_min_ms*0.001f ||
+     m<0 || m>FORCE_SERVO_REPRESENTABLE || !isfinite(dt) || dt<c->control_min_ms*0.001f ||
      dt>c->feedback_gap_ms*0.001f) return false;
  if (!isfinite(s->reference) || !isfinite(s->filtered) || !isfinite(s->derivative) ||
      !isfinite(s->integral) || !isfinite(s->elapsed_s) || !isfinite(s->trajectory_s) ||

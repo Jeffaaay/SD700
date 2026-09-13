@@ -5,18 +5,15 @@
 #include "Application/motion_build_policy.h"
 #include "Application/force_servo_output_profile.h"
 
-#define FORCE_SERVO_SCHEMA 0xF103U
-#define FORCE_SERVO_BUILD_ID 0x46530105U
-#define FORCE_SERVO_MAX_TARGET 275U
-#define FORCE_SERVO_RAW_ABORT 325U
-#define FORCE_SERVO_CONTACT 20U
-#define FORCE_SERVO_BUILD_MS 30000U
-#define FORCE_SERVO_TARGET250 250U
+#define FORCE_SERVO_SCHEMA 0xF104U
+#define FORCE_SERVO_BUILD_ID 0x46530106U
+#define FORCE_SERVO_REPRESENTABLE 100000.0f
+#define FORCE_SERVO_DEFAULT_TARGET 250U
 #define FORCE_SERVO_COMMISSIONING_LEASE_MS 130U
 #define FORCE_SERVO_COMMISSIONING_AGE_MS 20U
 #define FORCE_SERVO_COMMISSIONING_DEADTIME_MS 2U
 #define FORCE_SERVO_START_WAIT_MS 250U
-/* Target250 uses existing reference bounds. 101 ms observed frame interval +
+/* The explicit profile uses existing reference bounds. 101 ms observed frame interval +
  * 20 ms delivery age rounds up to 125 on the 5 ms control grid; lease adds 5 ms.
  * No change to the 20 ms age accepted for a newly delivered sample. */
 #if SD700_FORCE_SERVO_COMMISSIONING
@@ -43,7 +40,7 @@
  X(hold_enter,5,0.1f,20) X(hold_exit,10,0.2f,40) \
  X(session_ms,45000,1000,60000) X(saturation_ms,5000,100,30000) \
  X(tracking_error,50,1,275) X(tracking_ms,10000,100,30000) \
- X(reverse_deadtime_ms,2,2,100)
+ X(reverse_deadtime_ms,2,2,100) X(hold_dwell_ms,500,0,30000)
 
 typedef struct {
 #define FS_FIELD(n,d,l,h) float n;
@@ -54,6 +51,12 @@ typedef struct {
 extern const ForceServoConfig g_force_servo_default_config;
 /* Kept in the ELF as a verifiable candidate contract; not a hardware certificate. */
 extern const uint32_t g_force_servo_contract[16];
+#include "Application/force_servo_profile.h"
+float ForceServo_TrajectorySeconds(const ForceServoConfig *c,float measured,float target);
+ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const ForceServoConfig *c,
+    float measured,float target,float *seconds);
+bool ForceServo_ProfileConfigValid(const ForceServoProfile *p,const ForceServoConfig *c);
+
 typedef struct {
  float reference, reference_rate, filtered, derivative, integral;
  float start, target, trajectory_s, elapsed_s, previous_committed;

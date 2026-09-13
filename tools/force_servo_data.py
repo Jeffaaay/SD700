@@ -26,7 +26,10 @@ def schema():
     u,f=diag.split('#define FORCE_SERVO_DIAG_FLOAT(X)',1)
     build_id=int(re.search(r'#define FORCE_SERVO_BUILD_ID (0x[0-9A-Fa-f]+)U',header)[1],16)
     schema_id=int(re.search(r'#define FORCE_SERVO_SCHEMA (0x[0-9A-Fa-f]+)U',header)[1],16)
-    return dict(schema=schema_id,build_id=build_id,parameters=params,
+    profile_header=(ROOT/'Application/force_servo_profile.h').read_text(encoding='utf-8')
+    constants.update(dict(re.findall(r'#define (FS_\w+) ([\w.]+)',profile_header)))
+    profile_fields=[dict(name=n,default=number(d)) for n,d in re.findall(r'X\((\w+),([^,)]+)\)',profile_header)]
+    return dict(profile=profile_fields,schema=schema_id,build_id=build_id,parameters=params,
                 powered_test_ready=bool(number('FS_POWERED_TEST_READY')),
                 press_profile_ceiling=number('FS_PRESS_PROFILE_CEILING'),
                 release_profile_ceiling=number('FS_RELEASE_PROFILE_CEILING'),
@@ -39,22 +42,27 @@ def digest(config):
     return h
 
 def validate(config):
-    s=schema(); assert set(config)=={p['name'] for p in s['parameters']},'Exact complete parameter set required'
+    def check(ok,reason='Invalid configuration relationship'):
+        if not ok: raise AssertionError(reason)
+    s=schema(); check(set(config)=={p['name'] for p in s['parameters']},'Exact complete parameter set required')
     for p in s['parameters']:
         v=config[p['name']]
-        assert isinstance(v,(int,float)) and math.isfinite(v) and p['minimum']<=v<=p['maximum'],p['name']
-        if p['name'].endswith('_ms'): assert int(v)==v,p['name']
+        check(isinstance(v,(int,float)) and math.isfinite(v) and p['minimum']<=v<=p['maximum'],p['name'])
+        if p['name'].endswith('_ms'): check(int(v)==v,p['name'])
     c=config
-    assert c['integral_min']<c['integral_max'] and c['hold_enter']<c['hold_exit']
-    assert c['control_min_ms']<c['feedback_gap_ms']<c['lease_ms'] and c['sample_age_ms']<c['lease_ms']
-    assert c['tracking_gain']*c['feedback_gap_ms']*.001<=1
-    assert c['saturation_ms']<=c['session_ms'] and c['tracking_ms']<=c['session_ms']
+    check(c['integral_min']<c['integral_max'] and c['hold_enter']<c['hold_exit'])
+    check(c['control_min_ms']<c['feedback_gap_ms']<c['lease_ms'] and c['sample_age_ms']<c['lease_ms'])
+    check(c['tracking_gain']*c['feedback_gap_ms']*.001<=1)
+    check(c['saturation_ms']<=c['session_ms'] and c['tracking_ms']<=c['session_ms'])
     return digest(c)
 
 def delta(a,b,bits=32): return (int(a)-int(b))&((1<<bits)-1)
 
-def target250_summary(rows, valid):
+def target_summary(rows, valid):
     """Observed snapshots only. A nonzero command is not measured motion."""
+    target=next((r.get('target') for r in reversed(rows) if r.get('target',0)>0),None)
+    unit=next((r.get('unit',0) for r in reversed(rows)),0)
+    def pressure(r): return r.get('measured',r.get('latest_raw',r.get('raw'))) if r.get('measured_valid',1) else None
     pre=[r for r in rows if r.get('phase') in ('PREFLIGHT','TARGET_READBACK')]
     all_runs=[r for r in rows if r.get('phase')=='RUN']
     origin=next((r['start_requested_ms'] for r in all_runs if 'start_requested_ms' in r),None)
@@ -62,54 +70,56 @@ def target250_summary(rows, valid):
           (origin is None or delta(r.get('latest_received_ms',r.get('received_ms',0)),origin)<(1<<31))]
     control=next((r for r in runs if r.get('state') in (13,14) and r.get('session') and r.get('lease_active')),None)
     commanded=next((r for r in valid if r.get('current_committed',0)!=0),None)
-    peak=max((r.get('latest_raw',r['raw']) for r in runs),default=None)
-    final=rows[-1].get('latest_raw') if rows else None
-    reached=next((r for r in runs if r.get('latest_raw',r['raw'])>=250),None)
-    ninety=next((r for r in runs if r.get('latest_raw',r['raw'])>=225),None)
+    peak=max((pressure(r) for r in runs if pressure(r) is not None),default=None)
+    final=pressure(rows[-1]) if rows else None
+    reached=next((r for r in runs if target is not None and pressure(r) is not None and pressure(r)>=target),None)
+    ninety=next((r for r in runs if target is not None and pressure(r) is not None and pressure(r)>=target*.9),None)
     def elapsed(r, key='latest_received_ms'):
         return delta(r.get(key,r.get('received_ms',0)),origin) if r and origin is not None else None
     saturation=sum(bool(r.get('saturated',int(r['limits'])&1)) for r in valid)
     session=control.get('session') if control else None
     peaks=[r for r in rows if session is not None and r.get('session')==session and
            not r.get('start_pending') and 'session_peak_raw' in r]
-    mcu_peak=max((r['session_peak_raw'] for r in peaks),default=None)
+    mcu_peak=max((r.get('session_peak_measured',r['session_peak_raw']) for r in peaks),default=None)
     left=None; previously_saturated=False
     for r in valid:
         saturated=bool(int(r['limits'])&1)
         if previously_saturated and not saturated and left is None: left=elapsed(r,'control_at_ms')
         previously_saturated |= saturated
-    initial=pre[-1].get('latest_raw') if pre else None
-    return dict(target_units=250,initial_pressure_units=pre[-1].get('latest_raw') if pre else None,
+    initial=pressure(pre[-1]) if pre else None
+    return dict(target_units=target,unit='N' if unit==1 else 'LEGACY_CONTROL_UNITS',initial_pressure_units=pressure(pre[-1]) if pre else None,
         initial_pressure_source=pre[-1]['phase'] if pre else 'UNAVAILABLE',
         time_to_control_start_ms=elapsed(control,'session_started_ms'),
         time_to_first_nonzero_command_ms=elapsed(commanded,'control_at_ms'),motion_start='NOT_MEASURED',
-        time_to_90_ms=elapsed(ninety),time_to_first_250_ms=elapsed(reached),
+        time_to_90_ms=elapsed(ninety),time_to_target_ms=elapsed(reached),
         peak_pressure_units=peak,peak_source='PC_SAMPLED_PEAK',
-        mcu_session_peak_units=mcu_peak,mcu_peak_source='VALID_ORDERED_FRESH_SESSION_SAMPLES' if peaks else 'UNAVAILABLE',
-        mcu_peak_overshoot_units=max(0,mcu_peak-250) if mcu_peak is not None else None,
+        mcu_session_peak_units=mcu_peak,mcu_peak_source=('VALID_ORDERED_FRESH_IN_RANGE_SESSION_SAMPLES' if any('session_peak_measured' in r for r in peaks) else 'VALID_ORDERED_FRESH_SESSION_SAMPLES') if peaks else 'UNAVAILABLE',
+        mcu_session_peak_raw_counts=max((r['session_peak_raw'] for r in peaks),default=None),
+        mcu_peak_overshoot_units=max(0,mcu_peak-target) if mcu_peak is not None and target is not None else None,
         sampled_pressure_rise_units=peak-initial if peak is not None and initial is not None else None,
         first_observed_amplitude_saturation_exit_ms=left,
         maximum_reported_saturation_ms=max((r.get('saturated_ms',0) for r in runs),default=0),
         operator_reported_physical_motion='NOT_REPORTED; see field_notes',
         operator_reported_physical_stop='NOT_REPORTED; see field_notes',
-        overshoot_units=max(0,peak-250) if peak is not None else None,
-        peak_minus_target_units=peak-250 if peak is not None else None,
-        final_pressure_units=final,final_error_units=250-final if final is not None else None,
-        pre_stop_pressure_units=runs[-1].get('latest_raw',runs[-1]['raw']) if runs else None,
+        overshoot_units=max(0,peak-target) if peak is not None and target is not None else None,
+        peak_minus_target_units=peak-target if peak is not None and target is not None else None,
+        final_pressure_units=final,final_error_units=target-final if final is not None and target is not None else None,
+        pre_stop_pressure_units=pressure(runs[-1]) if runs else None,
         saturated_sample_percent=100*saturation/len(valid) if valid else None,
         output_saturated_observed=bool(saturation) if valid else None,
         hold_entered=any(r['state']==14 for r in valid),
         hold_active_at_last_control=bool(valid and valid[-1]['state']==14 and valid[-1]['lease_active']),
         not_reached_assessment=('TARGET_REACHED' if reached else 'NO_CONTROL_DATA' if not valid else
-            'AUTHORITY_OR_HARDWARE_LIMIT_POSSIBLE' if saturation else 'CONTROLLER_TUNING_REVIEW_REQUIRED'),
+            'SATURATION_OBSERVED_NO_PHYSICAL_CAUSE_ESTABLISHED' if saturation else 'TARGET_NOT_REACHED_NO_PHYSICAL_CAUSE_ESTABLISHED'),
         assessment_limit='Saturation binds software authority; it does not prove an electrical/mechanical limit. Polling may miss peaks.')
 
 
 def metrics(rows):
     """Conservative contiguous control-sample statistics; no interpolation over gaps."""
+    def measured(r): return r.get('measured',r['raw'])
     valid=[]; previous=None; drops=duplicates=0
     for r in rows:
-        if (not r.get('control_sequence') or r.get('phase')!='RUN' or r.get('fault') or
+        if (not r.get('measured_valid',1) or not r.get('control_sequence') or r.get('phase')!='RUN' or r.get('fault') or
             r.get('start_pending') or r.get('state') not in (13,14) or not r.get('lease_active')): continue
         identity=(r['session'],r['config_version'],r['config_digest'])
         if previous and identity!=previous[0]: previous=None
@@ -134,20 +144,24 @@ def metrics(rows):
     result['StopVerified']=bool(stops and all(int(stops[-1].get(k,1))==0 for k in ('current_committed','tim2','tim3','lease_active'))
                                and int(stops[-1].get('output_off',0))==1 and int(stops[-1].get('start_pending',0))==0
                                and int(stops[-1].get('state',0)) in (1,9))
-    result.update(target250_summary(rows,valid))
+    result.update(target_summary(rows,valid))
+    statuses={0:'NO_BUILD_COMMAND',1:'SATURATING_WITH_PROGRESS',2:'COMMAND_WITHOUT_MEASURED_FORCE_RESPONSE',3:'COMMAND_WITH_PROGRESS'}
+    result['observed_progress_statuses']={name:sum(r.get('progress_status')==code for r in valid) for code,name in statuses.items()}
+    result['force_N_status']='CALIBRATED_PROFILE' if result['unit']=='N' else 'NOT_CALIBRATED_NO_N_MEASUREMENT'
+    result['progress_limit']='Bounded net-change diagnostic, not a stall or physical-root-cause diagnosis.'
     # tim2/tim3 are planned counts; output_off includes the hardware guard's register checks.
     # Neither is an externally measured waveform or physical-stop certificate.
     if not valid: return result
-    result['observed_peak_units']=max(r['raw'] for r in valid)
-    result['observed_overshoot_units']=max(0,max(r['raw']-r['target'] for r in valid))
+    result['observed_peak_units']=max(measured(r) for r in valid)
+    result['observed_overshoot_units']=max(0,max(measured(r)-r['target'] for r in valid))
     for r in valid:
-        if r['raw']>=.9*r['target'] and result['contact_to_90_ms'] is None:
+        if measured(r)>=.9*r['target'] and result['contact_to_90_ms'] is None:
             result['contact_to_90_ms']=delta(r['received_ms'],r['contact_at_ms'])
-        if abs(r['raw']-r['target'])<=5 and result['contact_to_target_pm5_ms'] is None:
+        if abs(measured(r)-r['target'])<=r.get('hold_enter_units',5) and result['contact_to_target_pm5_ms'] is None:
             result['contact_to_target_pm5_ms']=delta(r['received_ms'],r['contact_at_ms'])
     segments=[]; segment=[]
     for r in valid:
-        healthy_hold=r['state']==14 and r['lease_active']==1 and abs(r['raw']-r['target'])<=5
+        healthy_hold=r['state']==14 and r['lease_active']==1 and abs(measured(r)-r['target'])<=r.get('hold_enter_units',5)
         contiguous=bool(segment and r['session']==segment[-1]['session'] and
                         r['config_digest']==segment[-1]['config_digest'] and
                         delta(r['control_sequence'],segment[-1]['control_sequence'])==1 and
@@ -160,8 +174,8 @@ def metrics(rows):
     if segments:
         best=max(segments,key=lambda s:delta(s[-1]['received_ms'],s[0]['received_ms']))
         result['qualified_hold_ms']=delta(best[-1]['received_ms'],best[0]['received_ms'])
-        result['steady_error_units']=statistics.mean(r['raw']-r['target'] for r in best)
-        result['observed_p2p_units']=max(r['raw'] for r in best)-min(r['raw'] for r in best)
+        result['steady_error_units']=statistics.mean(measured(r)-r['target'] for r in best)
+        result['observed_p2p_units']=max(measured(r) for r in best)-min(measured(r) for r in best)
         # Only the terminal observed contiguous segment can be called observed settling.
         if best[-1] is valid[-1]: result['observed_settling_ms']=delta(best[0]['received_ms'],best[0]['contact_at_ms'])
     if len(valid)>=2 and drops==0 and segments: result['data_status']='OBSERVED_CONTIGUOUS_TRACKING_NOT_ACCEPTANCE'
@@ -177,12 +191,12 @@ def decode_csv_row(row):
     # Config readback can fail before STOP diagnostics are collected. Preserve
     # the unavailable feedback budget as unknown; never invent a numeric value.
     return {k: (v if k in ('phase', 'firmware_sha256') else
-                None if k == 'feedback_gap_ms' and v == '' else float(v))
+                None if k in ('feedback_gap_ms','hold_enter_units') and v == '' else float(v))
             for k, v in row.items()}
 
 
 def self_test():
-    s=schema(); assert len(s['parameters'])==24 and len(s['u32'])==47 and len(s['floats'])==17
+    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==60 and len(s['floats'])==22 and len(s['profile'])==26
     c={p['name']:p['default'] for p in s['parameters']}; validate(c)
     bad=dict(c,lease_ms=10)
     try: validate(bad)

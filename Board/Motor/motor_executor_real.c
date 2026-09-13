@@ -11,6 +11,9 @@ static bool s_servo_has_sequence;
 static int32_t s_servo_committed;
 static int s_servo_last_sign;
 static uint32_t s_servo_off_ms;
+static bool s_budget_set, s_boost_set, s_boost_used, s_boost_end;
+static uint32_t s_session_deadline, s_boost_deadline;
+static int32_t s_normal_cap;
 #endif
 #include <stddef.h>
 #include <string.h>
@@ -796,10 +799,36 @@ MotorResult MotorExecutor_BeginContinuous(uint32_t *token)
         if (++s_servo_generation==0) ++s_servo_generation;
         *token=s_servo_generation; s_servo_open=true; s_servo_has_sequence=false;
         s_servo_committed=0; s_servo_last_sign=0;
+        s_budget_set=false; s_boost_set=false; s_boost_used=false; s_boost_end=false;
         s_motor.last_action=MOTOR_ACTION_CONTINUOUS; s_motor.last_completion=MOTOR_COMPLETION_NONE;
         r=MOTOR_RESULT_OK;
     }
     MotorAtomic_Leave(key); return r;
+}
+
+bool MotorExecutor_SetContinuousBudget(uint32_t token,uint32_t now,uint32_t duration,int32_t cap)
+{
+    uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
+    bool ok=s_servo_open && token==s_servo_generation && !s_budget_set && !s_servo_has_sequence &&
+        duration>=3 && duration<=60000 && cap>0 && cap<=FS_PRESS_PROFILE_CEILING;
+    if (ok) { s_budget_set=true; s_session_deadline=now+duration; s_normal_cap=cap; }
+    MotorAtomic_Leave(key); return ok;
+}
+bool MotorExecutor_ArmContinuousBoost(uint32_t token,uint32_t now,uint32_t duration)
+{
+    uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
+    bool ok=s_servo_open && token==s_servo_generation && s_budget_set && !s_boost_used &&
+        duration>=3 && duration<=60000 && (int32_t)(s_session_deadline-now)>(int32_t)duration &&
+        MotorExecutor_ActiveRequestIsValid();
+    if (ok) { s_boost_set=true; s_boost_used=true; s_boost_deadline=now+duration; }
+    MotorAtomic_Leave(key); return ok;
+}
+bool MotorExecutor_EndContinuousBoost(uint32_t token)
+{
+    uint32_t key=MotorAtomic_Enter();
+    bool ok=s_servo_open && token==s_servo_generation && s_boost_set;
+    if (ok) s_boost_end=true;
+    MotorAtomic_Leave(key); return ok;
 }
 
 MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
@@ -816,6 +845,9 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     if (!s_servo_open || token!=s_servo_generation || !committed_mv || !interlocked)
         goto done;
     if (s_servo_has_sequence && (distance==0 || distance>=(UINT64_C(1)<<63))) goto done;
+    if (s_budget_set && ((int32_t)(now_ms-s_session_deadline)>=0 ||
+        (s_boost_set && (int32_t)(now_ms-s_boost_deadline)>=0) ||
+        (requested_mv>s_normal_cap && !s_boost_set))) goto fail;
 #if SD700_FORCE_SERVO_COMMISSIONING
     if (requested_mv>(int32_t)FS_PRESS_PROFILE_CEILING ||
         requested_mv<-(int32_t)FS_RELEASE_PROFILE_CEILING ||
@@ -849,8 +881,14 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     }
     /* Arm before enabling; renew while live without clearing any pending expiry.
      * Failure at any later stage revokes the lease and forces OFF. */
-    if (!(s_servo_has_sequence ? MotorStopTimer_RenewLease(lease_ms-age) :
-                                MotorStopTimer_ArmLease(lease_ms-age))) goto fail;
+    uint32_t remaining=lease_ms-age;
+    if (s_budget_set && s_session_deadline-now_ms<remaining) remaining=s_session_deadline-now_ms;
+    uint32_t normal_remaining=remaining;
+    bool end_boost=s_boost_set && s_boost_end && actual<=s_normal_cap;
+    if (s_boost_set && s_boost_deadline-now_ms<remaining)
+        remaining=s_boost_deadline-now_ms;
+    if (!(s_servo_has_sequence ? MotorStopTimer_RenewLease(remaining) :
+                                MotorStopTimer_ArmLease(remaining))) goto fail;
     if (!s_servo_open || s_completion_event_pending) goto fail;
     if (actual==0) {
         if (s_servo_committed!=0) s_servo_off_ms=now_ms;
@@ -866,6 +904,13 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
         s_servo_last_sign=actual>0 ? 1 : -1;
     }
     if (!MotorStopTimer_CommitArm() || !s_servo_open || s_completion_event_pending) goto fail;
+    /* Clear a peak compare only AFTER the lower-authority output is verified. */
+    if (end_boost) {
+        /* The lower command is physically installed and verified at this point.
+         * Never extend a still-high output's compare while attempting transfer. */
+        if (!MotorStopTimer_RenewLease(normal_remaining) || !MotorStopTimer_CommitArm()) goto fail;
+        s_boost_set=false; remaining=normal_remaining;
+    }
     s_servo_sequence=sequence; s_servo_has_sequence=true; s_servo_committed=actual;
     s_motor.last_action=MOTOR_ACTION_CONTINUOUS; s_motor.logical_active=true;
     s_motor.last_completion=MOTOR_COMPLETION_NONE;
@@ -873,7 +918,7 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     s_motor.command_mv=(uint32_t)(actual<0 ? -actual : actual);
     s_motor.requested_duration_ms=0;
     s_motor.planned_tim2_ccr3=t2; s_motor.planned_tim3_ccr3=t3;
-    s_motor.logical_deadline_ms=received_ms+lease_ms;
+    s_motor.logical_deadline_ms=now_ms+remaining;
     s_motor.logical_backstop_ms=s_motor.logical_deadline_ms;
     ++s_motor.request_sequence;
     *committed_mv=actual; result=MOTOR_RESULT_OK; goto done;

@@ -13,6 +13,34 @@ def sample(seq, raw, state=13, limits=0, **extra):
         limits=limits,feedback_gap_ms=125,current_committed=extra.pop('current_committed',50),**extra)
 
 class Target250DataTests(unittest.TestCase):
+    def test_static_calibrated_metrics_do_not_compare_raw_to_newtons(self):
+        a=sample(1,1400,measured=2810,unit=1,progress_status=1)
+        b=sample(2,1494,measured=2998,unit=1,progress_status=3,state=14)
+        c=sample(3,1495,measured=3000,unit=1,state=14)
+        for r in (a,b,c): r['target']=3000
+        m=metrics([a,b,c])
+        self.assertEqual(m['unit'],'N')
+        self.assertEqual(m['target_units'],3000)
+        self.assertEqual(m['peak_pressure_units'],3000)
+        self.assertEqual(m['observed_peak_units'],3000)
+        self.assertEqual(m['final_error_units'],0)
+        self.assertEqual(m['qualified_hold_ms'],100)
+        self.assertEqual(m['observed_progress_statuses']['SATURATING_WITH_PROGRESS'],1)
+
+    def test_static_selected_low_target_and_legacy_unit(self):
+        r=sample(1,58); r['target']=60
+        m=metrics([r])
+        self.assertEqual(m['target_units'],60)
+        self.assertEqual(m['final_error_units'],2)
+        self.assertEqual(m['force_N_status'],'NOT_CALIBRATED_NO_N_MEASUREMENT')
+
+    def test_static_profile_is_unqualified_and_finitely_bounded(self):
+        p={f['name']:f['default'] for f in schema()['profile']}
+        self.assertEqual((p['id'],p['unit'],p['qualifications']),(1,0,0))
+        self.assertEqual((p['operating_max'],p['raw_trip']),(275,325))
+        self.assertEqual((p['peak_press'],p['boost_ms'],p['boost_total_ms']),(0,0,0))
+        self.assertEqual((p['energized_ms'],p['session_ms'],p['capture_ms']),(5000,5000,5000))
+
     def test_continuous2_peaks_and_exit(self):
         a=sample(1,22,limits=1,session_peak_raw=260,saturated_ms=4900)
         b=sample(3,249,limits=0,session_peak_raw=260)
@@ -51,7 +79,7 @@ class Target250DataTests(unittest.TestCase):
         self.assertEqual(m['time_to_control_start_ms'],50)
         self.assertEqual(m['time_to_first_nonzero_command_ms'],100)
         self.assertEqual(m['time_to_90_ms'],200)
-        self.assertEqual(m['time_to_first_250_ms'],300)
+        self.assertEqual(m['time_to_target_ms'],300)
         self.assertEqual(m['peak_pressure_units'],253)
         self.assertEqual(m['overshoot_units'],3)
         self.assertEqual(m['final_pressure_units'],249)
@@ -64,9 +92,9 @@ class Target250DataTests(unittest.TestCase):
         self.assertEqual(m['motion_start'],'NOT_MEASURED')
 
     def test_not_reached_saturated_vs_unsaturated(self):
-        for flag,assessment in [(1,'AUTHORITY_OR_HARDWARE_LIMIT_POSSIBLE'),(0,'CONTROLLER_TUNING_REVIEW_REQUIRED')]:
+        for flag,assessment in [(1,'SATURATION_OBSERVED_NO_PHYSICAL_CAUSE_ESTABLISHED'),(0,'TARGET_NOT_REACHED_NO_PHYSICAL_CAUSE_ESTABLISHED')]:
             m=metrics([sample(1,30,limits=flag),sample(2,59,limits=flag)])
-            self.assertIsNone(m['time_to_first_250_ms'])
+            self.assertIsNone(m['time_to_target_ms'])
             self.assertEqual(m['peak_pressure_units'],59)
             self.assertEqual(m['not_reached_assessment'],assessment)
             self.assertFalse(m['hold_entered'])
@@ -75,7 +103,7 @@ class Target250DataTests(unittest.TestCase):
         row=sample(9,250,14,limits=1)
         row.update(start_pending=1,start_requested_ms=1100,latest_received_ms=1000,state=1,lease_active=0)
         m=metrics([row])
-        self.assertIsNone(m['time_to_first_250_ms'])
+        self.assertIsNone(m['time_to_target_ms'])
         self.assertEqual(m['observed_control_points'],0)
         self.assertEqual(m['not_reached_assessment'],'NO_CONTROL_DATA')
         self.assertIsNone(m['peak_pressure_units'])
@@ -85,7 +113,7 @@ class Target250DataTests(unittest.TestCase):
         m=metrics(rows)
         self.assertEqual(m['saturated_sample_percent'],100)
         self.assertEqual(m['observed_saturation_ms'],100)
-        self.assertEqual(m['not_reached_assessment'],'AUTHORITY_OR_HARDWARE_LIMIT_POSSIBLE')
+        self.assertEqual(m['not_reached_assessment'],'SATURATION_OBSERVED_NO_PHYSICAL_CAUSE_ESTABLISHED')
 
     def test_gaps_not_interpolated(self):
         a,b=sample(1,249,14,1),sample(4,250,14,1)
@@ -96,8 +124,20 @@ class Target250DataTests(unittest.TestCase):
 
     def test_lost_echo_no_run_no_motion_claim(self):
         m=metrics([dict(phase='PREFLIGHT',latest_raw=23)])
+        self.assertIsNone(m['target_units'])
+        self.assertIsNone(m['final_error_units'])
         self.assertIsNone(m['time_to_first_nonzero_command_ms'])
         self.assertIsNone(m['output_saturated_observed'])
         self.assertFalse(m['StopVerified'])
+
+    def test_invalid_calibrated_measurement_is_unknown_not_zero(self):
+        a=sample(1,1000,unit=1,measured=2010,measured_valid=1)
+        a['target']=3000
+        stop=dict(a,phase='STOP_READBACK',measured=0,measured_valid=0,raw=1600,
+                  latest_raw=1600,fault=4,current_committed=0,lease_active=0,output_off=1,tim2=0,tim3=0,state=9)
+        m=metrics([a,stop])
+        self.assertIsNone(m['final_pressure_units'])
+        self.assertIsNone(m['final_error_units'])
+        self.assertEqual(m['peak_pressure_units'],2010)
 
 if __name__=='__main__': unittest.main(verbosity=2)

@@ -121,3 +121,9 @@ desktop.ini
 /output/Target250Authority1/firmware/*
 !/output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.hex
 !/output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.elf
+
+!output/StaticForce3000_1/
+output/StaticForce3000_1/*
+!output/StaticForce3000_1/firmware/
+!output/StaticForce3000_1/firmware/*.hex
+!output/StaticForce3000_1/firmware/*.elf

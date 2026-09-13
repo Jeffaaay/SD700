@@ -47,16 +47,26 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     $caseDir=Join-Path $testOutput $Name
     Check (-not (Test-Path -LiteralPath $caseDir)) "Do not overwrite existing test evidence: $caseDir"
     New-Item -ItemType Directory -Path $caseDir -Force | Out-Null
-    $defaults=Get-Content -Raw "$root/Docs/Target250Authority1/default_parameters.json" | ConvertFrom-Json
-    if ($Failure -eq 'WrongInitialProfile') { $defaults.press_cap=100 }
+    $defaults=Get-Content -Raw "$root/Docs/StaticForce3000_1/default_parameters.json" | ConvertFrom-Json
+    if ($Failure -eq 'ConservativeTuning') { $defaults.press_cap=100; $defaults.kp=2 }
     $configWords=@()
     foreach ($parameter in $schema.parameters) {
         [uint32]$bits=[BitConverter]::ToUInt32([BitConverter]::GetBytes([single]$defaults.($parameter.name)),0)
         $configWords+=@(($bits -shr 16),($bits -band 65535))
     }
-    Check ($configWords.Count -eq 48) 'Expected full active parameter group'
+    Check ($configWords.Count -eq 50) 'Expected full active parameter group'
+    $profileValues=[pscustomobject]@{}; $profileWords=@()
+    foreach ($p in $schema.profile) {
+        $profileValues | Add-Member -NotePropertyName $p.name -NotePropertyValue $p.default
+        [uint32]$bits=[BitConverter]::ToUInt32([BitConverter]::GetBytes([single]$p.default),0)
+        $profileWords+=@(($bits -shr 16),($bits -band 65535))
+    }
+    if ($Failure -eq 'WrongProfile') { $profileWords[0]=0 }
+    $configDigest=Get-ForceDigest $defaults $schema.parameters
+    if ($Failure -eq 'WrongConfigDigest') { $configDigest=$configDigest -bxor 1 }
+    $profileDigest=Get-ForceDigest $profileValues $schema.profile
     $clock=[pscustomobject]@{ElapsedMilliseconds=0L}
-    $sim=@{Starts=0;Stops=0;Latches=0;Framed=0;Failed=$false;Stopped=$false;Target=0;
+    $sim=@{Starts=0;Stops=0;Latches=0;Framed=0;Failed=$false;Stopped=$false;Target=0;ProfileId=1;
            Requests=(New-Object Collections.ArrayList);Frozen=@()}
     $assert=${function:Check}
     $transport={param([byte[]]$Request,[int]$TimeoutMs)
@@ -73,12 +83,12 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
             else { $sim.Starts++; throw 'TEST_FORBIDS_START' }
             $response=$Request
         } elseif ($f -eq 6) {
-            if ($Commissioning -and $CaptureMode -eq 'SingleStart' -and $a -eq 0) {
+            if ($a -eq 0x104) { $sim.ProfileId=$n } elseif ($Commissioning -and $CaptureMode -eq 'SingleStart' -and $a -eq 0) {
                 $sim.Target=$n
             } else {
             & $assert ($a -eq 0x102 -and $n -eq 0xD101) 'Only target and snapshot latch writes allowed'
             $sim.Latches++; $values=@{schema=$schema.schema;build_id=$schema.build_id;state=1;locked=[int](-not $Commissioning);output_off=1;
-                session_peak_raw=267;session_peak_received_ms=123;config_version=1;now_ms=$clock.ElapsedMilliseconds;latest_raw=$InitialPressure;latest_received_ms=$clock.ElapsedMilliseconds}
+                measured_valid=1;profile_id=1;profile_digest=$profileDigest;config_digest=$configDigest;session_peak_raw=267;session_peak_received_ms=123;config_version=1;now_ms=$clock.ElapsedMilliseconds;latest_raw=$InitialPressure;latest_received_ms=$clock.ElapsedMilliseconds}
             if ($sim.Starts -eq 1 -and -not $sim.Stopped) { $values.state=13;$values.start_pending=0 }
             if ($Failure -eq 'DeviceFault' -and $sim.Latches -ge 2) { $values.state=9;$values.fault=2;$values.detail=2 }
             if ($Failure -eq 'RunningFault' -and $sim.Starts -eq 1) { $values.state=9;$values.fault=2;$values.detail=2 }
@@ -88,7 +98,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
                 $sim.Frozen+=@(($u -shr 16),($u -band 65535))
             }
             foreach ($name in $schema.floats) {
-                [single]$value=if ($name -eq 'target') {$sim.Target} elseif ($name -eq 'post_limit_output') {98.5} else {0}
+                [single]$value=if ($name -eq 'target') {$sim.Target} elseif ($name -eq 'post_limit_output') {98.5} elseif ($name -eq 'measured') {$InitialPressure} elseif ($name -eq 'session_peak_measured') {267} else {0}
                 [uint32]$u=[BitConverter]::ToUInt32([BitConverter]::GetBytes($value),0)
                 $sim.Frozen+=@(($u -shr 16),($u -band 65535))
             }
@@ -96,12 +106,15 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
             $response=$Request
         } elseif ($f -eq 3 -or $f -eq 4) {
             & $assert ($n -ge 1 -and $n -le 11) 'Existing 11-word read bound violated'
-            if ($f -eq 3) {
-                & $assert ($a -ge 0x110 -and $a+$n -le 0x140) 'FC03 config address'
+            if ($f -eq 3 -and $a -eq 0x104) { $words=@($(if ($Failure -eq 'SelectionMismatch') {2} else {$sim.ProfileId})) } elseif ($f -eq 3 -and $a -ge 0x180) {
+                & $assert ($a+$n -le 0x180+$profileWords.Count) 'Profile FC03 bounds'
+                $words=@($profileWords[($a-0x180)..($a-0x180+$n-1)])
+            } elseif ($f -eq 3) {
+                & $assert ($a -ge 0x110 -and $a+$n -le 0x142) 'FC03 config address'
                 $words=@($configWords[($a-0x110)..($a-0x110+$n-1)])
             } elseif ($a -eq 0x100) {
                 & $assert ($sim.Requests.Count -eq 1) 'Capability must be first'
-                $words=@($schema.schema,[int](-not $Commissioning),48,(2*($schema.u32.Count+$schema.floats.Count)),0,1,0,0)
+                $words=@($schema.schema,[int](-not $Commissioning),50,(2*($schema.u32.Count+$schema.floats.Count)),0,1,($configDigest -shr 16),($configDigest -band 65535))
             } else {
                 & $assert ($sim.Latches -gt 0) 'Diagnostics must be frozen before reading'
                 $words=@($sim.Frozen[($a-0x200)..($a-0x200+$n-1)])
@@ -126,19 +139,18 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     $csv=Join-Path $caseDir 'SYNTHETIC.csv'; $caught=''
     try {
         Invoke-ForceCapture -TransportExchange $transport -Watch $clock -SleepMilliseconds $sleep -StopRequested $stop `
-            -Mode $CaptureMode -Target $Target -OutputCsv $csv -ActualHash 'SYNTHETIC_NOT_DEVICE' -MaximumSeconds 1 `
+            -Mode $CaptureMode -Target $Target -TargetN:($Failure -eq 'NewtonTarget') -OutputCsv $csv -ActualHash 'SYNTHETIC_NOT_DEVICE' -MaximumSeconds 3 `
             -CurrentLimitSetting 'SYNTHETIC_NOT_MEASURED' -InitialGap 'SYNTHETIC_NOT_MEASURED' `
             -FieldNotes 'SYNTHETIC_NO_SERIAL_NO_HARDWARE' -ConfirmedFirmwareSha256 'SYNTHETIC_NOT_DEVICE' | Out-Null
     } catch { $caught=$_.Exception.Message }
     if ($Failure -like '*Timeout') { Check ($caught -like 'Partial Modbus response:*') "Expected bounded timeout, got: $caught" }
     elseif ($CaptureMode -eq 'SingleStart' -and -not $Commissioning) { Check ($caught -like 'PHYSICAL_OUTPUT_LOCKED*') "Lock refusal missing: $caught" }
-    elseif ($Commissioning -and $Target -ne 250) {
-        Check ($caught -like 'Target250Authority1 requires*') "Commissioning admission refusal missing: $caught"
-        Check (@($sim.Requests | Where-Object {$_.Function -eq 6 -and $_.Address -eq 0}).Count -eq 0) 'Refused session wrote target'
-    }
-    elseif ($Failure -eq 'WrongInitialProfile') { Check ($caught -like 'Target250Authority1 requires exact initial profile*') "Initial profile refusal missing: $caught" }
-    else { Check ($caught -eq '') "Observe failed: $caught" }
-    $expectedStarts=[int]($Commissioning -and $CaptureMode -eq 'SingleStart' -and $Target -eq 250 -and $Failure -ne 'WrongInitialProfile')
+    elseif ($Failure -eq 'NewtonTarget') { Check ($caught -like 'MISSING_CONFIRMED_SENSOR_RANGE*') "N admission refusal missing: $caught" }
+    elseif ($Failure -eq 'WrongConfigDigest') { Check ($caught -eq 'Active configuration digest mismatch') "Config digest refusal missing: $caught" }
+    elseif ($Failure -eq 'WrongProfile') { Check ($caught -like 'Reviewed operating profile mismatch*') "Profile mismatch refusal missing: $caught" }
+    elseif ($Failure -eq 'SelectionMismatch') { Check ($caught -like 'Profile selection readback mismatch*') "Selection refusal missing: $caught" }
+    else { Check ($caught -eq '') "Capture failed: $caught" }
+    $expectedStarts=[int]($Commissioning -and $CaptureMode -eq 'SingleStart' -and $Failure -notin @('WrongProfile','SelectionMismatch','NewtonTarget','WrongConfigDigest'))
     Check ($sim.Starts -eq $expectedStarts -and $sim.Stops -eq 1) 'Expected START count and exactly one STOP required'
     Check ($sim.Framed -eq $sim.Requests.Count) 'A response bypassed production length parsing'
     $metadata=Get-Content -Raw ([IO.Path]::ChangeExtension($csv,'.metadata.json')) | ConvertFrom-Json
@@ -157,8 +169,8 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
         foreach ($parameter in $schema.parameters) {
             Check ([single]$metadata.config.($parameter.name) -eq [single]$defaults.($parameter.name)) "Bad config readback: $($parameter.name)"
         }
-        $reads=@($sim.Requests | Where-Object Function -eq 3)
-        Check ($reads.Count -eq 5 -and ($reads.Value -join ',') -eq '11,11,11,11,4') '48-word FC03 chunking mismatch'
+        $reads=@($sim.Requests | Where-Object {$_.Function -eq 3 -and $_.Address -ge 0x110 -and $_.Address -lt 0x180})
+        Check ($reads.Count -eq 5 -and ($reads.Value -join ',') -eq '11,11,11,11,6') '50-word FC03 chunking mismatch'
         Check ((($reads | ForEach-Object { $_.Address }) -join ',') -eq '272,283,294,305,316') "FC03 chunk addresses mismatch: $(($reads | ForEach-Object { $_.Address }) -join ',')"
     } else {
         Check ($null -eq $metadata.config) 'Unavailable parameters must remain unknown'
@@ -166,7 +178,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     }
     if ($Failure -eq '' -and $CaptureMode -eq 'Observe') {
         Check (@($rows | Where-Object phase -eq OBSERVE).Count -ge 2) 'Finite Observe samples missing'
-        Check ($clock.ElapsedMilliseconds -ge 1000 -and $clock.ElapsedMilliseconds -lt 2000) 'Observation must terminate'
+        Check ($clock.ElapsedMilliseconds -ge 3000 -and $clock.ElapsedMilliseconds -lt 5000) 'Observation must terminate'
     }
     if ($Commissioning -and $Failure -eq '' -and $expectedStarts -eq 1) {
         Check (@($rows | Where-Object phase -eq RUN).Count -ge 2) 'Finite SingleStart samples missing'
@@ -197,12 +209,16 @@ Invoke-ObserveCase ConfigTimeout ConfigTimeout
 Invoke-ObserveCase DiagnosticTimeout DiagnosticTimeout
 Invoke-ObserveCase DeviceFault DeviceFault
 Invoke-ObserveCase LockedSingleStart '' SingleStart
-Invoke-ObserveCase Authority1RejectOldCap WrongInitialProfile SingleStart $true
+Invoke-ObserveCase StaticConservativeTuning ConservativeTuning SingleStart $true
+Invoke-ObserveCase StaticProfileMismatch WrongProfile SingleStart $true
+Invoke-ObserveCase StaticSelectionMismatch SelectionMismatch SingleStart $true
+Invoke-ObserveCase StaticNewtonRefusal NewtonTarget SingleStart $true
+Invoke-ObserveCase StaticConfigDigestMismatch WrongConfigDigest SingleStart $true
 Invoke-ObserveCase CommissioningSingleStart '' SingleStart $true
 Invoke-ObserveCase CommissioningStartEchoTimeout StartEchoTimeout SingleStart $true
 Invoke-ObserveCase CommissioningRunningFault RunningFault SingleStart $true
 Invoke-ObserveCase Target250OperatorStop OperatorStop SingleStart $true
-Invoke-ObserveCase Target250RejectOtherTarget '' SingleStart $true 60
+Invoke-ObserveCase StaticAcceptLowTarget '' SingleStart $true 60
 Invoke-ObserveCase Target250ZeroInitial '' SingleStart $true 250 0
 Invoke-ObserveCase Target250InitialOutsideOldGate '' SingleStart $true 250 31
 Write-Output "CAPTUREFIX1_TEST_CASES=$script:caseCount PASS; physical test NOT RUN"

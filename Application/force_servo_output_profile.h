@@ -2,7 +2,7 @@
 #define APPLICATION_FORCE_SERVO_OUTPUT_PROFILE_H
 #include "Application/motion_build_policy.h"
 
-/* Target250Authority1: user-selected SHORT supervised experimental profile.
+/* StaticForce3000_1 retains the Authority1 SHORT count-domain experiment.
  * Command units (nominal mV), not measured terminal voltage or a continuous
  * motor/board rating. Physical supply setting remains 0.5 A. */
 #if SD700_FORCE_SERVO_COMMISSIONING

@@ -7,7 +7,9 @@ param(
     [string]$ConfirmedFirmwareSha256,
     [string]$OutputCsv,
     [string]$ParameterFile,
-    [ValidateRange(1,275)][int]$Target=250,
+    [ValidateRange(1,65535)][int]$Target=250,
+    [switch]$TargetN,
+    [int]$ProfileId=1,
     [ValidateRange(1,60)][int]$MaximumSeconds=5,
     [switch]$ConfirmMotorPowerDisconnected,
     [switch]$ConfirmSupervisedMotion,
@@ -18,7 +20,7 @@ param(
 $ErrorActionPreference='Stop'
 # Import the existing length-aware CRC/RTU transport. Preserve this script's options.
 $saved=@{}; foreach ($name in @('Mode','SelfTest','LibraryOnly','Port','ConfirmedFirmwareSha256','OutputCsv','ParameterFile','Target',
-    'MaximumSeconds','ConfirmMotorPowerDisconnected','ConfirmSupervisedMotion','CurrentLimitSetting','InitialGap','FieldNotes')) {
+    'TargetN','ProfileId','MaximumSeconds','ConfirmMotorPowerDisconnected','ConfirmSupervisedMotion','CurrentLimitSetting','InitialGap','FieldNotes')) {
     $saved[$name]=Get-Variable -Name $name -ValueOnly
 }
 . "$PSScriptRoot/capture_pressure_response.ps1" -LibraryOnly
@@ -56,6 +58,7 @@ function Read-ForceSnapshot([scriptblock]$Exchange,[string]$Phase) {
     }
     if ($values.schema -ne $schema.schema -or $values.build_id -ne $schema.build_id) { throw 'Snapshot identity mismatch' }
     $values.feedback_gap_ms=$activeConfig.feedback_gap_ms
+    $values.hold_enter_units=$activeConfig.hold_enter
     $values.feedback_age_ms=([long]$values.now_ms-[long]$values.latest_received_ms+4294967296) % 4294967296
     $values.at_output_cap=[int]($null -ne $activeConfig -and $values.current_committed -ne 0 -and
         ($values.current_committed -ge $activeConfig.press_cap -or $values.current_committed -le -$activeConfig.release_cap))
@@ -87,6 +90,62 @@ function Assert-ForceConfig($Config) {
         $c.sample_age_ms -ge $c.lease_ms -or $c.tracking_gain*$c.feedback_gap_ms*0.001 -gt 1 -or
         $c.saturation_ms -gt $c.session_ms -or $c.tracking_ms -gt $c.session_ms) { throw 'Invalid active config relationships' }
 }
+function Get-ForceDigest($Values,$Fields) {
+    [uint64]$h=2166136261
+    foreach ($p in $Fields) {
+        foreach ($b in [BitConverter]::GetBytes([single]$Values.($p.name))) {
+            $h=(($h -bxor [uint64]$b)*[uint64]16777619) -band [uint64]4294967295
+        }
+    }
+    return [uint32]$h
+}
+function Read-ForceProfile([scriptblock]$Exchange) {
+    $words=@(Read-ForceWords $Exchange 3 0x180 (2*$schema.profile.Count))
+    $values=[ordered]@{}; $i=0
+    foreach ($p in $schema.profile) {
+        [uint32]$bits=[uint64]$words[$i]*65536+[uint64]$words[$i+1]; $i+=2
+        $value=[BitConverter]::ToSingle([BitConverter]::GetBytes($bits),0)
+        if ([Single]::IsNaN($value) -or [Single]::IsInfinity($value) -or $value -ne [single]$p.default) {
+            throw "Reviewed operating profile mismatch: $($p.name); no START"
+        }
+        $values[$p.name]=$value
+    }
+    return [pscustomobject]$values
+}
+function Assert-ForceAdmission($Profile,[int]$Target,[bool]$Newtons,[int]$Id,[int]$Seconds) {
+    if ($Id -ne $Profile.id) { throw 'Reviewed operating profile ID unavailable; no START' }
+    if ($Newtons -or $Profile.unit -eq 1) {
+        $reasons=@('MISSING_CONFIRMED_SENSOR_RANGE','MISSING_FORCE_N_CALIBRATION',
+            'MISSING_WEAKEST_MECHANICAL_BOUNDARY','MISSING_CURRENT_AND_ON_OFF_TIME_ENVELOPE')
+        for ($i=0;$i -lt 4;$i++) {
+            if (([int]$Profile.qualifications -band (1 -shl $i)) -eq 0) { throw "$($reasons[$i]); no START" }
+        }
+    }
+    if ($Newtons -ne ($Profile.unit -eq 1)) { throw 'Target unit differs from selected profile; no START' }
+    if ($Target -le 0 -or $Target -gt $Profile.operating_max) {
+        throw "TARGET_OUTSIDE_OPERATING_RANGE: maximum $($Profile.operating_max) in profile unit $($Profile.unit); no START"
+    }
+    if ($Newtons -and ($Target -lt $Profile.calibration_min -or $Target -gt $Profile.calibration_max)) {
+        throw 'TARGET_OUTSIDE_CALIBRATION_COVERAGE; no START'
+    }
+    if ($Seconds*1000 -gt $Profile.capture_ms -or $Seconds*1000 -gt $Profile.energized_ms) {
+        throw "Selected profile requires MaximumSeconds <= $($Profile.capture_ms/1000); no serial connection or START"
+    }
+}
+function Assert-ForcePlan($Profile,$Config,[int]$Target,[bool]$Newtons,[int]$Id,[int]$Seconds,[single]$Measured) {
+    Assert-ForceAdmission $Profile $Target $Newtons $Id $Seconds
+    Assert-ForceConfig $Config
+    if ($Config.press_cap -gt $Profile.continuous_press -or $Config.release_cap -gt $Profile.release) {
+        throw 'Config exceeds selected continuous-output profile; no START'
+    }
+    if ($Measured -lt 0 -or $Measured -ge $Profile.force_trip) { throw 'Invalid initial measurement; no START' }
+    $distance=[Math]::Abs($Target-$Measured)
+    $planned=[Math]::Max(1.5*$distance/$Config.reference_rate,[Math]::Sqrt(6*$distance/$Config.reference_acceleration))*1000
+    $budget=[Math]::Min($Config.session_ms,[Math]::Min($Profile.session_ms,[Math]::Min($Profile.energized_ms,$Seconds*1000)))
+    if ($planned+$Config.hold_dwell_ms -gt $budget -or $planned -gt $Profile.build_ms) {
+        throw "TRAJECTORY_HOLD_EXCEEDS_BUDGET: reference=${planned}ms hold=$($Config.hold_dwell_ms)ms budget=${budget}ms; no START"
+    }
+}
 function Invoke-ForceCapture {
     param(
         [Parameter(Mandatory=$true)][scriptblock]$TransportExchange,
@@ -97,14 +156,16 @@ function Invoke-ForceCapture {
         [Parameter(Mandatory=$true)][string]$OutputCsv,
         [Parameter(Mandatory=$true)][string]$ActualHash,
         [ValidateRange(1,60)][int]$MaximumSeconds=5,
-        [ValidateRange(1,275)][int]$Target=250,
+        [ValidateRange(1,65535)][int]$Target=250,
+    [switch]$TargetN,
+    [int]$ProfileId=1,
         $Desired,
         [string]$CurrentLimitSetting,
         [string]$InitialGap,
         [string]$FieldNotes,
         [string]$ConfirmedFirmwareSha256
     )
-    if ($Mode -eq 'SingleStart' -and $MaximumSeconds -gt 5) { throw 'Target250Authority1 requires MaximumSeconds <= 5; no START sent' }
+
     $csvPath=[IO.Path]::GetFullPath($OutputCsv)
     $reportPath=[IO.Path]::ChangeExtension($csvPath,'.report.txt')
     $metaPath=[IO.Path]::ChangeExtension($csvPath,'.metadata.json')
@@ -112,7 +173,7 @@ function Invoke-ForceCapture {
     New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName($csvPath)) | Out-Null
     $rows=New-Object Collections.ArrayList; $errorText=''; $startAttempts=0
     $startAccepted=$false; $stopReason='OBSERVATION_COMPLETE'
-    $activeConfig=$null; $enforceDeadline=$false
+    $activeConfig=$null; $activeProfile=$null; $plannedReference=$null; $enforceDeadline=$false
     try {
         $exchange={param([byte[]]$Request,[int]$TimeoutMs)
             if ($enforceDeadline) {
@@ -126,7 +187,13 @@ function Invoke-ForceCapture {
         if ($info[0] -ne $schema.schema -or $info[2] -ne 2*$schema.parameters.Count -or
             $info[3] -ne 2*($schema.u32.Count+$schema.floats.Count)) { throw 'ForceServo1 capability/schema required' }
         $activeConfig=Read-ForceConfig $exchange
+        $activeProfile=Read-ForceProfile $exchange
+        $configDigest=Get-ForceDigest $activeConfig $schema.parameters
+        $profileDigest=Get-ForceDigest $activeProfile $schema.profile
+        if (([uint64]$info[6]*65536+$info[7]) -ne $configDigest) { throw 'Active configuration digest mismatch' }
         $first=Read-ForceSnapshot $exchange 'PREFLIGHT'; [void]$rows.Add($first)
+        if ($first.profile_digest -ne $profileDigest -or $first.profile_id -ne $activeProfile.id -or
+            $first.unit -ne $activeProfile.unit -or $first.config_digest -ne $configDigest) { throw 'Profile/config diagnostic readback mismatch' }
         if ($first.state -ne 1 -or $first.start_pending -ne 0 -or $first.output_off -ne 1 -or $first.lease_active -ne 0 -or $first.fault -ne 0) { throw 'IDLE + OFF required' }
         if ($Mode -eq 'Parameters') {
             Write-ForceWord $exchange 0x100 0xB101
@@ -139,25 +206,31 @@ function Invoke-ForceCapture {
             Write-ForceWord $exchange 0x101 0xC101
             $activeConfig=Read-ForceConfig $exchange
             foreach ($p in $schema.parameters) { if ([single]$activeConfig.($p.name) -ne [single]$desired.($p.name)) { throw 'Parameter readback mismatch' } }
+            $configDigest=Get-ForceDigest $activeConfig $schema.parameters
+            $updated=Read-ForceSnapshot $exchange 'CONFIG_READBACK'; [void]$rows.Add($updated)
+            if ($updated.config_digest -ne $configDigest -or $updated.profile_digest -ne $profileDigest) { throw 'Updated config/profile digest mismatch' }
         }
         if ($Mode -eq 'SingleStart') {
             if ($info[1] -ne 0 -or $first.locked -ne 0) { throw 'PHYSICAL_OUTPUT_LOCKED: no START sent; hardware qualification pending' }
-            if ($Target -ne 250) { throw 'Target250Authority1 requires Target=250; no START sent' }
-            foreach ($p in $schema.parameters) {
-                if ([single]$activeConfig.($p.name) -ne [single]$p.default) {
-                    throw "Target250Authority1 requires exact initial profile: $($p.name); no START sent"
-                }
-            }
-            Write-ForceWord $exchange 0 $Target
+            if ($first.measured_valid -ne 1) { throw 'Initial calibrated/control measurement unavailable; no START' }
+            Assert-ForcePlan $activeProfile $activeConfig $Target $TargetN $ProfileId $MaximumSeconds $first.measured
+            $distance=[Math]::Abs($Target-$first.measured)
+            $plannedReference=[Math]::Max(1.5*$distance/$activeConfig.reference_rate,[Math]::Sqrt(6*$distance/$activeConfig.reference_acceleration))
+            Write-Output "PLANNED_REFERENCE_SECONDS=$plannedReference; HOLD_DWELL_MS=$($activeConfig.hold_dwell_ms); UNIT=$($activeProfile.unit); PROFILE=$ProfileId"
+            Write-ForceWord $exchange 0x104 $ProfileId
+            $selected=@(Read-ForceWords $exchange 3 0x104 1)
+            if ($selected[0] -ne $ProfileId) { throw 'Profile selection readback mismatch; no START' }
+            Write-ForceWord $exchange $(if ($TargetN) {0x103} else {0}) $Target
             $ready=Read-ForceSnapshot $exchange 'TARGET_READBACK'
             [void]$rows.Add($ready)
-            if ($ready.target -ne $Target -or $ready.state -ne 1 -or $ready.fault -ne 0 -or $ready.output_off -ne 1) { throw 'Target/state readback mismatch' }
+            if ($ready.profile_digest -ne $profileDigest -or $ready.config_digest -ne $configDigest -or $ready.unit -ne $activeProfile.unit -or $ready.target -ne $Target -or $ready.state -ne 1 -or $ready.fault -ne 0 -or $ready.output_off -ne 1) { throw 'Target/state readback mismatch' }
+            $deadline=$watch.ElapsedMilliseconds+$MaximumSeconds*1000; $enforceDeadline=$true
             $startAttempts=1 # Set before transmitting. Lost echo never retries START.
             $startAccepted=$null # Unknown if the echo is lost; never infer rejection.
             Send-SingleCoil $exchange 0x10 0xFF00 100
             $startAccepted=$true
         }
-        $deadline=$watch.ElapsedMilliseconds+$MaximumSeconds*1000; $enforceDeadline=$true
+        if ($Mode -ne 'SingleStart') { $deadline=$watch.ElapsedMilliseconds+$MaximumSeconds*1000; $enforceDeadline=$true }
         while ($watch.ElapsedMilliseconds -lt $deadline) {
             if (& $StopRequested) { $stopReason='OPERATOR_STOP'; break }
             $row=Read-ForceSnapshot $exchange $(if ($Mode -eq 'SingleStart') {'RUN'} else {'OBSERVE'})
@@ -186,7 +259,7 @@ function Invoke-ForceCapture {
     @{mode=$Mode;start_attempts=$startAttempts;start_accepted=$startAccepted;stop_reason=$stopReason;error=$errorText;config=$activeConfig;
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
-        commissioning='Target250Authority1';qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        commissioning='StaticForce3000_1';profile=$activeProfile;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
         pwm_counts='tim2/tim3 are PLANNED; no external electrical measurement';
         maximum_observation_seconds=$MaximumSeconds;capture_wall_ms=$watch.ElapsedMilliseconds;
         bus='115200 8N1; frozen snapshot in <=11-register chunks; polling misses are reported'} |
@@ -255,8 +328,10 @@ if ($SelfTest) {
     return
 }
 if ($LibraryOnly) { return }
-if ($Mode -eq 'SingleStart' -and $MaximumSeconds -gt 5) {
-    throw 'Target250Authority1 requires MaximumSeconds <= 5; no serial connection or START'
+if ($Mode -eq 'SingleStart') {
+    $compiledProfile=[pscustomobject]@{}
+    foreach ($p in $schema.profile) { $compiledProfile | Add-Member -NotePropertyName $p.name -NotePropertyValue $p.default }
+    Assert-ForceAdmission $compiledProfile $Target $TargetN $ProfileId $MaximumSeconds
 }
 if ($Mode -eq 'SingleStart' -and -not $schema.powered_test_ready) {
     throw 'POWERED_TEST_READY=NO: higher continuous motor/board rating evidence missing; no serial connection or START'
@@ -266,7 +341,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/StaticForce3000_1/firmware/SD700_ForceServo1_StaticForce3000_1_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'
@@ -302,7 +377,7 @@ try {
             return $false
         } `
         -OutputCsv $OutputCsv -ActualHash $actualHash -MaximumSeconds $MaximumSeconds `
-        -Target $Target -Desired $desired -CurrentLimitSetting $CurrentLimitSetting `
+        -Target $Target -TargetN:$TargetN -ProfileId $ProfileId -Desired $desired -CurrentLimitSetting $CurrentLimitSetting `
         -InitialGap $InitialGap -FieldNotes $FieldNotes -ConfirmedFirmwareSha256 $ConfirmedFirmwareSha256
 } finally {
     if ($null -ne $serial) { try { $serial.Close() } finally { $serial.Dispose() } }

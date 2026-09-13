@@ -11,11 +11,14 @@
  X(contact_raw) X(contact_lost_raw) X(contact_threshold) X(session_started_ms) \
  X(saturated_ms) X(tracking_ms) X(skipped_samples) X(rx_interval_min_ms) X(rx_interval_max_ms) X(latest_sample_hi) X(latest_sample_lo) X(latest_received_ms) X(latest_raw) X(delivered_interval_min_ms) X(delivered_interval_max_ms) \
  X(start_pending) X(start_requested_ms) X(last_command_result) \
- X(session_peak_raw) X(session_peak_received_ms)
+ X(session_peak_raw) X(session_peak_received_ms) \
+ X(profile_id) X(profile_digest) X(unit) X(rejection) X(progress_status) X(no_response_ms) \
+ X(reference_complete) X(hold_ms) X(energized_elapsed_ms) X(boost_active) X(boost_deadline_ms) X(boost_spent_ms) X(measured_valid)
 #define FORCE_SERVO_DIAG_FLOAT(X) \
  X(dt_s) X(filtered) X(target) X(reference) X(reference_rate) X(error) \
  X(p) X(i) X(d) X(ff) X(raw_output) X(control_committed) X(next_integral) X(current_committed) \
- X(control_pressure) X(requested_output) X(post_limit_output)
+ X(control_pressure) X(requested_output) X(post_limit_output) \
+ X(measured) X(force_N) X(planned_reference_s) X(progress_delta) X(session_peak_measured)
 typedef struct {
 #define FS_U32(n) uint32_t n;
  FORCE_SERVO_DIAG_U32(FS_U32)
@@ -27,6 +30,7 @@ typedef struct {
 #define FORCE_SERVO_DIAG_WORDS (sizeof(ForceServoDiagnostic)/2U)
 typedef struct {
  ForceServoConfig config;
+ ForceServoProfile profile;
  ForceServo controller;
  ForceServoDiagnostic diagnostic;
  uint16_t frozen[FORCE_SERVO_DIAG_WORDS];
@@ -37,6 +41,9 @@ typedef struct {
  uint64_t last_control_sequence;
  uint32_t saturation_started_ms, tracking_started_ms, settle_after_ms;
  uint32_t start_requested_ms;
+ uint32_t progress_at_ms, progress_good_ms, hold_at_ms;
+ float progress_anchor, progress_start;
+ bool progress_commanded, boost_used;
  bool start_pending;
  bool active, contacted, ever_held, saturation_active, tracking_active, approach_wait;
  bool have_sample, staging_open;

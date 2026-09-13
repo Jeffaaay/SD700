@@ -125,7 +125,12 @@ static void TestTarget250SyntheticPI(void)
           * Synthetic only; no identification or hardware-performance claim. */
          pressure+=.02f/.5f*(20+5*machine.servo.diagnostic.current_committed-pressure);
          sample((int)roundf(pressure),20);
-         assert(machine.state!=FAULT && pressure<325);
+         assert(pressure<325);
+         if (!integral && machine.state==FAULT) {
+             assert(machine.fault_detail==FAULT_DETAIL_SATURATION_TIMEOUT);
+             assert(machine.servo.diagnostic.no_response_ms>=5000); off(); break;
+         }
+         assert(machine.state!=FAULT);
          assert(fabsf(machine.servo.diagnostic.current_committed)<=100);
          if (machine.state==FORCE_HOLD) held++;
      }

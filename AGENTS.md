@@ -21,13 +21,15 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current candidate is Target250Authority1, explicitly requested by the user
-as one SHORT supervised experiment: Target250, Kp10/Ki0/Kd0, PRESS720/RELEASE100.
-These are command units, not measured motor voltage or a production/continuous
-rating. Keep the physical 0.5 A supply setting and PC observation <=5 seconds.
-The current user instruction supersedes Continuous2's prior no-powered-profile
-restriction. Default ForceServo remains compiled LOCKED; the existing explicit
-output flag is reused by -Target250Authority1, without runtime unlock. Preserve
-STOP, freshness/lease, raw overpressure, direction interlock, hardware guard,
-fault latch, finite deadlines and no restart. No automatic cap increase or
-repeat START. Software PASS is not physical validation; use current README.
+The current candidate is StaticForce3000_1. The explicit armed build permits
+only profile1: legacy control counts, target1..275, PRESS<=720/RELEASE<=100,
+unchanged0.5 A supply setting and <=5 s absolute energized/session/capture scope.
+This remains an unvalidated short experiment, not a continuous thermal rating.
+No live Newton calibration or high-output boost qualification exists. Peak
+hardware activation remains disabled; high-range/high-PWM fixtures are synthetic.
+Plain ForceServo remains LOCKED with no runtime unlock. Preserve STOP, freshness,
+receive-anchored lease, fixed boost/session deadlines, independent raw and
+calibrated overforce, direction interlock, hardware guard, fault latch and no
+restart. Latest user instructions allow one combined supervised static session
+within the confirmed short profile; no Codex hardware motion, current increase,
+automatic repeated START or unqualified3000 N trial. Use the current README.

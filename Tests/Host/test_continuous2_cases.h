@@ -15,7 +15,9 @@ static void continuous2_config(float cap,float release,float kp)
 }
 static void TestContinuous2Range(void)
 {
- fixture(); continuous2_config(FS_PRESS_PROFILE_CEILING,FS_RELEASE_PROFILE_CEILING,1);
+ fixture(); machine.servo.profile.continuous_press=FS_PRESS_PROFILE_CEILING;
+ machine.servo.profile.release=FS_RELEASE_PROFILE_CEILING; /* synthetic range fixture */
+ continuous2_config(FS_PRESS_PROFILE_CEILING,FS_RELEASE_PROFILE_CEILING,1);
  ForceServoConfig old=machine.servo.config,c=old;
  c.press_cap=FS_PRESS_PROFILE_CEILING+1; stage(&c);
  assert(write_reg(FS_REG_COMMIT,0xC101)==COMMAND_INVALID_VALUE);
@@ -137,6 +139,6 @@ static void TestContinuous2OldSaturation(void)
  assert(machine.fault==FAULT_MOTION_TIMEOUT && machine.fault_detail==FAULT_DETAIL_SATURATION_TIMEOUT);
  assert(machine.servo.diagnostic.reference==250 && machine.servo.diagnostic.p==228);
  assert(machine.servo.diagnostic.raw_output==228 && machine.servo.diagnostic.requested_output==100);
- assert(machine.servo.diagnostic.saturated_ms==5000); off();
+ assert(machine.servo.diagnostic.no_response_ms==5000); /* bounded no-response policy */ off();
  assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED); sample(22,5); off();
 }
