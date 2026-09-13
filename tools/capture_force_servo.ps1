@@ -7,7 +7,7 @@ param(
     [string]$ConfirmedFirmwareSha256,
     [string]$OutputCsv,
     [string]$ParameterFile,
-    [ValidateRange(1,275)][int]$Target=40,
+    [ValidateRange(1,275)][int]$Target=250,
     [ValidateRange(1,60)][int]$MaximumSeconds=60,
     [switch]$ConfirmMotorPowerDisconnected,
     [switch]$ConfirmSupervisedMotion,
@@ -56,6 +56,11 @@ function Read-ForceSnapshot([scriptblock]$Exchange,[string]$Phase) {
     }
     if ($values.schema -ne $schema.schema -or $values.build_id -ne $schema.build_id) { throw 'Snapshot identity mismatch' }
     $values.feedback_gap_ms=$activeConfig.feedback_gap_ms
+    $values.feedback_age_ms=([long]$values.now_ms-[long]$values.latest_received_ms+4294967296) % 4294967296
+    $values.at_output_cap=[int]($null -ne $activeConfig -and $values.current_committed -ne 0 -and
+        ($values.current_committed -ge $activeConfig.press_cap -or $values.current_committed -le -$activeConfig.release_cap))
+    $values.saturated=[int](($values.limits -band 1) -ne 0 -or $values.at_output_cap -ne 0)
+    $values.direction=[Math]::Sign($values.current_committed)
     return [pscustomobject]$values
 }
 function Read-ForceConfig([scriptblock]$Exchange) {
@@ -72,11 +77,12 @@ function Invoke-ForceCapture {
         [Parameter(Mandatory=$true)][scriptblock]$TransportExchange,
         [Parameter(Mandatory=$true)]$Watch,
         [Parameter(Mandatory=$true)][scriptblock]$SleepMilliseconds,
+        [scriptblock]$StopRequested={ $false },
         [ValidateSet('Observe','Parameters','SingleStart')][string]$Mode,
         [Parameter(Mandatory=$true)][string]$OutputCsv,
         [Parameter(Mandatory=$true)][string]$ActualHash,
         [ValidateRange(1,60)][int]$MaximumSeconds=60,
-        [ValidateRange(1,275)][int]$Target=40,
+        [ValidateRange(1,275)][int]$Target=250,
         $Desired,
         [string]$CurrentLimitSetting,
         [string]$InitialGap,
@@ -89,6 +95,7 @@ function Invoke-ForceCapture {
     foreach ($p in @($csvPath,$reportPath,$metaPath)) { if (Test-Path -LiteralPath $p) { throw "Output exists: $p" } }
     New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName($csvPath)) | Out-Null
     $rows=New-Object Collections.ArrayList; $errorText=''; $startAttempts=0
+    $startAccepted=$false; $stopReason='OBSERVATION_COMPLETE'
     $activeConfig=$null; $enforceDeadline=$false
     try {
         $exchange={param([byte[]]$Request,[int]$TimeoutMs)
@@ -104,7 +111,7 @@ function Invoke-ForceCapture {
             $info[3] -ne 2*($schema.u32.Count+$schema.floats.Count)) { throw 'ForceServo1 capability/schema required' }
         $activeConfig=Read-ForceConfig $exchange
         $first=Read-ForceSnapshot $exchange 'PREFLIGHT'; [void]$rows.Add($first)
-        if ($first.state -ne 1 -or $first.output_off -ne 1 -or $first.lease_active -ne 0 -or $first.fault -ne 0) { throw 'IDLE + OFF required' }
+        if ($first.state -ne 1 -or $first.start_pending -ne 0 -or $first.output_off -ne 1 -or $first.lease_active -ne 0 -or $first.fault -ne 0) { throw 'IDLE + OFF required' }
         if ($Mode -eq 'Parameters') {
             Write-ForceWord $exchange 0x100 0xB101
             $i=0
@@ -119,23 +126,33 @@ function Invoke-ForceCapture {
         }
         if ($Mode -eq 'SingleStart') {
             if ($info[1] -ne 0 -or $first.locked -ne 0) { throw 'PHYSICAL_OUTPUT_LOCKED: no START sent; hardware qualification pending' }
-            if ($Target -gt 60 -or $first.latest_raw -lt 20 -or $first.latest_raw -gt 30) {
-                throw 'Commissioning session requires initial pressure 20..30 and target <=60; no START sent'
-            }
+            if ($Target -ne 250) { throw 'Target250MVP1 requires Target=250; no START sent' }
             Write-ForceWord $exchange 0 $Target
             $ready=Read-ForceSnapshot $exchange 'TARGET_READBACK'
+            [void]$rows.Add($ready)
             if ($ready.target -ne $Target -or $ready.state -ne 1 -or $ready.fault -ne 0 -or $ready.output_off -ne 1) { throw 'Target/state readback mismatch' }
             $startAttempts=1 # Set before transmitting. Lost echo never retries START.
+            $startAccepted=$null # Unknown if the echo is lost; never infer rejection.
             Send-SingleCoil $exchange 0x10 0xFF00 100
+            $startAccepted=$true
         }
         $deadline=$watch.ElapsedMilliseconds+$MaximumSeconds*1000; $enforceDeadline=$true
         while ($watch.ElapsedMilliseconds -lt $deadline) {
+            if (& $StopRequested) { $stopReason='OPERATOR_STOP'; break }
             $row=Read-ForceSnapshot $exchange $(if ($Mode -eq 'SingleStart') {'RUN'} else {'OBSERVE'})
             [void]$rows.Add($row)
-            if ($row.fault -ne 0) { break }
+            if ($row.fault -ne 0) { $stopReason="DEVICE_FAULT_$($row.fault)_DETAIL_$($row.detail)"; break }
+            if ($Mode -eq 'SingleStart' -and $row.state -eq 1 -and $row.start_pending -eq 0) {
+                $stopReason='DEVICE_IDLE_AFTER_START'; break
+            }
             & $SleepMilliseconds 10
         }
-    } catch { if ($_.Exception.Message -ne 'OBSERVATION_DEADLINE') { $errorText=$_.Exception.Message } }
+    } catch {
+        if ($_.Exception.Message -ne 'OBSERVATION_DEADLINE') {
+            $errorText=$_.Exception.Message; $stopReason='CAPTURE_ERROR'
+            if ($startAttempts -eq 1 -and $null -eq $startAccepted -and $errorText -like 'Modbus exception:*') { $startAccepted=$false }
+        }
+    }
     finally {
         $enforceDeadline=$false
         try {
@@ -145,7 +162,7 @@ function Invoke-ForceCapture {
     }
     if ($rows.Count -gt 0) { $rows | Export-Csv -NoTypeInformation -Encoding UTF8 -LiteralPath $csvPath }
     else { '"phase","firmware_sha256"' | Set-Content -Encoding UTF8 -LiteralPath $csvPath }
-    @{mode=$Mode;start_attempts=$startAttempts;error=$errorText;config=$activeConfig;
+    @{mode=$Mode;start_attempts=$startAttempts;start_accepted=$startAccepted;stop_reason=$stopReason;error=$errorText;config=$activeConfig;
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
         commissioning='COMMISSIONING_NOT_TUNED';physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
@@ -221,7 +238,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/CommissioningUnlock1/firmware/SD700_ForceServo1_CommissioningUnlock1_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'
@@ -249,6 +266,13 @@ try {
     }
     Invoke-ForceCapture -TransportExchange $transport -Watch ([Diagnostics.Stopwatch]::StartNew()) `
         -SleepMilliseconds {param($ms) Start-Sleep -Milliseconds $ms} -Mode $Mode `
+        -StopRequested {
+            if (-not [Console]::IsInputRedirected -and [Console]::KeyAvailable) {
+                $key=[Console]::ReadKey($true).Key
+                return ($key -eq [ConsoleKey]::S -or $key -eq [ConsoleKey]::Escape)
+            }
+            return $false
+        } `
         -OutputCsv $OutputCsv -ActualHash $actualHash -MaximumSeconds $MaximumSeconds `
         -Target $Target -Desired $desired -CurrentLimitSetting $CurrentLimitSetting `
         -InitialGap $InitialGap -FieldNotes $FieldNotes -ConfirmedFirmwareSha256 $ConfirmedFirmwareSha256

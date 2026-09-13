@@ -21,10 +21,10 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current field candidate is CommissioningUnlock1, explicitly authorized for
-supervised commissioning at a maximum continuous command magnitude of 100 mV
-in either direction. Default ForceServo builds remain compiled LOCKED; only the
-explicit CommissioningUnlock1 profile enables output. Keep the current output
-ceiling, timing guards, STOP priority and no-restart behavior. Repository cleanup
-or delivery changes must not alter control/safety behavior. Software PASS is not
-physical validation. Use only the current README field procedure.
+The current field candidate is Target250MVP1, an explicitly supervised Target250
+sensor-unit ForceServo session. Keep the existing 0.5 A field current limit.
+Default ForceServo builds remain compiled LOCKED. The existing explicit real
+output flag is reused by -Target250MVP1; do not create a runtime unlock bypass.
+Keep STOP priority, independent lease/freshness stop, raw overpressure, output
+caps, direction interlock and no automatic restart. Software PASS is not physical
+validation. Follow only the current README field procedure.

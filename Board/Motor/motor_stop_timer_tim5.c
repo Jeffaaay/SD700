@@ -4,6 +4,13 @@
 #include <stddef.h>
 
 #include "stm32f4xx_hal.h"
+#include "Application/motion_build_policy.h"
+#if SD700_FORCE_SERVO_COMMISSIONING
+#include "Application/force_servo.h"
+#define MOTOR_STOP_MAX_LEASE_MS FORCE_SERVO_COMMISSIONING_LEASE_MS
+#else
+#define MOTOR_STOP_MAX_LEASE_MS 100U
+#endif
 
 #define MOTOR_STOP_TIMER_TICKS_PER_MS 10U
 #define MOTOR_STOP_TIMER_TICK_HZ      10000U
@@ -239,7 +246,7 @@ void MotorStopTimer_IrqHandler(void)
  * Renewal never stops the counter or clears SR/NVIC pending events. */
 bool MotorStopTimer_ArmLease(uint32_t remaining_ms)
 {
-    if (!s_initialized || !s_healthy || s_armed || remaining_ms <= 1U || remaining_ms > 100U)
+    if (!s_initialized || !s_healthy || s_armed || remaining_ms <= 1U || remaining_ms > MOTOR_STOP_MAX_LEASE_MS)
         return false;
     MotorStopTimer_Cancel(); /* Only legal with verified output OFF, new session. */
     TIM5->CR1 = TIM_CR1_URS;
@@ -259,7 +266,7 @@ bool MotorStopTimer_RenewLease(uint32_t remaining_ms)
 {
     uint32_t counter = TIM5->CNT;
     uint32_t old_deadline = TIM5->CCR1;
-    if (!MotorStopTimer_IsArmed() || !s_healthy || remaining_ms <= 1U || remaining_ms > 100U)
+    if (!MotorStopTimer_IsArmed() || !s_healthy || remaining_ms <= 1U || remaining_ms > MOTOR_STOP_MAX_LEASE_MS)
         return false;
     if ((TIM5->SR & (TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC1OF)) != 0U) {
         MotorStopTimer_IrqHandler();

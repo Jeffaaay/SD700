@@ -821,7 +821,11 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
         lease_ms>FORCE_SERVO_COMMISSIONING_LEASE_MS || max_age_ms>FORCE_SERVO_COMMISSIONING_AGE_MS ||
         deadtime_ms<FORCE_SERVO_COMMISSIONING_DEADTIME_MS) goto fail;
 #endif
-    if (s_completion_event_pending || lease_ms<3 || lease_ms>100 || max_age_ms>=lease_ms ||
+    if (s_completion_event_pending || lease_ms<3 ||
+#if !SD700_FORCE_SERVO_COMMISSIONING
+        lease_ms>100 ||
+#endif
+        max_age_ms>=lease_ms ||
         age>max_age_ms || age>=lease_ms-1 || deadtime_ms<1 || deadtime_ms>100 ||
         requested_mv>5000 || requested_mv<-800 || !MotorHwReal_OutputArmingAllowed()) goto fail;
     if (s_servo_has_sequence &&

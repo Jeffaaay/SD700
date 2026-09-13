@@ -1,171 +1,187 @@
-# SD700 - ForceServo1 CommissioningUnlock1
+# SD700 - Target250MVP1
 
-Current candidate: **CommissioningUnlock1**, a bounded supervised commissioning
-build from clean `main` / `origin/main`
-`5fb80d7cfc85176d9a82688ab37d22194a2577e4`. No later changes were discarded.
-**GitHub main is the source of truth; delivery is the pushed commit. No ZIP.**
+Current milestone: **Target250MVP1**, from clean main/origin-main
+`3e4208df808fa7c78731ed589e0cf13a63da81a9`. GitHub main is the source of truth.
+Delivery is the pushed commit. **No ZIP.**
 
-**physical test NOT RUN. COMMISSIONING_NOT_TUNED.**
-HARDWARE_STOP_VALIDATION, STATIC_250 and ROTATING_LOAD remain NOT_VALIDATED.
+**Target = 250 sensor control units, not Newton. FIELD_STATUS=NOT_RUN.**
+This candidate has not been connected, flashed or physically tested by this work.
 
-[Current RealBench Release HEX](output/CommissioningUnlock1/firmware/SD700_ForceServo1_CommissioningUnlock1_RealBench_Release.hex)
+[Current RealBench Release HEX](output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.hex)
 
-HEX SHA256: `F96936FF7962ADC65737C0C6C97F5EBC49F30E8A3B33A20B75C450E3657DD46C`
+HEX SHA256: `4277556949A4AD6A2D5D24E49F8A1DEA97C7D8906CA48AA9878D68B5DF924055`
 
-[Matching ELF](output/CommissioningUnlock1/firmware/SD700_ForceServo1_CommissioningUnlock1_RealBench_Release.elf)
+[Matching ELF](output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.elf)
 
-ELF SHA256: `0925C1CDAEEDB7DCBFCD08EC0BF5E37505ABAA2175B2B11A17112D747CB86D41`
+ELF SHA256: `06B8281B8D089D97D5639C6176A94F962AB5297FE04EEAE9CC32AF5B5DB31B01`
 
-## Scope and limits
+## START and Target250 control
 
-The existing trajectory -> PID -> executor -> monitored continuous output ->
-active HOLD path is retained. There is no controller redesign, extended timeout
-or lengthened pulse. Only the explicit `-ForceServo -CommissioningUnlock1` build,
-with the existing RealBench acknowledgement and master arming guard, enables
-physical output. A plain `-ForceServo` build remains locked. No RAM unlock exists.
+The previous field failure occurred before motion. The old START code rejected
+pressure older than20 ms, and the Modbus mapping returned generic0x04 for
+NOT_READY and other failures. The reported preflight age24 ms makes freshness
+the leading explanation, not proof of the exact START-time condition or of a
+motor hardware fault. See [reported evidence](Docs/Target250MVP1/FIELD_EVIDENCE.md).
 
-The continuous **command ceiling is 100 mV in either direction**. Its source is
-the lower original ForceServo1 default, `release_cap=100`, present at `29d0a90`
-and the starting main; the original press default was 250. No physically
-qualified continuous rating exists in the repository. This conservative seed is
-not measured coil voltage/current or proof of safe continuous thermal duty.
-The existing 24000 mV PWM reference and 4799 timer period are unchanged; a 100 mV
-command maps to compare 20. **Keep the existing supply current limit unchanged.**
+START now latches one request in IDLE, with physical output OFF. The next new,
+valid pressure frame, received since START and delivered within20 ms, initializes
+the existing ForceServo continuous session from that measurement. It does not
+use the old10000 mV approach. No new machine state or controller framework was
+added. A duplicate START cannot extend the wait; STOP cancels it immediately.
+The no-output wait expires after250 ms and faults safely. Invalid feedback,
+fault, timeout or STOP cannot cause a later automatic restart.
 
-Default Kp=1, Ki=0, Kd=0, reference rate20, acceleration40 and output slew1000
-are unchanged. Both cap defaults and RAM upper bounds are now100. Existing
-timing defaults are retained; RAM cannot relax these freshness/lease limits:
+The former initial-pressure20..30 / target<=60 PC gate is removed. The capture
+command uses Target250 only. Firmware boots with target250 selected and retains
+the existing maximum275/raw-abort325 protections. Initial nonnegative pressure
+below contact20 can start continuous control. Once actual contact has been
+observed, the existing contact-loss shutdown remains. Pressure freshness, STOP
+priority, hardware output matching guard, receive-anchored TIM5 lease, fault
+latching and at least2 ms direction-change OFF interlock remain active.
 
-| Constraint | Commissioning value |
+The existing measurement -> reference -> PI/PID -> continuous executor -> active
+HOLD path is used. The first field run is P-first:
+
+| Parameter | Current value |
 | --- | --- |
-| Minimum control interval | 5 ms default |
-| Maximum accepted sample age | 20 ms |
-| Missing-feedback fault budget | 40 ms |
-| Receive-anchored TIM5 lease | 50 ms |
-| Direction-change OFF time | at least 2 ms |
-| Contact-to-first-HOLD deadline | 30000 ms, unchanged |
-| Total session deadline | 45000 ms default, unchanged |
+| Kp / Ki / D | 1 / 0 / 0 |
+| PRESS / RELEASE cap | 100 /100 mV command magnitude; RAM-adjustable1..100 |
+| Reference rate / acceleration | 200 units/s /1000 units/s^2 |
+| Output slew | 1000 mV/s, unchanged |
+| Minimum control interval | 5 ms |
+| Maximum newly delivered sample age | 20 ms, unchanged |
+| Active feedback gap / TIM5 lease | 125 /130 ms |
+| Pending START wait | 250 ms, output OFF |
+| Build / total session deadline | 30000 /45000 ms defaults, unchanged |
+| Continuous saturation / large-error timeout | 5000 /10000 ms defaults, unchanged |
 
-The existing TIM5 comparison reserves 1 ms: a fresh 50 ms lease expires at49 ms
-in the host timer model. Main-loop pressure safety faults after a gap exceeding
-40 ms. Old/missing feedback cannot renew output; telemetry cannot renew leases.
-Physical interrupt latency and electrical shutdown timing still need measurement.
-STOP priority, hardware output matching guard, overpressure, contact loss,
-fault latching and no automatic restart remain in force.
+Reference rate/acceleration use the existing allowed upper bounds. From pressure23,
+the existing cubic reference reaches250 in about1.70 seconds instead of17.0;
+this is reference timing, **not predicted physical rise time**. P decreases as
+pressure approaches250; limited RELEASE is available above target. HOLD continues
+the same controller without resetting its integral. Ki remains configurable for
+the next measured tuning step. A local anti-windup correction prevents pure
+integer-mV truncation from cancelling small unsaturated I increments; actual
+saturation, output slew and direction-interlock tracking remain in force.
 
-Commissioning START requires fresh, already-established contact (at least20
-sensor units). This profile rejects all legacy pulse/run commands, including
-the former 10000 mV initial approach. The capture script additionally requires
-initial raw pressure20..30 and target at most60 for this supervised session.
-Firmware target max275 and raw abort325 are unchanged. Units are **sensor control
-units, not calibrated N**. No Target250, 500 or 3500 N trial is authorized here.
-If low output cannot move/build pressure, retain the cap and report that result.
+## Authority and feedback timing
 
-## One supervised field session, A-E
+**Do not increase the physical0.5 A supply current limit.** No evidence in the
+repository establishes a higher qualified continuous command ceiling. Older
+5000 mV /10 ms PRESS and10000 mV approach commands are pulse evidence; the driver
+mapping and a0.5 A limit do not establish continuous motor/driver thermal ratings.
+The existing100 mV cap is retained as a conservative numerical ceiling, not a
+measured safe continuous rating. It maps to compare20 using the unchanged24000 mV
+reference /4799 timer period. It is not measured motor-terminal voltage.
 
-Use COM5, retain the existing current limit and record its actual value, initial
-gap/contact setup, supply behavior and temperature observations. The supervisor
-must permit the load, travel and cumulative thermal exposure and have an external
-E-stop available. Do not run an automatic loop or automatically retry START.
-This is one session; no separate Observe-only day or timing-tuning round is needed.
+If100 mV cannot move or reach250, this run must show that outcome and saturation;
+no automatic current or command-authority increase is provided. A saturated
+failure suggests reviewing authority/hardware; an unsaturated failure suggests
+reviewing controller tuning. Neither is a complete physical root-cause diagnosis.
 
-**A. Verify idle/OFF.** With motor power physically disconnected and MCU/sensor
-correctly powered, update and verify the repository, then flash the identified
-HEX using the established local flashing procedure. Establish light contact
-safely with power disconnected (fresh raw20..30; no powered approach). Confirm
-IDLE, no fault, no lease, both PWM compares zero, and physical driver/output OFF
-before admitting motor power. The short Observe command below checks software
-readback in this same session; inspect actual output electrically as well.
+Observed latest-sample ages reached74 ms and receive/delivery extrema about101
+ms. The extrema are cumulative, but the repeated non-startup ages cannot be
+proven to be startup-only artifacts. The old40/50 ms active budgets cannot support
+those observed gaps. Keep new-sample age20 ms;101+20=121 ms rounds up to125 ms on
+the existing5 ms control grid. Lease130 adds one5 ms slot and remains independently
+receive-anchored. TIM5 retains its1 ms early comparison (129 ms in host tests).
+Only the profile's accepted lease upper bound changes; IRQ/renewal/STOP mechanics
+are unchanged. Larger gaps or stale delivered samples still stop output. These
+budgets accommodate the reported samples; they are not a worst-case sensor or
+physical shutdown qualification. Default locked ForceServo retains40/50 ms.
+
+## One supervised field session
+
+Keep the existing0.5 A supply limit, record actual initial gap/contact and permit
+only the supervised load/travel/thermal exposure with an external E-stop ready.
+Use a normal interactive PowerShell console on COM5. Do not use ISE or redirect
+keyboard input for the operator-key STOP. No separate diagnosis-only round.
+
+A. With motor power disconnected, update/verify the repository and flash this
+HEX using the established method. With MCU/sensor correctly powered, confirm
+IDLE, fault0, no pending START, output OFF electrically and no spontaneous motion
+before admitting the retained limited supply.
+
+B-D. Prepare the existing mechanical setup, run the command below **once**, and
+observe continuous motion, pressure, saturation, peak/overshoot and final response.
+The script itself sends the only START. It saves PREFLIGHT and TARGET_READBACK,
+then RUN samples. Do not additionally press manual START.
+
+E/F. If stable near250, allow a brief active HOLD before the final STOP. Then
+press **S** (or Escape) in the capture console while output/control is active.
+This sends the existing STOP, collects STOP_READBACK and preserves the report.
+Confirm physical output OFF/no motion and `StopVerified=True`; software readback
+alone does not certify electrical STOP. If it stalls saturated, record that and
+STOP before the unchanged5-second saturation fault. Use the external E-stop
+immediately for abnormal motion, supply limiting/droop, heating or failed STOP.
+The script also STOPs on timeout/error; never restart automatically. HOLD belongs
+before that final STOP, so this remains a single START session.
 
 ```powershell
 git switch main
 git pull --ff-only
 git rev-parse HEAD
 python tools/verify_force_servo_firmware.py
-# After flashing: this is an operator attestation, not a MCU flash readback.
-$hexHash = 'F96936FF7962ADC65737C0C6C97F5EBC49F30E8A3B33A20B75C450E3657DD46C'
-$currentLimit = Read-Host 'Actual existing supply current limit (do not raise)'
-$initialGap = Read-Host 'Initial gap / light-contact setup'
+$gap = Read-Host 'Actual initial gap/contact setup'
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
-.\tools\capture_force_servo.ps1 -Mode Observe -Port COM5 -MaximumSeconds 1 `
-  -ConfirmMotorPowerDisconnected -ConfirmedFirmwareSha256 $hexHash `
-  -CurrentLimitSetting $currentLimit -InitialGap $initialGap `
-  -FieldNotes 'A: motor power disconnected; idle/output-off check' `
-  -OutputCsv "captures/commissioning-A-$stamp.csv"
+.\tools\capture_force_servo.ps1 -Mode SingleStart -Port COM5 -Target 250 -MaximumSeconds 40 `
+  -ConfirmSupervisedMotion `
+  -ConfirmedFirmwareSha256 4277556949A4AD6A2D5D24E49F8A1DEA97C7D8906CA48AA9878D68B5DF924055 `
+  -CurrentLimitSetting '0.5 A; manually confirmed unchanged' -InitialGap $gap `
+  -FieldNotes 'One supervised Target250 session; S/Escape for final STOP; record motion and supply behavior' `
+  -OutputCsv "captures/target250-mvp1-$stamp.csv"
 ```
 
-**B. Low-output check; C. STOP check.** After A passes, enable the retained limited
-supply under supervision. Run this **once** with target40 and a3-second PC
-observation limit. The script sends one START, observes the existing control
-path and sends STOP on completion/failure. Confirm nonzero output and correct
-direction at low command, then measure physical OFF on the script's STOP and
-verify `StopVerified=True`, IDLE/OFF and no subsequent restart. Record STOP-to-OFF
-timing; CSV/software readback alone does not qualify hardware stopping. Use the
-external E-stop immediately for wrong direction, limit/droop, abnormal heating,
-motion or failure to stop. Absent/unmeasurable active output cannot pass B/C.
+Do not test500 or3500 N, repeat START, raise current or automatically tune gains.
+Return CSV, report, metadata and a short field note: motion, initial gap, retained
+current limit, supply/temperature behavior, whether250/HOLD occurred and actual
+STOP result. Report unmeasured current/temperature as NOT_MEASURED. The hash is
+an operator flash attestation; the capture does not hash MCU flash.
 
-```powershell
-$stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
-.\tools\capture_force_servo.ps1 -Mode SingleStart -Port COM5 -Target 40 -MaximumSeconds 3 `
-  -ConfirmSupervisedMotion -ConfirmedFirmwareSha256 $hexHash `
-  -CurrentLimitSetting $currentLimit -InitialGap $initialGap `
-  -FieldNotes 'B/C: low-output check and STOP; record electrical timing' `
-  -OutputCsv "captures/commissioning-BC-$stamp.csv"
-```
+## What the data says
 
-**D. Feedback-loss automatic stop.** Only after B/C pass, use the same command
-once with a new timestamp/filename `commissioning-D-$stamp.csv`, target40 and
-`-MaximumSeconds 5`. While nonzero output is confirmed, interrupt only the
-pressure-feedback receive path using a prepared electrically safe test break;
-keep MCU/sensor power correct. Measure shutdown from the last valid received
-sample, before the later PC STOP. Check fault/OFF without fresh feedback within
-the nominal50 ms lease budget, and no automatic restart after restoring feedback.
-Distinguish this autonomous stop from the script's final STOP; otherwise D is
-inconclusive. Record the independent timing measurement. Do not bypass freshness
-checks or increase timing budgets if D fails. Stop this session if any A-D result
-fails or is inconclusive.
+Frozen samples contain raw/control pressure, target/reference/error, P/I/D terms,
+raw controller output, requested integer command, committed/clamped command,
+amplitude saturation, direction, feedback age, lease, state/fault/detail and
+START pending/time. Applied command means the executor's committed command,
+not measured terminal voltage/current. Metadata records START echo acceptance
+(true/false/unknown on lost echo), stop reason and exact parameter readback.
 
-**E. One low-target ForceServo step.** Only if A-D pass, disconnect motor power,
-restore feedback, explicitly reset the fault/MCU using the established procedure,
-and recheck IDLE/OFF and initial raw20..30. After supervision permits power, run
-the same SingleStart command **once** with target60, `-MaximumSeconds 5`, a new
-timestamp/filename `commissioning-E-$stamp.csv`, and updated field notes. Observe
-the trajectory, control direction, limits and HOLD if reached; the script ends
-with STOP. No extra manual START, parameter tuning, current increase or automatic
-repeat. Return all CSV/report/metadata files and one brief field note, including
-actual current limit, initial gap, A-D measurements, any supply/temperature or
-mechanical abnormalities and E outcome. Missing instrumentation is NOT_MEASURED.
+The report gives time to control/nonzero command (not measured motion), initial
+pressure with its pre-start source,90%/first250 time, peak/overshoot, final pressure
+and error, saturation percentage and observed time, HOLD presence/active status,
+contiguous HOLD/settling estimate and software STOP verification. When250 is not
+reached, maximum pressure and saturation are explicit. Gaps and duplicate polls
+are disclosed; no interpolation across gaps or full-bandwidth performance claim.
 
-## Software verification and reproduction
+## Reproduce and deliver
 
-[Actual tests and scope](Docs/CommissioningUnlock1/TEST_RESULTS.md),
-[current parameter defaults](Docs/CommissioningUnlock1/default_parameters.json),
-[current schema and bounds](Docs/CommissioningUnlock1/protocol_schema.json), and
+[Actual test record](Docs/Target250MVP1/TEST_RESULTS.md),
+[defaults](Docs/Target250MVP1/default_parameters.json),
+[schema/bounds](Docs/Target250MVP1/protocol_schema.json),
 [current firmware manifest](Firmware/ForceServo1.SHA256SUMS.txt).
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/build_gcc.ps1 `
-  -ForceServo -CommissioningUnlock1 -MotorMode RealBench -Configuration Release `
-  -RealBenchAck I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION `
-  -BuildDir "output/CommissioningUnlock1/build-$stamp"
+  -ForceServo -Target250MVP1 -MotorMode RealBench -Configuration Release `
+  -RealBenchAck I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION -BuildDir "output/Target250MVP1/build-$stamp"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/run_host_tests.ps1 `
-  -OutputDirectory "output/CommissioningUnlock1/general-$stamp"
-python tools/run_force_servo_tests.py --output "output/CommissioningUnlock1/default-$stamp"
+  -OutputDirectory "output/Target250MVP1/general-$stamp"
+python tools/run_force_servo_tests.py --output "output/Target250MVP1/default-$stamp"
 python tools/verify_capturefix1.py --commissioning --objcopy-cross-check `
-  --output "output/CommissioningUnlock1/check-$stamp"
+  --output "output/Target250MVP1/check-$stamp"
 ```
 
-Field verification uses strict Python standard-library ELF/HEX address/load,
-checksum, type/bounds, identity, configuration, compiled commissioning gate and
-real hash checks. It needs no ARM executable. Capture needs Python3.9+ and
-PowerShell. Development builds need ARM GCC; host tests need host GCC. Only the
-optional developer `--objcopy-cross-check` needs ARM objcopy. Tests use synthetic
-transport/HAL and do not open a serial port or measure real hardware.
+The internal `SD700_FORCE_SERVO_COMMISSIONING` flag/host switch reuses the existing
+explicit output gate; `-Target250MVP1` is the current builder option. Plain
+`-ForceServo` remains physically locked with previous control/timing defaults.
+Field verification needs only Python's standard library and strictly checks true
+hashes, ELF/HEX addressed load bytes, checksums, bounds, identity, configuration
+and arming. Optional objcopy is developer-only. Capture requires Python and
+PowerShell; host tests use a GCC-compatible compiler; ARM builds use ARM GCC.
 
-After validated changes, update tracked firmware/manifests and documentation,
-commit and push `origin/main` normally. Do not generate archives, sidecars,
-extracted delivery copies or a package-verification prerequisite. Preserve field
-evidence and failure logs. Remove regenerable objects/caches after recording tests.
-The former locked ForceServo1 and ConvergenceMeasure1 firmware/evidence remain
-historical; their field instructions do not apply to this candidate.
+Preserve original evidence and historical firmware. After checks pass, update the
+source/firmware manifests, commit and normally push origin/main. No archive or
+package-verification prerequisite. **Current physical output/STOP/HOLD250 and
+rotating-load performance are NOT_VALIDATED; FIELD_STATUS=NOT_RUN.**

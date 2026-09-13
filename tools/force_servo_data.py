@@ -6,13 +6,18 @@ ROOT=Path(__file__).resolve().parent.parent
 
 def schema():
     header=(ROOT/'Application/force_servo.h').read_text()
+    # Current field profile only. The locked C profile retains its old defaults.
+    profile=header.split('#if SD700_FORCE_SERVO_COMMISSIONING',1)[1].split('#else',1)[0]
+    constants=dict(re.findall(r'#define (FS_\w+) ([0-9.]+)',profile))
+    def number(value): return float(constants.get(value,value).rstrip('f'))
     params=[]
     for n,d,lo,hi in re.findall(r'X\((\w+),([^,]+),([^,]+),([^\)]+)\)',header):
-        params.append(dict(name=n,default=float(d.rstrip('f')),minimum=float(lo.rstrip('f')),maximum=float(hi.rstrip('f'))))
+        params.append(dict(name=n,default=number(d),minimum=number(lo),maximum=number(hi)))
     diag=(ROOT/'Application/force_servo_machine.h').read_text()
     u,f=diag.split('#define FORCE_SERVO_DIAG_FLOAT(X)',1)
     build_id=int(re.search(r'#define FORCE_SERVO_BUILD_ID (0x[0-9A-Fa-f]+)U',header)[1],16)
-    return dict(schema=0xF101,build_id=build_id,parameters=params,
+    schema_id=int(re.search(r'#define FORCE_SERVO_SCHEMA (0x[0-9A-Fa-f]+)U',header)[1],16)
+    return dict(schema=schema_id,build_id=build_id,parameters=params,
                 u32=re.findall(r'X\((\w+)\)',u),floats=re.findall(r'X\((\w+)\)',f.split('typedef struct')[0]))
 
 def digest(config):
@@ -36,11 +41,46 @@ def validate(config):
 
 def delta(a,b,bits=32): return (int(a)-int(b))&((1<<bits)-1)
 
+def target250_summary(rows, valid):
+    """Observed snapshots only. A nonzero command is not measured motion."""
+    pre=[r for r in rows if r.get('phase') in ('PREFLIGHT','TARGET_READBACK')]
+    all_runs=[r for r in rows if r.get('phase')=='RUN']
+    origin=next((r['start_requested_ms'] for r in all_runs if 'start_requested_ms' in r),None)
+    runs=[r for r in all_runs if not r.get('start_pending') and
+          (origin is None or delta(r.get('latest_received_ms',r.get('received_ms',0)),origin)<(1<<31))]
+    control=next((r for r in runs if r.get('state') in (13,14) and r.get('session') and r.get('lease_active')),None)
+    commanded=next((r for r in valid if r.get('current_committed',0)!=0),None)
+    peak=max((r.get('latest_raw',r['raw']) for r in runs),default=None)
+    final=rows[-1].get('latest_raw') if rows else None
+    reached=next((r for r in runs if r.get('latest_raw',r['raw'])>=250),None)
+    ninety=next((r for r in runs if r.get('latest_raw',r['raw'])>=225),None)
+    def elapsed(r, key='latest_received_ms'):
+        return delta(r.get(key,r.get('received_ms',0)),origin) if r and origin is not None else None
+    saturation=sum(bool(r.get('saturated',int(r['limits'])&1)) for r in valid)
+    return dict(target_units=250,initial_pressure_units=pre[-1].get('latest_raw') if pre else None,
+        initial_pressure_source=pre[-1]['phase'] if pre else 'UNAVAILABLE',
+        time_to_control_start_ms=elapsed(control,'session_started_ms'),
+        time_to_first_nonzero_command_ms=elapsed(commanded,'control_at_ms'),motion_start='NOT_MEASURED',
+        time_to_90_ms=elapsed(ninety),time_to_first_250_ms=elapsed(reached),
+        peak_pressure_units=peak,overshoot_units=max(0,peak-250) if peak is not None else None,
+        peak_minus_target_units=peak-250 if peak is not None else None,
+        final_pressure_units=final,final_error_units=250-final if final is not None else None,
+        pre_stop_pressure_units=runs[-1].get('latest_raw',runs[-1]['raw']) if runs else None,
+        saturated_sample_percent=100*saturation/len(valid) if valid else None,
+        output_saturated_observed=bool(saturation) if valid else None,
+        hold_entered=any(r['state']==14 for r in valid),
+        hold_active_at_last_control=bool(valid and valid[-1]['state']==14 and valid[-1]['lease_active']),
+        not_reached_assessment=('TARGET_REACHED' if reached else 'NO_CONTROL_DATA' if not valid else
+            'AUTHORITY_OR_HARDWARE_LIMIT_POSSIBLE' if saturation else 'CONTROLLER_TUNING_REVIEW_REQUIRED'),
+        assessment_limit='Saturation binds software authority; it does not prove an electrical/mechanical limit. Polling may miss peaks.')
+
+
 def metrics(rows):
     """Conservative contiguous control-sample statistics; no interpolation over gaps."""
     valid=[]; previous=None; drops=duplicates=0
     for r in rows:
-        if not r.get('control_sequence') or r.get('phase')!='RUN' or r.get('fault'): continue
+        if (not r.get('control_sequence') or r.get('phase')!='RUN' or r.get('fault') or
+            r.get('start_pending') or r.get('state') not in (13,14) or not r.get('lease_active')): continue
         identity=(r['session'],r['config_version'],r['config_digest'])
         if previous and identity!=previous[0]: previous=None
         seq=int(r['control_sequence'])
@@ -62,7 +102,9 @@ def metrics(rows):
                 current='NOT_MEASURED',temperature='NOT_MEASURED')
     stops=[r for r in rows if r.get('phase')=='STOP_READBACK']
     result['StopVerified']=bool(stops and all(int(stops[-1].get(k,1))==0 for k in ('current_committed','tim2','tim3','lease_active'))
-                               and int(stops[-1].get('output_off',0))==1 and int(stops[-1].get('state',0)) in (1,9))
+                               and int(stops[-1].get('output_off',0))==1 and int(stops[-1].get('start_pending',0))==0
+                               and int(stops[-1].get('state',0)) in (1,9))
+    result.update(target250_summary(rows,valid))
     # Register readback is software stop evidence only, independent scope/driver validation remains NOT_VALIDATED.
     if not valid: return result
     result['observed_peak_units']=max(r['raw'] for r in valid)
@@ -93,7 +135,9 @@ def metrics(rows):
         if best[-1] is valid[-1]: result['observed_settling_ms']=delta(best[0]['received_ms'],best[0]['contact_at_ms'])
     if len(valid)>=2 and drops==0 and segments: result['data_status']='OBSERVED_CONTIGUOUS_TRACKING_NOT_ACCEPTANCE'
     for a,b in zip(valid,valid[1:]):
-        if a['session']==b['session'] and delta(b['control_sequence'],a['control_sequence'])==1 and int(a['limits'])&1:
+        if (a['session']==b['session'] and a['config_digest']==b['config_digest'] and
+            delta(b['control_sequence'],a['control_sequence'])==1 and a.get('saturated',int(a['limits'])&1) and
+            delta(b['received_ms'],a['received_ms'])<=a['feedback_gap_ms']):
             result['observed_saturation_ms']+=delta(b['received_ms'],a['received_ms'])
     result['coverage_limit']='Snapshot polling can miss peaks. Gaps excluded; no full-bandwidth stability or settling claim.'
     return result
@@ -107,7 +151,7 @@ def decode_csv_row(row):
 
 
 def self_test():
-    s=schema(); assert len(s['parameters'])==24 and len(s['u32'])==42 and len(s['floats'])==14
+    s=schema(); assert len(s['parameters'])==24 and len(s['u32'])==45 and len(s['floats'])==16
     c={p['name']:p['default'] for p in s['parameters']}; validate(c)
     bad=dict(c,lease_ms=10)
     try: validate(bad)

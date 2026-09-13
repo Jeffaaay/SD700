@@ -32,6 +32,7 @@ def main():
         ('auto_capture_selftest', ps+['tools/capture_auto_target_static.ps1', '-SelfTest']),
         ('force_host', py+['tools/run_force_servo_tests.py', '--output', str(out/'host')]+(['--commissioning'] if args.commissioning else [])),
         ('data_schema', py+['tools/force_servo_data.py', '--self-test']),
+        ('target250_data', py+['Tests/Host/test_target250_data.py']),
         ('verifier_rejections', py+['Tests/Host/test_force_servo_verifier.py']),
         ('offline_firmware', py+['tools/verify_force_servo_firmware.py']),
         ('historical_auto_firmware', py+['tools/verify_current_auto_target_firmware.py']),

@@ -40,7 +40,7 @@ MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16
      if (v!=0xD101) return COMMAND_INVALID_VALUE;
      freeze(m); return COMMAND_ACCEPTED;
  }
- if (m->state!=IDLE || s->active || !MotorExecutor_OutputIsDisabled() ||
+ if (m->state!=IDLE || s->active || s->start_pending || !MotorExecutor_OutputIsDisabled() ||
      MotorExecutor_GetSnapshot()->logical_active) return COMMAND_BUSY;
  if (a==FS_REG_BEGIN) {
      if (v!=0xB101) return COMMAND_INVALID_VALUE;
@@ -61,7 +61,7 @@ MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16
 #undef FS_DECODE
      if (!ForceServo_ConfigValid(&candidate)) { s->staging_open=false; return COMMAND_INVALID_VALUE; }
      uint32_t key=MotorAtomic_Enter();
-     if (m->state!=IDLE || s->active || !MotorExecutor_OutputIsDisabled()) {
+     if (m->state!=IDLE || s->active || s->start_pending || !MotorExecutor_OutputIsDisabled()) {
          MotorAtomic_Leave(key); return COMMAND_BUSY;
      }
      s->config=candidate; s->config_digest=ForceServo_ConfigDigest(&candidate);

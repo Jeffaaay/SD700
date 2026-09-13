@@ -26,11 +26,14 @@ static void publish(MachineContext *m,uint32_t now)
  d->current_committed=e->physical_output_disabled ? 0 :
      (e->direction==MOTOR_DIRECTION_PRESS ? (float)e->command_mv : -(float)e->command_mv);
  d->session_started_ms=s->session_started_ms;
+ d->start_pending=s->start_pending; d->start_requested_ms=s->start_requested_ms;
+ d->last_command_result=m->last_command_result;
  MotorAtomic_Leave(key);
 }
 static void fault(MachineContext *m,MachineFault f,FaultDetail detail,uint32_t now)
 {
  (void)MotorExecutor_Disable();
+ m->servo.start_pending=false;
  m->servo.active=false; m->servo.controller.initialized=false; m->servo.controller.integral=0;
  if (m->state!=FAULT) { m->fault=f; m->fault_detail=detail; }
  m->state=FAULT; publish(m,now);
@@ -47,6 +50,9 @@ void Machine_Initialize(MachineContext *m,const MachineConfig *cfg,uint32_t now)
  m->servo.config=g_force_servo_default_config;
  m->servo.config_version=1;
  m->servo.config_digest=ForceServo_ConfigDigest(&m->servo.config);
+#if SD700_FORCE_SERVO_COMMISSIONING
+ m->target_pressure_units=FORCE_SERVO_TARGET250; m->target_valid=true;
+#endif
  (void)MotorExecutor_Disable(); publish(m,now);
 }
 void Machine_CompleteBoot(MachineContext *m,bool checks,uint32_t now)
@@ -72,7 +78,8 @@ static bool contact(MachineContext *m,uint32_t now)
  s->contacted=true; s->contact_at_ms=m->pressure.received_at_ms;
  m->cycle_started_ms=s->contact_at_ms;
  s->diagnostic.contact_at_ms=s->contact_at_ms;
- s->diagnostic.contact_raw=m->pressure.raw_pressure_counts; s->diagnostic.contact_count++;
+ s->diagnostic.contact_raw=m->pressure.raw_pressure_counts;
+ s->diagnostic.contact_count=m->pressure.control_pressure_units>=(int32_t)FORCE_SERVO_CONTACT ? 1U : 0U;
  if (!ForceServo_Init(&s->controller,&s->config,(float)m->pressure.control_pressure_units,
                       (float)m->target_pressure_units) ||
      MotorExecutor_BeginContinuous(&s->token)!=MOTOR_RESULT_OK) return false;
@@ -85,12 +92,38 @@ static bool contact(MachineContext *m,uint32_t now)
  m->state=FORCE_BUILD;
  return true;
 }
+static MachineCommandResult begin_session(MachineContext *m,uint32_t now)
+{
+ ForceServoMachine *s=&m->servo;
+ s->start_pending=false; s->active=true; s->contacted=false; s->ever_held=false;
+ s->saturation_active=false; s->tracking_active=false; s->staging_open=false;
+ s->approach_wait=false; s->session_started_ms=now;
+ if (++s->session==0) ++s->session;
+ memset(&s->diagnostic,0,sizeof(s->diagnostic));
+ s->diagnostic.raw=m->pressure.raw_pressure_counts;
+ s->diagnostic.control_pressure=(float)m->pressure.control_pressure_units;
+ s->diagnostic.received_ms=m->pressure.received_at_ms;
+ s->diagnostic.sample_hi=(uint32_t)(m->pressure.sequence>>32);
+ s->diagnostic.sample_lo=(uint32_t)m->pressure.sequence;
+ m->state=FORCE_APPROACH;
+#if !SD700_FORCE_SERVO_COMMISSIONING
+ if (m->pressure.control_pressure_units>=(int32_t)FORCE_SERVO_CONTACT)
+#endif
+ {
+     /* Target250 always starts the continuous owner from the new measurement;
+      * it never uses the old approach pulse, even below the contact threshold. */
+     if (!contact(m,now)) fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now);
+     s->contact_at_ms=now; m->cycle_started_ms=now; s->diagnostic.contact_at_ms=now;
+ }
+ return m->state==FAULT ? COMMAND_EXECUTOR_FAILED : COMMAND_ACCEPTED;
+}
 MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineCommand *c,uint32_t now)
 {
  if (!m || !c) return COMMAND_INVALID_VALUE;
  MachineCommandResult r=COMMAND_UNSUPPORTED;
  ForceServoMachine *s=&m->servo;
  if (c->type==CMD_STOP || c->type==CMD_JOG_STOP) {
+     s->start_pending=false;
      s->active=false; s->controller.initialized=false; s->controller.integral=0;
      s->staging_open=false;
      if (MotorExecutor_Disable()!=MOTOR_RESULT_OK) {
@@ -102,44 +135,44 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
      } else r=COMMAND_NOT_ALLOWED;
  } else if (c->type==CMD_SET_TARGET) {
      if (c->target_pressure_units<=0 || c->target_pressure_units>(int32_t)FORCE_SERVO_MAX_TARGET) r=COMMAND_INVALID_VALUE;
-     else if (m->state!=IDLE || !MotorExecutor_OutputIsDisabled()) r=COMMAND_BUSY;
+     else if (m->state!=IDLE || s->start_pending || !MotorExecutor_OutputIsDisabled()) r=COMMAND_BUSY;
      else { m->target_pressure_units=c->target_pressure_units; m->target_valid=true; r=COMMAND_ACCEPTED; }
  } else if (c->type==CMD_FORCE_START) {
-     if (m->state!=IDLE || s->active) r=COMMAND_BUSY;
-     else if (!m->target_valid || !Machine_IsPressureFresh(m,now) ||
-#if SD700_FORCE_SERVO_COMMISSIONING
-              m->pressure.control_pressure_units<(int32_t)FORCE_SERVO_CONTACT ||
+     if (m->state!=IDLE || s->active || s->start_pending) r=COMMAND_BUSY;
+     else if (!m->target_valid ||
+#if !SD700_FORCE_SERVO_COMMISSIONING
+              !Machine_IsPressureFresh(m,now) ||
 #endif
               !ForceServo_ConfigValid(&s->config) || !MotorExecutor_IsHealthy() ||
               !MotorExecutor_OutputIsDisabled() || MotorExecutor_GetSnapshot()->physical_output_locked)
          r=COMMAND_NOT_READY;
+#if SD700_FORCE_SERVO_COMMISSIONING
+     else {
+         /* One operator request, no output/lease until the next fresh frame. */
+         s->start_pending=true; s->start_requested_ms=now; s->staging_open=false;
+         r=COMMAND_ACCEPTED;
+     }
+#else
      else if (m->pressure.raw_pressure_counts>=FORCE_SERVO_RAW_ABORT) {
          fault(m,FAULT_OVERPRESSURE,FAULT_DETAIL_NONE,now); r=COMMAND_NOT_READY;
-     } else {
-         s->active=true; s->contacted=false; s->ever_held=false;
-         s->saturation_active=false; s->tracking_active=false; s->staging_open=false;
-         s->approach_wait=false; s->session_started_ms=now;
-         if (++s->session==0) ++s->session;
-         memset(&s->diagnostic,0,sizeof(s->diagnostic));
-         s->diagnostic.raw=m->pressure.raw_pressure_counts;
-         s->diagnostic.received_ms=m->pressure.received_at_ms;
-         s->diagnostic.sample_hi=(uint32_t)(m->pressure.sequence>>32);
-         s->diagnostic.sample_lo=(uint32_t)m->pressure.sequence;
-         m->state=FORCE_APPROACH;
-         if (m->pressure.control_pressure_units>=(int32_t)FORCE_SERVO_CONTACT) {
-             if (!contact(m,now)) { fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now); }
-             /* Already in contact at START: this START anchors the build budget. */
-             s->contact_at_ms=now; m->cycle_started_ms=now; s->diagnostic.contact_at_ms=now;
-         }
-         r=m->state==FAULT ? COMMAND_EXECUTOR_FAILED : COMMAND_ACCEPTED;
-     }
+     } else r=begin_session(m,now);
+#endif
  }
  m->last_command_result=r; publish(m,now); return r;
 }
 void Machine_CheckPressureSafety(MachineContext *m,uint32_t now)
 {
- if (!m || !m->servo.active) return;
+ if (!m) return;
  ForceServoMachine *s=&m->servo;
+ if (s->start_pending) {
+     if (!MotorExecutor_OutputIsDisabled() || !MotorExecutor_IsHealthy() ||
+         MotorExecutor_GetSnapshot()->logical_active)
+         fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now);
+     else if (now-s->start_requested_ms>=FORCE_SERVO_START_WAIT_MS)
+         fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_TIMEOUT,now);
+     return;
+ }
+ if (!s->active) return;
  if (now-s->session_started_ms>=(uint32_t)s->config.session_ms)
      fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_SESSION_TIMEOUT,now);
  else if (s->contacted && !s->ever_held && now-s->contact_at_ms>=FORCE_SERVO_BUILD_MS)
@@ -155,18 +188,18 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  if (!m || !p) return;
  ForceServoMachine *s=&m->servo;
  if (!p->frame_valid || !p->control_units_valid || p->control_pressure_units<0) {
-     if (s->active) fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_INVALID,now);
+     if (s->active || s->start_pending) fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_INVALID,now);
      return;
  }
  if (s->have_sample && !ForceServo_SequenceAfter(p->sequence,m->pressure.sequence)) {
-     if (s->active && p->sequence!=m->pressure.sequence)
+     if ((s->active || s->start_pending) && p->sequence!=m->pressure.sequence)
          fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_ORDER_LOST,now);
      return;
  }
  if (s->have_sample) {
      uint32_t gap=p->received_at_ms-m->pressure.received_at_ms;
      if (gap>=0x80000000U) {
-         if (s->active) fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_ORDER_LOST,now);
+         if (s->active || s->start_pending) fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_ORDER_LOST,now);
          return;
      }
      if (gap>0 && (s->diagnostic.delivered_interval_min_ms==0 || gap<s->diagnostic.delivered_interval_min_ms))
@@ -181,18 +214,35 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  if (p->raw_pressure_counts>=FORCE_SERVO_RAW_ABORT) {
      fault(m,FAULT_OVERPRESSURE,FAULT_DETAIL_NONE,now); return;
  }
+ if (s->start_pending) {
+     /* Sequence must be new (checked above), received after this START, and
+      * delivered within the unchanged 20 ms age budget. Stale frames stay OFF. */
+     if (Machine_IsPressureFresh(m,now) && (int32_t)(p->received_at_ms-s->start_requested_ms)>=0) {
+         if (m->state!=IDLE || !m->target_valid || m->target_pressure_units<=0 ||
+             m->target_pressure_units>(int32_t)FORCE_SERVO_MAX_TARGET ||
+             !ForceServo_ConfigValid(&s->config) || !MotorExecutor_IsHealthy() ||
+             !MotorExecutor_OutputIsDisabled() || MotorExecutor_GetSnapshot()->physical_output_locked)
+             fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_REQUEST_REJECTED,now);
+         else m->last_command_result=begin_session(m,now);
+     }
+     publish(m,now); return;
+ }
  if (!s->active) { publish(m,now); return; }
  if (!Machine_IsPressureFresh(m,now)) {
      fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_TIMEOUT,now); return;
  }
- if (s->contacted && p->control_pressure_units<(int32_t)FORCE_SERVO_CONTACT) {
+ if (s->contacted && s->diagnostic.contact_count && p->control_pressure_units<(int32_t)FORCE_SERVO_CONTACT) {
      s->diagnostic.contact_lost_count++; s->diagnostic.contact_lost_raw=p->raw_pressure_counts;
      fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_CONTACT_LOST,now); return;
+ }
+ if (s->contacted && !s->diagnostic.contact_count && p->control_pressure_units>=(int32_t)FORCE_SERVO_CONTACT) {
+     s->diagnostic.contact_count=1; s->diagnostic.contact_raw=p->raw_pressure_counts;
  }
  if (s->contacted && p->received_at_ms-s->last_control_rx_ms<(uint32_t)s->config.control_min_ms)
      return; /* No integration, command update, or lease renewal. Latest sample only. */
  ForceServoDiagnostic *d=&s->diagnostic;
  d->raw=p->raw_pressure_counts; d->sample_hi=(uint32_t)(p->sequence>>32);
+ d->control_pressure=(float)p->control_pressure_units;
  d->sample_lo=(uint32_t)p->sequence; d->received_ms=p->received_at_ms;
  if (!s->contacted) {
      if (p->control_pressure_units>=(int32_t)FORCE_SERVO_CONTACT && !contact(m,now))
@@ -222,6 +272,7 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  d->reference_rate=step.reference_rate; d->error=step.error;
  d->p=step.p; d->i=step.i; d->d=step.d; d->ff=step.ff;
  d->raw_output=step.raw_output; d->control_committed=(float)committed;
+ d->requested_output=(float)requested;
  d->next_integral=step.next_integral; d->limits=step.limits;
  bool saturated=(step.limits&FS_LIMIT_AMPLITUDE)!=0;
  bool tracking=fabsf(step.error)>s->config.tracking_error;

@@ -9,10 +9,11 @@ const ForceServoConfig g_force_servo_default_config = {
  FORCE_SERVO_PARAMETERS(FS_DEFAULT)
 #undef FS_DEFAULT
 };
-const uint32_t g_force_servo_contract[8] = {
+const uint32_t g_force_servo_contract[12] = {
  FORCE_SERVO_SCHEMA, FORCE_SERVO_BUILD_ID, SD700_FORCE_SERVO_COMMISSIONING, FORCE_SERVO_MAX_TARGET,
  FORCE_SERVO_RAW_ABORT, FORCE_SERVO_BUILD_MS,
- FORCE_SERVO_COMMISSIONING_OUTPUT_MV, FORCE_SERVO_COMMISSIONING_OUTPUT_MV
+ FORCE_SERVO_COMMISSIONING_OUTPUT_MV, FORCE_SERVO_COMMISSIONING_OUTPUT_MV,
+ FORCE_SERVO_TARGET250, FORCE_SERVO_START_WAIT_MS, FS_FEEDBACK_GAP, FS_LEASE
 };
 static float clamp(float x, float lo, float hi) { return fminf(hi,fmaxf(lo,x)); }
 bool ForceServo_SequenceAfter(uint64_t a, uint64_t b)
@@ -88,8 +89,15 @@ bool ForceServo_Commit(ForceServo *s,const ForceServoConfig *c,ForceServoStep *o
      o->dt_s>c->feedback_gap_ms*0.001f || committed>c->press_cap || committed<-c->release_cap) return false;
  /* Explicit causal order: compute u[k] with I[k], executor limits/commits u,
   * then compute I[k+1]. Failed commits never call this function. */
+ float tracking=(float)committed-o->raw_output;
+#if SD700_FORCE_SERVO_COMMISSIONING
+ /* Integer command quantization alone must not cancel a small persistent I
+  * increment. Keep actual-output tracking for saturation, slew and interlock. */
+ if (!(o->limits&(FS_LIMIT_AMPLITUDE|FS_LIMIT_RATE|FS_LIMIT_INTERLOCK)) &&
+     (float)committed==truncf(o->limited_output)) tracking=0;
+#endif
  float next=c->ki==0 ? 0 : s->integral+o->dt_s*
-     (c->ki*o->error+c->tracking_gain*((float)committed-o->raw_output));
+     (c->ki*o->error+c->tracking_gain*tracking);
  if (!isfinite(next)) return false;
  s->integral=clamp(next,c->integral_min,c->integral_max);
  o->next_integral=s->integral; s->previous_committed=(float)committed; return true;

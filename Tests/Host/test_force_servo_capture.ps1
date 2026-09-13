@@ -43,11 +43,11 @@ foreach ($function in @(4,5,6)) {
 }
 
 function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMode='Observe',
-                            [bool]$Commissioning=$false,[int]$Target=40,[int]$InitialPressure=30) {
+                            [bool]$Commissioning=$false,[int]$Target=250,[int]$InitialPressure=30) {
     $caseDir=Join-Path $testOutput $Name
     Check (-not (Test-Path -LiteralPath $caseDir)) "Do not overwrite existing test evidence: $caseDir"
     New-Item -ItemType Directory -Path $caseDir -Force | Out-Null
-    $defaults=Get-Content -Raw "$root/Docs/CommissioningUnlock1/default_parameters.json" | ConvertFrom-Json
+    $defaults=Get-Content -Raw "$root/Docs/Target250MVP1/default_parameters.json" | ConvertFrom-Json
     $configWords=@()
     foreach ($parameter in $schema.parameters) {
         [uint32]$bits=[BitConverter]::ToUInt32([BitConverter]::GetBytes([single]$defaults.($parameter.name)),0)
@@ -76,8 +76,9 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
                 $sim.Target=$n
             } else {
             & $assert ($a -eq 0x102 -and $n -eq 0xD101) 'Only target and snapshot latch writes allowed'
-            $sim.Latches++; $values=@{schema=0xF101;build_id=$schema.build_id;state=1;locked=[int](-not $Commissioning);output_off=1;
+            $sim.Latches++; $values=@{schema=$schema.schema;build_id=$schema.build_id;state=1;locked=[int](-not $Commissioning);output_off=1;
                 config_version=1;now_ms=$clock.ElapsedMilliseconds;latest_raw=$InitialPressure;latest_received_ms=$clock.ElapsedMilliseconds}
+            if ($sim.Starts -eq 1 -and -not $sim.Stopped) { $values.state=13;$values.start_pending=0 }
             if ($Failure -eq 'DeviceFault' -and $sim.Latches -ge 2) { $values.state=9;$values.fault=2;$values.detail=2 }
             if ($Failure -eq 'RunningFault' -and $sim.Starts -eq 1) { $values.state=9;$values.fault=2;$values.detail=2 }
             $sim.Frozen=@()
@@ -99,7 +100,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
                 $words=@($configWords[($a-0x110)..($a-0x110+$n-1)])
             } elseif ($a -eq 0x100) {
                 & $assert ($sim.Requests.Count -eq 1) 'Capability must be first'
-                $words=@(0xF101,[int](-not $Commissioning),48,112,0,1,0,0)
+                $words=@($schema.schema,[int](-not $Commissioning),48,(2*($schema.u32.Count+$schema.floats.Count)),0,1,0,0)
             } else {
                 & $assert ($sim.Latches -gt 0) 'Diagnostics must be frozen before reading'
                 $words=@($sim.Frozen[($a-0x200)..($a-0x200+$n-1)])
@@ -120,21 +121,22 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
         Read-TestLengthAwareResponse -Response $response -ChunkSizes @(1,1,1,2,3,4) -TimeoutMs $TimeoutMs
     }.GetNewClosure()
     $sleep={param($ms) $clock.ElapsedMilliseconds+=$ms}.GetNewClosure()
+    $stop={ $Failure -eq 'OperatorStop' -and $sim.Latches -ge 3 }.GetNewClosure()
     $csv=Join-Path $caseDir 'SYNTHETIC.csv'; $caught=''
     try {
-        Invoke-ForceCapture -TransportExchange $transport -Watch $clock -SleepMilliseconds $sleep `
+        Invoke-ForceCapture -TransportExchange $transport -Watch $clock -SleepMilliseconds $sleep -StopRequested $stop `
             -Mode $CaptureMode -Target $Target -OutputCsv $csv -ActualHash 'SYNTHETIC_NOT_DEVICE' -MaximumSeconds 1 `
             -CurrentLimitSetting 'SYNTHETIC_NOT_MEASURED' -InitialGap 'SYNTHETIC_NOT_MEASURED' `
             -FieldNotes 'SYNTHETIC_NO_SERIAL_NO_HARDWARE' -ConfirmedFirmwareSha256 'SYNTHETIC_NOT_DEVICE' | Out-Null
     } catch { $caught=$_.Exception.Message }
     if ($Failure -like '*Timeout') { Check ($caught -like 'Partial Modbus response:*') "Expected bounded timeout, got: $caught" }
     elseif ($CaptureMode -eq 'SingleStart' -and -not $Commissioning) { Check ($caught -like 'PHYSICAL_OUTPUT_LOCKED*') "Lock refusal missing: $caught" }
-    elseif ($Commissioning -and ($Target -gt 60 -or $InitialPressure -lt 20 -or $InitialPressure -gt 30)) {
-        Check ($caught -like 'Commissioning session requires*') "Commissioning admission refusal missing: $caught"
+    elseif ($Commissioning -and $Target -ne 250) {
+        Check ($caught -like 'Target250MVP1 requires*') "Commissioning admission refusal missing: $caught"
         Check (@($sim.Requests | Where-Object {$_.Function -eq 6 -and $_.Address -eq 0}).Count -eq 0) 'Refused session wrote target'
     }
     else { Check ($caught -eq '') "Observe failed: $caught" }
-    $expectedStarts=[int]($Commissioning -and $CaptureMode -eq 'SingleStart' -and $Target -le 60 -and $InitialPressure -ge 20 -and $InitialPressure -le 30)
+    $expectedStarts=[int]($Commissioning -and $CaptureMode -eq 'SingleStart' -and $Target -eq 250)
     Check ($sim.Starts -eq $expectedStarts -and $sim.Stops -eq 1) 'Expected START count and exactly one STOP required'
     Check ($sim.Framed -eq $sim.Requests.Count) 'A response bypassed production length parsing'
     $metadata=Get-Content -Raw ([IO.Path]::ChangeExtension($csv,'.metadata.json')) | ConvertFrom-Json
@@ -143,6 +145,11 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     Check ($rows.Count -gt 0 -and $rows[-1].phase -eq 'STOP_READBACK') 'CSV STOP row missing'
     Check ($report.StopVerified -eq $true -and $metadata.start_attempts -eq $expectedStarts) 'Report/metadata STOP and START count proof'
     Check ($report.data_status -eq 'INSUFFICIENT_DATA') 'Observe must not imply powered tracking acceptance'
+    if ($Failure -eq 'StartEchoTimeout') { Check ($null -eq $metadata.start_accepted) 'Lost echo must be unknown, never retried or called rejected' }
+    if ($Failure -eq 'OperatorStop') {
+        Check ($metadata.stop_reason -eq 'OPERATOR_STOP') 'Operator STOP reason lost'
+        Check (@($rows | Where-Object phase -eq RUN).Count -eq 1) 'Operator STOP did not end capture promptly'
+    }
     if ($Failure -ne 'ConfigTimeout') {
         foreach ($parameter in $schema.parameters) {
             Check ([single]$metadata.config.($parameter.name) -eq [single]$defaults.($parameter.name)) "Bad config readback: $($parameter.name)"
@@ -161,6 +168,8 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     if ($Commissioning -and $Failure -eq '' -and $expectedStarts -eq 1) {
         Check (@($rows | Where-Object phase -eq RUN).Count -ge 2) 'Finite SingleStart samples missing'
         Check ($sim.Target -eq $Target) 'Target write/readback missing'
+        Check (@($rows | Where-Object phase -eq TARGET_READBACK).Count -eq 1) 'Pre-start evidence missing'
+        Check ($metadata.start_accepted -eq $true) 'Successful START echo missing'
     }
     $sim.Requests | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $caseDir 'wire_requests.json') -Encoding UTF8
     $script:caseCount++; Write-Output "CAPTURE_FLOW=$Name PASS STARTS=$expectedStarts; SYNTHETIC_NO_SERIAL"
@@ -173,7 +182,8 @@ Invoke-ObserveCase LockedSingleStart '' SingleStart
 Invoke-ObserveCase CommissioningSingleStart '' SingleStart $true
 Invoke-ObserveCase CommissioningStartEchoTimeout StartEchoTimeout SingleStart $true
 Invoke-ObserveCase CommissioningRunningFault RunningFault SingleStart $true
-Invoke-ObserveCase CommissioningHighTarget '' SingleStart $true 250
-Invoke-ObserveCase CommissioningNoContact '' SingleStart $true 40 19
-Invoke-ObserveCase CommissioningHighInitial '' SingleStart $true 40 31
+Invoke-ObserveCase Target250OperatorStop OperatorStop SingleStart $true
+Invoke-ObserveCase Target250RejectOtherTarget '' SingleStart $true 60
+Invoke-ObserveCase Target250ZeroInitial '' SingleStart $true 250 0
+Invoke-ObserveCase Target250InitialOutsideOldGate '' SingleStart $true 250 31
 Write-Output "CAPTUREFIX1_TEST_CASES=$script:caseCount PASS; physical test NOT RUN"

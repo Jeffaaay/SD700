@@ -66,6 +66,9 @@ static void start(int target)
 {
  assert(command(CMD_SET_TARGET,target)==COMMAND_ACCEPTED);
  assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED);
+#if SD700_FORCE_SERVO_COMMISSIONING
+ assert(machine.servo.start_pending); sample(30,5);
+#endif
  assert(machine.state==FORCE_BUILD);
 }
 static void off(void) { FakeStm32Hal_AssertMotorDisabled(); }
@@ -100,7 +103,7 @@ static void TestNumericAndD(void)
  assert(ForceServo_Prepare(&s,&c,31,0.01f,&o)); assert(o.d<0 && fabsf(o.d)<200);
  c.kd=0; assert(ForceServo_Prepare(&s,&c,29,0.02f,&o)); assert(o.d==0);
  assert(!ForceServo_Prepare(&s,&c,30,NAN,&o));
- assert(!ForceServo_Prepare(&s,&c,30,0.1f,&o));
+ assert(!ForceServo_Prepare(&s,&c,30,c.feedback_gap_ms*.001f+.01f,&o));
  assert(!ForceServo_Prepare(&s,&c,30,0,&o));
  assert(!ForceServo_Prepare(&s,&c,INFINITY,0.01f,&o));
  c.kp=NAN; assert(!ForceServo_ConfigValid(&c));
@@ -130,6 +133,7 @@ static void TestAntiWindup(void)
      assert(ForceServo_Prepare(&s,&c,30,0.01f,&o));
      float old=s.integral;
      int committed=j<1000 ? 0 : (int)o.limited_output; /* direction interlock/derating zero */
+     if (j<1000) o.limits|=FS_LIMIT_INTERLOCK;
      float expected=fminf(c.integral_max,fmaxf(c.integral_min,
          old+0.01f*(c.ki*o.error+c.tracking_gain*(committed-o.raw_output))));
      assert(ForceServo_Commit(&s,&c,&o,committed));
@@ -242,7 +246,7 @@ static void TestFeedbackFaults(void)
  sample_at(30,seq,now,true); assert(MotorExecutor_GetSnapshot()->logical_deadline_ms==deadline);
  sample_at(30,seq-1,now,true); assert(machine.state==FAULT); off();
  fixture(); start(80); sample_at(30,++seq,now,false); assert(machine.fault_detail==FAULT_DETAIL_PRESSURE_INVALID); off();
- fixture(); start(80); advance(41); Machine_CheckPressureSafety(&machine,now);
+ fixture(); start(80); advance((uint32_t)machine.servo.config.feedback_gap_ms+1); Machine_CheckPressureSafety(&machine,now);
  assert(machine.fault==FAULT_PRESSURE_SENSOR_FAULT); off();
  fixture(); machine.servo.config.measurement_filter_s=1; start(80); sample(325,10);
  assert(machine.fault==FAULT_OVERPRESSURE); off();
@@ -264,7 +268,9 @@ static void TestDeadlinesAndApproach(void)
  sample(30,10); assert(machine.fault_detail==FAULT_DETAIL_SESSION_TIMEOUT); off();
 #if SD700_FORCE_SERVO_COMMISSIONING
  fixture(); sample(0,10); assert(command(CMD_SET_TARGET,40)==COMMAND_ACCEPTED);
- assert(command(CMD_FORCE_START,0)==COMMAND_NOT_READY); Machine_Tick(&machine,now); off();
+ assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); Machine_Tick(&machine,now); off();
+ sample(0,5); assert(machine.state==FORCE_BUILD); off();
+ assert(command(CMD_STOP,0)==COMMAND_ACCEPTED);
  assert(MotorExecutor_StartRun(MOTOR_DIRECTION_PRESS,10000,20,50,now)==MOTOR_RESULT_INVALID);
  assert(MotorExecutor_StartPulse(MOTOR_DIRECTION_PRESS,100,10,40,now)==MOTOR_RESULT_INVALID); off();
 #else
@@ -349,7 +355,7 @@ static void TestModbusAndCongestion(void)
  request(&server,5,1,0); assert(ModbusRtuServer_TakeStop(&server,now)); off(); assert(machine.state==IDLE);
  assert(ModbusRtuServer_GetSnapshot(&server)->normal_queue_full_drop_count>0);
  /* Pending telemetry never renews the lease when main stops. */
- fixture(); start(80); sample(30,10); advance(50); off();
+ fixture(); start(80); sample(30,10); advance((uint32_t)machine.servo.config.lease_ms); off();
 }
 static void TestRuntimeDeliveryAndLock(void)
 {
@@ -372,9 +378,9 @@ static void TestRuntimeDeliveryAndLock(void)
     assert(Machine_HandleCommand(&runtime.machine,&c,now)==COMMAND_ACCEPTED);
     advance(10); p.sample_sequence=0; p.received_at_ms=now;
     assert(ApplicationRuntime_ServicePressure(&runtime,&p,now));
-    assert(runtime.machine.servo.diagnostic.control_sequence==1);
+    assert(runtime.machine.servo.diagnostic.control_sequence==(SD700_FORCE_SERVO_COMMISSIONING ? 0U : 1U));
     assert(!ApplicationRuntime_ServicePressure(&runtime,&p,now));
-    assert(runtime.machine.servo.diagnostic.control_sequence==1);
+    assert(runtime.machine.servo.diagnostic.control_sequence==(SD700_FORCE_SERVO_COMMISSIONING ? 0U : 1U));
     p.sample_sequence=UINT64_MAX-1;
     assert(ApplicationRuntime_ServicePressure(&runtime,&p,now));
     assert(runtime.machine.fault_detail==FAULT_DETAIL_PRESSURE_ORDER_LOST); off();
@@ -419,8 +425,8 @@ static void TestCommissioningEnable(void)
  assert(c.press_cap==100 && c.release_cap==100);
  c.press_cap=101; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.release_cap=101; assert(!ForceServo_ConfigValid(&c));
- c=g_force_servo_default_config; c.lease_ms=51; assert(!ForceServo_ConfigValid(&c));
- c=g_force_servo_default_config; c.feedback_gap_ms=41; assert(!ForceServo_ConfigValid(&c));
+ c=g_force_servo_default_config; c.lease_ms=131; assert(!ForceServo_ConfigValid(&c));
+ c=g_force_servo_default_config; c.feedback_gap_ms=126; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.sample_age_ms=21; assert(!ForceServo_ConfigValid(&c));
  assert(update(token,101,&actual,&interlock)==MOTOR_RESULT_HARDWARE_ERROR); off();
  token=continuous(); assert(update(token,-101,&actual,&interlock)==MOTOR_RESULT_HARDWARE_ERROR); off();
@@ -455,12 +461,12 @@ static void TestCommissioningFeedbackStop(void)
  assert(update(token,40,&actual,&interlock)!=MOTOR_RESULT_OK); off();
  fixture(); start(60);
  for (int i=0;i<100;i++) sample(30,10);
- assert(TIM3->CCR3>0); advance(41); Machine_CheckPressureSafety(&machine,now);
+ assert(TIM3->CCR3>0); advance(126); Machine_CheckPressureSafety(&machine,now);
  assert(machine.fault==FAULT_PRESSURE_SENSOR_FAULT); off();
  token=continuous();
  assert(MotorExecutor_UpdateContinuous(token,++seq,now-21,now,50,20,2,40,&actual,&interlock)!=MOTOR_RESULT_OK); off();
  token=continuous();
- assert(MotorExecutor_UpdateContinuous(token,++seq,now,now,51,20,2,40,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(MotorExecutor_UpdateContinuous(token,++seq,now,now,131,20,2,40,&actual,&interlock)!=MOTOR_RESULT_OK); off();
 }
 static void TestCommissioningNoRestart(void)
 {
@@ -494,6 +500,9 @@ static void TestCommissioningReverseOff(void)
 }
 #endif
 
+#if SD700_FORCE_SERVO_COMMISSIONING
+#include "Tests/Host/test_target250_cases.h"
+#endif
 int main(void)
 {
  unsigned count=0;
@@ -506,6 +515,9 @@ int main(void)
 #if SD700_FORCE_SERVO_COMMISSIONING
  RUN(TestCommissioningEnable) RUN(TestCommissioningSameDirection) RUN(TestCommissioningStopActive)
  RUN(TestCommissioningFeedbackStop) RUN(TestCommissioningNoRestart) RUN(TestCommissioningReverseOff)
+ RUN(TestTarget250StartFrame) RUN(TestTarget250PendingCancel) RUN(TestTarget250PendingValidation)
+ RUN(TestTarget250BuildHold) RUN(TestTarget250SmallIntegral) RUN(TestTarget250FieldCadence)
+ RUN(TestTarget250SyntheticPI)
 #endif
  printf("FORCE_SERVO_TEST_GROUPS=%u PASS; physical test NOT RUN\n",count);
  return 0;

@@ -1,15 +1,15 @@
-"""Exact CommissioningUnlock1 hashes, ARM ELF data and bounded arming profile."""
+"""Exact Target250MVP1 hashes, ARM ELF data and bounded arming profile."""
 import argparse, hashlib, json, struct, subprocess
 from firmware_image import ElfImage, compare_images, require
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
-STEM='SD700_ForceServo1_CommissioningUnlock1_RealBench_Release'
-FW_RELATIVE='output/CommissioningUnlock1/firmware'
+STEM='SD700_ForceServo1_Target250MVP1_RealBench_Release'
+FW_RELATIVE='output/Target250MVP1/firmware'
 FW=ROOT/FW_RELATIVE
 PINNED_HASHES={
-    'hex':'F96936FF7962ADC65737C0C6C97F5EBC49F30E8A3B33A20B75C450E3657DD46C',
-    'elf':'0925C1CDAEEDB7DCBFCD08EC0BF5E37505ABAA2175B2B11A17112D747CB86D41',
+    'hex':'4277556949A4AD6A2D5D24E49F8A1DEA97C7D8906CA48AA9878D68B5DF924055',
+    'elf':'06B8281B8D089D97D5639C6176A94F962AB5297FE04EEAE9CC32AF5B5DB31B01',
 }
 
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest().upper()
@@ -27,8 +27,8 @@ def verify_contents(elf_data, hex_data):
 
 
 def verify_contract(sym):
-    require(struct.unpack('<8I',sym['g_force_servo_contract'])==(0xF101,0x46530102,1,275,325,30000,100,100),'Firmware identity/configuration assertion failed')
-    defaults=(1,0,0,.02,20,40,1000,100,100,-1000,1000,5,0,5,40,20,50,5,10,45000,5000,50,10000,2)
+    require(sym['g_force_servo_contract']==struct.pack('<12I',0xF102,0x46530103,1,275,325,30000,100,100,250,250,125,130),'Firmware identity/configuration assertion failed')
+    defaults=(1,0,0,.02,200,1000,1000,100,100,-1000,1000,5,0,5,125,20,130,5,10,45000,5000,50,10000,2)
     require(sym['g_force_servo_default_config']==struct.pack('<24f',*defaults),'Unexpected default parameter group')
     cfg=sym['g_sd700_auto_target_machine_config']
     require(len(cfg)==76 and struct.unpack_from('<17I',cfg)==(275,20,5,10,200,50,250,10000,20,50,10000,10,40,5000,10,40,30000),'Firmware identity/configuration assertion failed')
@@ -64,8 +64,8 @@ def verify(objcopy_cross_check=False):
             converted=Path(d)/'converted.hex'
             subprocess.run([executable,'-O','ihex',str(elf),str(converted)],check=True)
             require(converted.read_bytes()==(FW/(STEM+'.hex')).read_bytes(),'objcopy HEX/ELF mismatch')
-    result=dict(configuration='PASS',schema='F101',build_id='46530102',physical_output='COMMISSIONING_ARMED',
-                continuous_command_cap_mv=100,lease_timeout_ms=50,sample_age_ms=20,feedback_gap_ms=40,
+    result=dict(configuration='PASS',candidate='Target250MVP1',schema='F102',build_id='46530103',physical_output='COMMISSIONING_ARMED',
+                target=250,start_wait_ms=250,continuous_command_cap_mv=100,lease_timeout_ms=130,sample_age_ms=20,feedback_gap_ms=125,
                 convergence_timeout_ms=30000,total_session_ms=45000,
                 load_bytes_compared=len(image.load_bytes),offline_verifier='PURE_PYTHON',
                 hex_sha256=sha(FW/(STEM+'.hex')),elf_sha256=sha(elf),physical_test='NOT_RUN')
