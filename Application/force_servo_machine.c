@@ -107,6 +107,9 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
  } else if (c->type==CMD_FORCE_START) {
      if (m->state!=IDLE || s->active) r=COMMAND_BUSY;
      else if (!m->target_valid || !Machine_IsPressureFresh(m,now) ||
+#if SD700_FORCE_SERVO_COMMISSIONING
+              m->pressure.control_pressure_units<(int32_t)FORCE_SERVO_CONTACT ||
+#endif
               !ForceServo_ConfigValid(&s->config) || !MotorExecutor_IsHealthy() ||
               !MotorExecutor_OutputIsDisabled() || MotorExecutor_GetSnapshot()->physical_output_locked)
          r=COMMAND_NOT_READY;

@@ -237,7 +237,9 @@ void MotorHw_ForceDisable(void)
     MotorHw_ForceDisableImmediate();
 }
 
+#ifndef SD700_TEST_PRODUCTION_ARMING_GATE
 bool MotorHwReal_OutputArmingAllowed(void)
 {
     return s_hal.output_arming_allowed;
 }
+#endif

@@ -17,6 +17,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', default='output/ForceServo1_CaptureFix1/final')
     parser.add_argument('--objcopy-cross-check', action='store_true')
+    parser.add_argument('--commissioning', action='store_true')
     args = parser.parse_args()
     out = ROOT/args.output
     require(not out.exists(), 'Use a new output directory; never overwrite evidence')
@@ -29,12 +30,14 @@ def main():
         ('force_capture_selftest', ps+['tools/capture_force_servo.ps1', '-SelfTest']),
         ('pressure_capture_selftest', ps+['tools/capture_pressure_response.ps1', '-SelfTest']),
         ('auto_capture_selftest', ps+['tools/capture_auto_target_static.ps1', '-SelfTest']),
-        ('force_host', py+['tools/run_force_servo_tests.py', '--output', str(out/'host')]),
+        ('force_host', py+['tools/run_force_servo_tests.py', '--output', str(out/'host')]+(['--commissioning'] if args.commissioning else [])),
         ('data_schema', py+['tools/force_servo_data.py', '--self-test']),
         ('verifier_rejections', py+['Tests/Host/test_force_servo_verifier.py']),
         ('offline_firmware', py+['tools/verify_force_servo_firmware.py']),
         ('historical_auto_firmware', py+['tools/verify_current_auto_target_firmware.py']),
     ]
+    if args.commissioning:
+        commands.append(('commissioning_gate', py+['Tests/Host/test_commissioning_gate.py', '--output', str(out/'gate')]))
     if args.objcopy_cross_check:
         commands.append(('developer_objcopy', py+['tools/verify_force_servo_firmware.py', '--objcopy-cross-check']))
     records = []

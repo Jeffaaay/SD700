@@ -7,14 +7,19 @@ param(
     [string]$ScopeTestAck = "",
     [string]$RealBenchAck = "",
     [switch]$AutoTarget,
-    [switch]$ForceServo
+    [switch]$ForceServo,
+    [switch]$CommissioningUnlock1
 )
 
 $ErrorActionPreference = "Stop"
+if ($CommissioningUnlock1 -and -not $ForceServo) { throw 'CommissioningUnlock1 requires -ForceServo' }
 if ($ForceServo -and ($AutoTarget -or $MotorMode -ne 'RealBench')) {
     throw 'ForceServo requires RealBench and excludes AutoTarget'
 }
-if ($ForceServo) { Write-Host 'FORCE_SERVO1_PHYSICAL_OUTPUT_LOCKED; COMMISSIONING_NOT_TUNED' }
+if ($ForceServo) {
+    if ($CommissioningUnlock1) { Write-Host 'COMMISSIONING_UNLOCK1; CONTINUOUS_COMMAND_CAP_100_MV; PHYSICAL_TEST_NOT_RUN' }
+    else { Write-Host 'FORCE_SERVO1_PHYSICAL_OUTPUT_LOCKED; COMMISSIONING_NOT_TUNED' }
+}
 
 
 if ($AutoTarget -and $MotorMode -ne 'RealBench') {
@@ -39,7 +44,8 @@ if ($MotorMode -eq "RealBench") {
     Write-Host "REAL_MOTOR_MAY_MOVE"
     Write-Host "LOW_ENERGY_SUPPLY_ESTOP_AND_CLEARANCE_REQUIRED"
     if ($ForceServo) {
-        Write-Host 'FORCE_SERVO_CONTROLLER_IMPLEMENTED; ALL_TARGET_OUTPUT_LOCKED'
+        if ($CommissioningUnlock1) { Write-Host 'CONTACT_REQUIRED; CONTINUOUS_ONLY; EXISTING_HW_GUARD_REQUIRED' }
+        else { Write-Host 'FORCE_SERVO_CONTROLLER_IMPLEMENTED; ALL_TARGET_OUTPUT_LOCKED' }
     } elseif ($AutoTarget) {
         Write-Host 'AUTO_TARGET_OPERATOR_START_ENABLED; BOOT_SAFE_TO_IDLE'
         Write-Host 'P_ONLY_INITIAL_VALUES_UNVALIDATED; POWERED_TEST_NOT_RUN'
@@ -117,6 +123,7 @@ if ($MotorMode -eq "RealBench") {
 }
 if ($AutoTarget) { $defines += 'SD700_AUTO_TARGET_ENABLED=1' }
 if ($ForceServo) { $defines += 'SD700_FORCE_SERVO_ENABLED=1' }
+if ($CommissioningUnlock1) { $defines += 'SD700_FORCE_SERVO_COMMISSIONING=1' }
 
 $includes = @(
     ".",

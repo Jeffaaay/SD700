@@ -1,4 +1,5 @@
 #include "Application/force_servo.h"
+#include "Application/motion_build_policy.h"
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
@@ -9,8 +10,9 @@ const ForceServoConfig g_force_servo_default_config = {
 #undef FS_DEFAULT
 };
 const uint32_t g_force_servo_contract[8] = {
- FORCE_SERVO_SCHEMA, FORCE_SERVO_BUILD_ID, 0U, FORCE_SERVO_MAX_TARGET,
- FORCE_SERVO_RAW_ABORT, FORCE_SERVO_BUILD_MS, 5000U, 800U
+ FORCE_SERVO_SCHEMA, FORCE_SERVO_BUILD_ID, SD700_FORCE_SERVO_COMMISSIONING, FORCE_SERVO_MAX_TARGET,
+ FORCE_SERVO_RAW_ABORT, FORCE_SERVO_BUILD_MS,
+ FORCE_SERVO_COMMISSIONING_OUTPUT_MV, FORCE_SERVO_COMMISSIONING_OUTPUT_MV
 };
 static float clamp(float x, float lo, float hi) { return fminf(hi,fmaxf(lo,x)); }
 bool ForceServo_SequenceAfter(uint64_t a, uint64_t b)

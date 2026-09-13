@@ -21,6 +21,10 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current ForceServo1 physical output remains compiled LOCKED. Repository
-cleanup or delivery changes must not alter PID, trajectory, executor, TIM5,
-HOLD, limits or safety behavior. Software PASS is not physical validation.
+The current field candidate is CommissioningUnlock1, explicitly authorized for
+supervised commissioning at a maximum continuous command magnitude of 100 mV
+in either direction. Default ForceServo builds remain compiled LOCKED; only the
+explicit CommissioningUnlock1 profile enables output. Keep the current output
+ceiling, timing guards, STOP priority and no-restart behavior. Repository cleanup
+or delivery changes must not alter control/safety behavior. Software PASS is not
+physical validation. Use only the current README field procedure.

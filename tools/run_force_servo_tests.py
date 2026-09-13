@@ -5,6 +5,7 @@ from pathlib import Path
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--output',default='output/ForceServo1/host')
+    ap.add_argument('--commissioning',action='store_true',help='CommissioningUnlock1 with the production arming gate')
     args=ap.parse_args(); out=Path(args.output); out.mkdir(parents=True,exist_ok=True)
     sources=['Tests/Host/test_force_servo.c','Application/force_servo.c',
              'Application/force_servo_machine.c','Application/machine.c',
@@ -16,6 +17,9 @@ def main():
     defines=['SD700_FORCE_SERVO_ENABLED=1','SD700_MOTOR_MODE_REAL_BENCH=1',
              'SD700_REAL_BENCH_ACKNOWLEDGED=1','SD700_REAL_OUTPUT_ARMING_ENABLED=1',
              'SD700_MOTOR_REAL_HOST_TEST=1']
+    if args.commissioning:
+        defines+=['SD700_FORCE_SERVO_COMMISSIONING=1','SD700_TEST_PRODUCTION_ARMING_GATE=1']
+        sources+=['Board/Motor/motor_real_gate.c']
     results=[]
     for opt in ('-O0','-O2','-Os'):
         exe=out/('force_servo_'+opt[1:]+'.exe')

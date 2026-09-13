@@ -5,5 +5,6 @@
 
 bool MotorHwReal_OutputArmingAllowed(void)
 {
-    return (SD700_REAL_OUTPUT_ARMING_ENABLED != 0) && !SD700_FORCE_SERVO_ENABLED;
+    return (SD700_REAL_OUTPUT_ARMING_ENABLED != 0) &&
+           (!SD700_FORCE_SERVO_ENABLED || SD700_FORCE_SERVO_COMMISSIONING);
 }

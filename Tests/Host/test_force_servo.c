@@ -6,6 +6,8 @@
 #include "Application/auto_target_config.h"
 #include "Board/Motor/motor_executor.h"
 #include "Board/Motor/motor_stop_timer.h"
+#include "Board/Motor/motor_hw_real.h"
+#include "Application/motion_build_policy.h"
 #include "Tests/Host/fake_stm32_hal.h"
 #include "Transport/Modbus/force_servo_protocol.h"
 #include "Transport/Modbus/modbus_semantic_map.h"
@@ -162,12 +164,23 @@ static uint32_t continuous(void)
 }
 static MotorResult update(uint32_t token,int32_t requested,int32_t *actual,bool *interlock)
 { return MotorExecutor_UpdateContinuous(token,++seq,now,now,50,20,2,requested,actual,interlock); }
+#if SD700_FORCE_SERVO_COMMISSIONING
+#define TEST_OUTPUT_A 40
+#define TEST_OUTPUT_B 80
+#define TEST_OUTPUT_C 100
+#define TEST_OUTPUT_INVALID 101
+#else
+#define TEST_OUTPUT_A 200
+#define TEST_OUTPUT_B 250
+#define TEST_OUTPUT_C 300
+#define TEST_OUTPUT_INVALID 5001
+#endif
 static void TestExecutorUpdates(void)
 {
  uint32_t token=continuous(); int32_t actual; bool interlock;
- assert(update(token,200,&actual,&interlock)==MOTOR_RESULT_OK); assert(actual==200);
+ assert(update(token,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK); assert(actual==TEST_OUTPUT_A);
  uint32_t starts=FakeStm32Hal_GetState()->pwm_start_call_count;
- advance(10); assert(update(token,250,&actual,&interlock)==MOTOR_RESULT_OK);
+ advance(10); assert(update(token,TEST_OUTPUT_B,&actual,&interlock)==MOTOR_RESULT_OK);
  assert(FakeStm32Hal_GetState()->pwm_start_call_count==starts);
  assert(MotorExecutor_GuardOutput()==MOTOR_RESULT_OK);
  assert(MotorExecutor_StartPulse(MOTOR_DIRECTION_PRESS,100,10,40,now)==MOTOR_RESULT_BUSY);
@@ -176,7 +189,7 @@ static void TestExecutorUpdates(void)
  advance(1); assert(update(token,-100,&actual,&interlock)==MOTOR_RESULT_OK); assert(actual==-100);
  assert(update(token,0,&actual,&interlock)==MOTOR_RESULT_OK); off();
  assert(MotorExecutor_Service(now)==MOTOR_RESULT_OK && MotorExecutor_GuardOutput()==MOTOR_RESULT_OK);
- assert(update(token,5001,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(update(token,TEST_OUTPUT_INVALID,&actual,&interlock)!=MOTOR_RESULT_OK); off();
  assert(update(token,1,&actual,&interlock)!=MOTOR_RESULT_OK); off();
 }
 static void pending_expiry(void) { TIM5->SR=TIM_SR_CC1IF; }
@@ -184,38 +197,38 @@ static void stop_before_commit(void) { assert(MotorExecutor_Disable()==MOTOR_RES
 static void TestLeaseRaces(void)
 {
  int32_t actual; bool interlock; uint32_t token=continuous();
- assert(update(token,200,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(update(token,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK);
  uint32_t deadline=MotorExecutor_GetSnapshot()->logical_deadline_ms;
- assert(MotorExecutor_UpdateContinuous(token,seq,now,now,50,20,2,300,&actual,&interlock)==MOTOR_RESULT_INVALID);
+ assert(MotorExecutor_UpdateContinuous(token,seq,now,now,50,20,2,TEST_OUTPUT_C,&actual,&interlock)==MOTOR_RESULT_INVALID);
  assert(MotorExecutor_GetSnapshot()->logical_deadline_ms==deadline);
  advance(10); dsb_hook=pending_expiry;
- assert(update(token,300,&actual,&interlock)!=MOTOR_RESULT_OK); off();
- assert(update(token,300,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(update(token,TEST_OUTPUT_C,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(update(token,TEST_OUTPUT_C,&actual,&interlock)!=MOTOR_RESULT_OK); off();
  assert(MotorExecutor_Service(now)==MOTOR_RESULT_OK);
  assert(MotorExecutor_GetSnapshot()->last_completion==MOTOR_COMPLETION_LEASE);
- token=continuous(); assert(update(token,200,&actual,&interlock)==MOTOR_RESULT_OK);
+ token=continuous(); assert(update(token,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK);
  enter_hook=stop_before_commit;
- assert(update(token,300,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(update(token,TEST_OUTPUT_C,&actual,&interlock)!=MOTOR_RESULT_OK); off();
  uint32_t new_token; assert(MotorExecutor_BeginContinuous(&new_token)==MOTOR_RESULT_OK);
- assert(new_token!=token); assert(update(token,300,&actual,&interlock)!=MOTOR_RESULT_OK); off();
- assert(update(new_token,200,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(new_token!=token); assert(update(token,TEST_OUTPUT_C,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(update(new_token,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK);
  /* Simulate main/control/telemetry completely stalled; TIM5 IRQ alone shuts down. */
  advance(50); off(); assert(!MotorStopTimer_IsArmed());
- assert(update(new_token,200,&actual,&interlock)!=MOTOR_RESULT_OK);
- token=continuous(); assert(update(token,200,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(update(new_token,TEST_OUTPUT_A,&actual,&interlock)!=MOTOR_RESULT_OK);
+ token=continuous(); assert(update(token,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK);
  TIM5->SR=TIM_SR_CC1IF; /* IRQ pending before renewal; must not clear it */
- assert(update(token,200,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(update(token,TEST_OUTPUT_A,&actual,&interlock)!=MOTOR_RESULT_OK); off();
 }
 static void TestSampleAgeAndWrap(void)
 {
  int32_t actual; bool interlock; uint32_t token=continuous();
  now=UINT32_MAX-20; seq=UINT64_MAX-1;
- assert(update(token,200,&actual,&interlock)==MOTOR_RESULT_OK);
- advance(10); assert(update(token,200,&actual,&interlock)==MOTOR_RESULT_OK); assert(seq==0);
- advance(15); assert(update(token,200,&actual,&interlock)==MOTOR_RESULT_OK); assert(now==4);
- assert(MotorExecutor_UpdateContinuous(token,seq+1,now-21,now,50,20,2,200,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(update(token,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK);
+ advance(10); assert(update(token,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK); assert(seq==0);
+ advance(15); assert(update(token,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK); assert(now==4);
+ assert(MotorExecutor_UpdateContinuous(token,seq+1,now-21,now,50,20,2,TEST_OUTPUT_A,&actual,&interlock)!=MOTOR_RESULT_OK); off();
  token=continuous();
- assert(MotorExecutor_UpdateContinuous(token,++seq,now-15,now,50,20,2,200,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(MotorExecutor_UpdateContinuous(token,++seq,now-15,now,50,20,2,TEST_OUTPUT_A,&actual,&interlock)==MOTOR_RESULT_OK);
  assert(MotorExecutor_GetSnapshot()->logical_deadline_ms==now+35);
  advance(35); off();
  fixture(); now=UINT32_MAX-20; seq=UINT64_MAX-1;
@@ -249,6 +262,12 @@ static void TestDeadlinesAndApproach(void)
  machine.servo.config.tracking_ms=1000; start(30);
  for (int j=0;j<199;j++) sample(j%2 ? 30 : 42,10);
  sample(30,10); assert(machine.fault_detail==FAULT_DETAIL_SESSION_TIMEOUT); off();
+#if SD700_FORCE_SERVO_COMMISSIONING
+ fixture(); sample(0,10); assert(command(CMD_SET_TARGET,40)==COMMAND_ACCEPTED);
+ assert(command(CMD_FORCE_START,0)==COMMAND_NOT_READY); Machine_Tick(&machine,now); off();
+ assert(MotorExecutor_StartRun(MOTOR_DIRECTION_PRESS,10000,20,50,now)==MOTOR_RESULT_INVALID);
+ assert(MotorExecutor_StartPulse(MOTOR_DIRECTION_PRESS,100,10,40,now)==MOTOR_RESULT_INVALID); off();
+#else
  fixture(); sample(0,10); assert(command(CMD_SET_TARGET,250)==COMMAND_ACCEPTED);
  assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); assert(machine.state==FORCE_APPROACH);
  Machine_Tick(&machine,now); assert(MotorExecutor_GetSnapshot()->command_mv==10000);
@@ -266,6 +285,7 @@ static void TestDeadlinesAndApproach(void)
  assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); Machine_Tick(&machine,now);
  TIM5->SR=TIM_SR_UIF; MotorStopTimer_IrqHandler(); assert(MotorExecutor_Service(now)==MOTOR_RESULT_OK);
  Machine_HandleMotorService(&machine,now); assert(machine.state==FAULT); off();
+#endif
 }
 static void TestBoundedTracking(void)
 {
@@ -333,9 +353,13 @@ static void TestModbusAndCongestion(void)
 }
 static void TestRuntimeDeliveryAndLock(void)
 {
+#if SD700_FORCE_SERVO_COMMISSIONING
+    fixture(); assert(MotorHwReal_OutputArmingAllowed());
+#else
     fixture(); FakeStm32Hal_GetState()->output_arming_allowed=false;
     assert(command(CMD_SET_TARGET,250)==COMMAND_ACCEPTED);
     assert(command(CMD_FORCE_START,0)==COMMAND_NOT_READY); off();
+#endif
     fixture(); ApplicationRuntime runtime;
     ApplicationRuntime_Initialize(&runtime,&g_sd700_auto_target_machine_config,now);
     ApplicationRuntime_CompleteBoot(&runtime,true,now);
@@ -383,6 +407,93 @@ static void TestSyntheticPlants(void)
      assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
  }
 }
+#if SD700_FORCE_SERVO_COMMISSIONING
+static void TestCommissioningEnable(void)
+{
+ int32_t actual; bool interlock; uint32_t token=continuous();
+ assert(MotorHwReal_OutputArmingAllowed()); off();
+ assert(update(token,40,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==40 && TIM3->CCR3>0 && TIM2->CCR3==0 && MotorStopTimer_IsArmed());
+ assert(MotorExecutor_GuardOutput()==MOTOR_RESULT_OK);
+ ForceServoConfig c=g_force_servo_default_config;
+ assert(c.press_cap==100 && c.release_cap==100);
+ c.press_cap=101; assert(!ForceServo_ConfigValid(&c));
+ c=g_force_servo_default_config; c.release_cap=101; assert(!ForceServo_ConfigValid(&c));
+ c=g_force_servo_default_config; c.lease_ms=51; assert(!ForceServo_ConfigValid(&c));
+ c=g_force_servo_default_config; c.feedback_gap_ms=41; assert(!ForceServo_ConfigValid(&c));
+ c=g_force_servo_default_config; c.sample_age_ms=21; assert(!ForceServo_ConfigValid(&c));
+ assert(update(token,101,&actual,&interlock)==MOTOR_RESULT_HARDWARE_ERROR); off();
+ token=continuous(); assert(update(token,-101,&actual,&interlock)==MOTOR_RESULT_HARDWARE_ERROR); off();
+}
+static void TestCommissioningSameDirection(void)
+{
+ int32_t actual; bool interlock; uint32_t token=continuous();
+ assert(update(token,40,&actual,&interlock)==MOTOR_RESULT_OK);
+ uint32_t starts=FakeStm32Hal_GetState()->pwm_start_call_count, compare=TIM3->CCR3;
+ advance(10); assert(update(token,80,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==80 && !interlock && TIM3->CCR3>compare);
+ assert(FakeStm32Hal_GetState()->pwm_start_call_count==starts);
+ assert(MotorExecutor_GuardOutput()==MOTOR_RESULT_OK);
+}
+static void TestCommissioningStopActive(void)
+{
+ int32_t actual; bool interlock; uint32_t token=continuous();
+ assert(update(token,100,&actual,&interlock)==MOTOR_RESULT_OK); assert(TIM3->CCR3==20);
+ assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off(); assert(!MotorStopTimer_IsArmed());
+ assert(update(token,100,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ /* A STOP concurrent with an update still revokes the active generation. */
+ token=continuous(); assert(update(token,40,&actual,&interlock)==MOTOR_RESULT_OK);
+ enter_hook=stop_before_commit; assert(update(token,80,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+}
+static void TestCommissioningFeedbackStop(void)
+{
+ int32_t actual; bool interlock; uint32_t token=continuous();
+ assert(update(token,100,&actual,&interlock)==MOTOR_RESULT_OK);
+ /* Existing TIM5 compare reserves 1 ms: a nominal 50 ms lease expires at 49 ms. */
+ advance(48); assert(TIM3->CCR3>0); advance(1); off();
+ assert(!MotorStopTimer_IsArmed()); /* TIM5 alone; no main or telemetry service. */
+ assert(update(token,40,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ fixture(); start(60);
+ for (int i=0;i<100;i++) sample(30,10);
+ assert(TIM3->CCR3>0); advance(41); Machine_CheckPressureSafety(&machine,now);
+ assert(machine.fault==FAULT_PRESSURE_SENSOR_FAULT); off();
+ token=continuous();
+ assert(MotorExecutor_UpdateContinuous(token,++seq,now-21,now,50,20,2,40,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ token=continuous();
+ assert(MotorExecutor_UpdateContinuous(token,++seq,now,now,51,20,2,40,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+}
+static void TestCommissioningNoRestart(void)
+{
+ fixture(); start(60);
+ for (int i=0;i<100;i++) sample(30,10);
+ assert(TIM3->CCR3>0); assert(command(CMD_STOP,0)==COMMAND_ACCEPTED);
+ for (int i=0;i<100;i++) { sample(30,10); Machine_Tick(&machine,now); off(); }
+ assert(machine.state==IDLE && !machine.servo.active);
+ start(60); sample_at(30,++seq,now,false); assert(machine.state==FAULT); off();
+ for (int i=0;i<100;i++) { sample(30,10); Machine_Tick(&machine,now); off(); }
+ assert(machine.state==FAULT && command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
+ assert(command(CMD_FAULT_RESET,0)==COMMAND_ACCEPTED);
+ for (int i=0;i<100;i++) { sample(30,10); Machine_Tick(&machine,now); off(); }
+ assert(machine.state==IDLE && !machine.servo.active);
+}
+static void TestCommissioningReverseOff(void)
+{
+ int32_t actual; bool interlock; uint32_t token=continuous();
+ assert(update(token,100,&actual,&interlock)==MOTOR_RESULT_OK);
+ advance(10); assert(update(token,-100,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==0 && interlock); off();
+ advance(1); assert(update(token,-100,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==0 && interlock); off();
+ advance(1); assert(update(token,-100,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==-100 && TIM2->CCR3>0 && TIM3->CCR3==0);
+ advance(10); assert(update(token,100,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==0 && interlock); off();
+ advance(2); assert(update(token,100,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==100 && TIM3->CCR3>0 && TIM2->CCR3==0);
+ TIM2->CCR3=1; assert(MotorExecutor_GuardOutput()!=MOTOR_RESULT_OK); off();
+}
+#endif
+
 int main(void)
 {
  unsigned count=0;
@@ -392,6 +503,10 @@ int main(void)
  RUN(TestSampleAgeAndWrap) RUN(TestFeedbackFaults) RUN(TestDeadlinesAndApproach)
  RUN(TestBoundedTracking) RUN(TestConfigAndSnapshot) RUN(TestModbusAndCongestion)
  RUN(TestRuntimeDeliveryAndLock) RUN(TestSyntheticPlants)
+#if SD700_FORCE_SERVO_COMMISSIONING
+ RUN(TestCommissioningEnable) RUN(TestCommissioningSameDirection) RUN(TestCommissioningStopActive)
+ RUN(TestCommissioningFeedbackStop) RUN(TestCommissioningNoRestart) RUN(TestCommissioningReverseOff)
+#endif
  printf("FORCE_SERVO_TEST_GROUPS=%u PASS; physical test NOT RUN\n",count);
  return 0;
 }

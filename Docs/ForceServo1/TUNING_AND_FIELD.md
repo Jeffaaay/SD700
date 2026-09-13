@@ -1,3 +1,9 @@
+> Historical ForceServo1 locked-candidate record. CommissioningUnlock1 now
+> supersedes its output lock, current parameter bounds and next field step.
+> Follow the [current README](../../README.md) and
+> [commissioning record](../CommissioningUnlock1/TEST_RESULTS.md).
+> The historical instructions below do not require a separate Observe field round.
+
 # ForceServo1 — the one next field step
 
 **Next step: motor power physically disconnected; locked firmware; collect

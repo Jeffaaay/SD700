@@ -1,3 +1,9 @@
+> Historical ForceServo1 locked-candidate record. CommissioningUnlock1 now
+> supersedes its output lock, current parameter bounds and next field step.
+> Follow the [current README](../../README.md) and
+> [commissioning record](../CommissioningUnlock1/TEST_RESULTS.md).
+> The historical instructions below do not require a separate Observe field round.
+
 # ForceServo1 — reviewable implementation, physical output LOCKED
 
 Baseline is `f24d4a62240ec1630e026fd1eeba491f7c35b11f` (ConvergenceMeasure1).

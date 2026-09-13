@@ -11,7 +11,8 @@ def schema():
         params.append(dict(name=n,default=float(d.rstrip('f')),minimum=float(lo.rstrip('f')),maximum=float(hi.rstrip('f'))))
     diag=(ROOT/'Application/force_servo_machine.h').read_text()
     u,f=diag.split('#define FORCE_SERVO_DIAG_FLOAT(X)',1)
-    return dict(schema=0xF101,build_id=0x46530101,parameters=params,
+    build_id=int(re.search(r'#define FORCE_SERVO_BUILD_ID (0x[0-9A-Fa-f]+)U',header)[1],16)
+    return dict(schema=0xF101,build_id=build_id,parameters=params,
                 u32=re.findall(r'X\((\w+)\)',u),floats=re.findall(r'X\((\w+)\)',f.split('typedef struct')[0]))
 
 def digest(config):

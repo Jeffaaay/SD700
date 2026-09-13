@@ -89,3 +89,11 @@ desktop.ini
 /output/ForceServo1/firmware/*
 !/output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.hex
 !/output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.elf
+
+# CommissioningUnlock1 current pair; old locked pair remains historical evidence.
+!/output/CommissioningUnlock1/
+/output/CommissioningUnlock1/*
+!/output/CommissioningUnlock1/firmware/
+/output/CommissioningUnlock1/firmware/*
+!/output/CommissioningUnlock1/firmware/SD700_ForceServo1_CommissioningUnlock1_RealBench_Release.hex
+!/output/CommissioningUnlock1/firmware/SD700_ForceServo1_CommissioningUnlock1_RealBench_Release.elf

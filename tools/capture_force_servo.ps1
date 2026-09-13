@@ -7,7 +7,7 @@ param(
     [string]$ConfirmedFirmwareSha256,
     [string]$OutputCsv,
     [string]$ParameterFile,
-    [ValidateRange(1,275)][int]$Target=250,
+    [ValidateRange(1,275)][int]$Target=40,
     [ValidateRange(1,60)][int]$MaximumSeconds=60,
     [switch]$ConfirmMotorPowerDisconnected,
     [switch]$ConfirmSupervisedMotion,
@@ -76,7 +76,7 @@ function Invoke-ForceCapture {
         [Parameter(Mandatory=$true)][string]$OutputCsv,
         [Parameter(Mandatory=$true)][string]$ActualHash,
         [ValidateRange(1,60)][int]$MaximumSeconds=60,
-        [ValidateRange(1,275)][int]$Target=250,
+        [ValidateRange(1,275)][int]$Target=40,
         $Desired,
         [string]$CurrentLimitSetting,
         [string]$InitialGap,
@@ -119,6 +119,9 @@ function Invoke-ForceCapture {
         }
         if ($Mode -eq 'SingleStart') {
             if ($info[1] -ne 0 -or $first.locked -ne 0) { throw 'PHYSICAL_OUTPUT_LOCKED: no START sent; hardware qualification pending' }
+            if ($Target -gt 60 -or $first.latest_raw -lt 20 -or $first.latest_raw -gt 30) {
+                throw 'Commissioning session requires initial pressure 20..30 and target <=60; no START sent'
+            }
             Write-ForceWord $exchange 0 $Target
             $ready=Read-ForceSnapshot $exchange 'TARGET_READBACK'
             if ($ready.target -ne $Target -or $ready.state -ne 1 -or $ready.fault -ne 0 -or $ready.output_off -ne 1) { throw 'Target/state readback mismatch' }
@@ -218,7 +221,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/CommissioningUnlock1/firmware/SD700_ForceServo1_CommissioningUnlock1_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'

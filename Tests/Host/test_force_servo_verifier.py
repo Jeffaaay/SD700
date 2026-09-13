@@ -1,4 +1,4 @@
-"""CaptureFix1 verifier rejection tests; mutate temporary bytes only, never firmware."""
+"""Current firmware verifier rejection tests; mutate temporary bytes only."""
 import hashlib
 import os
 from pathlib import Path
@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 30512)
+        self.assertEqual(len(image.load_bytes), 29508)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -70,7 +70,7 @@ class VerifierTests(unittest.TestCase):
             with self.subTest(kind=kind):
                 lines = self.hex.decode().splitlines()
                 if kind == 'address': lines[0] = record(4, payload=b'\x20\x00')
-                elif kind == 'entry': lines[-2] = record(5, payload=b'\x08\x00\x02\x5b')
+                elif kind == 'entry': lines[-2] = record(5, payload=(self.image.entry ^ 2).to_bytes(4, 'big'))
                 elif kind == 'missing': del lines[1]
                 else: lines.insert(1, record(0, 0xF000, b'\x01'))
                 with self.assertRaises(ValueError): compare_images(self.image, ('\n'.join(lines)+'\n').encode())
@@ -126,23 +126,34 @@ class VerifierTests(unittest.TestCase):
         # Content checks are exercised without pinning hashes first, so these
         # failures prove contract checks themselves, not just changed file hashes.
         for name, offset, value in (('g_force_servo_contract', 0, 0xF102),
-                                    ('g_force_servo_contract', 8, 1),
+                                    ('g_force_servo_contract', 8, 0),
                                     ('g_force_servo_contract', 20, 45000),
+                                    ('g_force_servo_contract', 24, 101),
+                                    ('g_force_servo_contract', 28, 101),
                                     ('g_force_servo_default_config', 4, 0x3F800000),
+                                    ('g_force_servo_default_config', 28, 0x42CA0000),
+                                    ('g_force_servo_default_config', 32, 0x42CA0000),
+                                    ('g_force_servo_default_config', 56, 0x42240000),
+                                    ('g_force_servo_default_config', 60, 0x41A80000),
+                                    ('g_force_servo_default_config', 64, 0x424C0000),
                                     ('g_sd700_auto_target_machine_config', 0, 500),
                                     ('g_sd700_auto_target_machine_config', 72, 500)):
             bad = bytearray(self.elf)
             struct.pack_into('<I', bad, self.image.symbol_offsets[name]+offset, value)
             self.reject_elf(bad, 'configuration|configuration assertion|parameter group')
 
-    def test_physical_unlock_rejected(self):
+    def test_wrong_commissioning_gate_rejected(self):
         bad = bytearray(self.elf)
-        bad[self.image.symbol_offsets['MotorHwReal_OutputArmingAllowed']] = 1  # movs r0,#1
-        self.reject_elf(bad, 'not compiled locked')
+        bad[self.image.symbol_offsets['MotorHwReal_OutputArmingAllowed']] = 0  # movs r0,#0
+        self.reject_elf(bad, 'not commissioning armed')
+
+    def test_locked_predecessor_is_not_current_candidate(self):
+        old = ROOT/'output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.elf'
+        self.reject_elf(old.read_bytes(), 'identity/configuration')
 
     def test_true_hash_and_manifest_pins(self):
         with tempfile.TemporaryDirectory() as d:
-            root = Path(d); fw = root/'output/ForceServo1/firmware'; fw.mkdir(parents=True)
+            root = Path(d); fw = root/verifier.FW_RELATIVE; fw.mkdir(parents=True)
             (root/'Firmware').mkdir()
             for ext, data in (('hex', self.hex), ('elf', self.elf)):
                 (fw/(verifier.STEM+'.'+ext)).write_bytes(data)

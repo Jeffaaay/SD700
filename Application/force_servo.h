@@ -4,25 +4,32 @@
 #include <stdint.h>
 
 #define FORCE_SERVO_SCHEMA 0xF101U
-#define FORCE_SERVO_BUILD_ID 0x46530101U
+#define FORCE_SERVO_BUILD_ID 0x46530102U
 #define FORCE_SERVO_MAX_TARGET 275U
 #define FORCE_SERVO_RAW_ABORT 325U
 #define FORCE_SERVO_CONTACT 20U
 #define FORCE_SERVO_BUILD_MS 30000U
-/* Numerical seeds only. ALL physical output is compile locked in this release. */
+/* Commissioning ceiling: the lower original continuous default (release_cap
+ * 100 mV, ForceServo1 29d0a90). A command limit, NOT a measured safe coil voltage.
+ * No continuous rating has been established by the old pulse observations. */
+#define FORCE_SERVO_COMMISSIONING_OUTPUT_MV 100U
+#define FORCE_SERVO_COMMISSIONING_LEASE_MS 50U
+#define FORCE_SERVO_COMMISSIONING_AGE_MS 20U
+#define FORCE_SERVO_COMMISSIONING_DEADTIME_MS 2U
+/* Existing timing defaults retained; RAM groups cannot raise these budgets. */
 #define FORCE_SERVO_PARAMETERS(X) \
  X(kp,1.0f,0,1000) X(ki,0,0,1000) X(kd,0,0,100) \
  X(d_filter_s,0.02f,0.001f,1) X(reference_rate,20,0.1f,200) \
  X(reference_acceleration,40,0.1f,1000) X(output_rate,1000,1,100000) \
- X(press_cap,250,1,4999) X(release_cap,100,1,799) \
+ X(press_cap,100,1,100) X(release_cap,100,1,100) \
  X(integral_min,-1000,-5000,0) X(integral_max,1000,0,5000) \
  X(tracking_gain,5,0.01f,100) X(measurement_filter_s,0,0,1) \
- X(control_min_ms,5,1,50) X(feedback_gap_ms,40,2,100) \
- X(sample_age_ms,20,1,99) X(lease_ms,50,3,100) \
+ X(control_min_ms,5,1,50) X(feedback_gap_ms,40,2,40) \
+ X(sample_age_ms,20,1,20) X(lease_ms,50,3,50) \
  X(hold_enter,5,0.1f,20) X(hold_exit,10,0.2f,40) \
  X(session_ms,45000,1000,60000) X(saturation_ms,5000,100,30000) \
  X(tracking_error,50,1,275) X(tracking_ms,10000,100,30000) \
- X(reverse_deadtime_ms,2,1,100)
+ X(reverse_deadtime_ms,2,2,100)
 
 typedef struct {
 #define FS_FIELD(n,d,l,h) float n;

@@ -3,6 +3,7 @@
 #include "Application/motion_build_policy.h"
 #if SD700_FORCE_SERVO_ENABLED
 #include "Board/Motor/motor_atomic.h"
+#include "Application/force_servo.h"
 static volatile bool s_servo_open;
 static uint32_t s_servo_generation;
 static uint64_t s_servo_sequence;
@@ -176,6 +177,9 @@ MotorResult MotorExecutor_PlanCommand(MotorDirection direction,
 {
     uint32_t duty;
 
+#if SD700_FORCE_SERVO_COMMISSIONING
+    if (command_mv > FORCE_SERVO_COMMISSIONING_OUTPUT_MV) return MOTOR_RESULT_INVALID;
+#endif
     if ((!MotorExecutor_DirectionIsValid(direction)) ||
         (command_mv == 0U) ||
         (command_mv > MOTOR_PLAN_SUPPLY_REFERENCE_MV) ||
@@ -332,6 +336,10 @@ static MotorResult MotorExecutor_Start(MotorDirection direction,
 
 #if SD700_FORCE_SERVO_ENABLED
     if (s_servo_open) return MOTOR_RESULT_BUSY;
+#endif
+#if SD700_FORCE_SERVO_COMMISSIONING
+    /* No inherited 10000 mV approach or unmonitored pulse/run entry in this build. */
+    return MOTOR_RESULT_INVALID;
 #endif
     if (s_motor.logical_active)
     {
@@ -807,6 +815,12 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     if (!s_servo_open || token!=s_servo_generation || !committed_mv || !interlocked)
         goto done;
     if (s_servo_has_sequence && (distance==0 || distance>=(UINT64_C(1)<<63))) goto done;
+#if SD700_FORCE_SERVO_COMMISSIONING
+    if (requested_mv>(int32_t)FORCE_SERVO_COMMISSIONING_OUTPUT_MV ||
+        requested_mv<-(int32_t)FORCE_SERVO_COMMISSIONING_OUTPUT_MV ||
+        lease_ms>FORCE_SERVO_COMMISSIONING_LEASE_MS || max_age_ms>FORCE_SERVO_COMMISSIONING_AGE_MS ||
+        deadtime_ms<FORCE_SERVO_COMMISSIONING_DEADTIME_MS) goto fail;
+#endif
     if (s_completion_event_pending || lease_ms<3 || lease_ms>100 || max_age_ms>=lease_ms ||
         age>max_age_ms || age>=lease_ms-1 || deadtime_ms<1 || deadtime_ms>100 ||
         requested_mv>5000 || requested_mv<-800 || !MotorHwReal_OutputArmingAllowed()) goto fail;

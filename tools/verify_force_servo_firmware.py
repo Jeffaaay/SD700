@@ -1,14 +1,15 @@
-"""Exact candidate hashes, ARM ELF data, active control symbols and physical lock."""
+"""Exact CommissioningUnlock1 hashes, ARM ELF data and bounded arming profile."""
 import argparse, hashlib, json, struct, subprocess
 from firmware_image import ElfImage, compare_images, require
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
-STEM='SD700_ForceServo1_RealBench_Locked_Release'
-FW=ROOT/'output/ForceServo1/firmware'
+STEM='SD700_ForceServo1_CommissioningUnlock1_RealBench_Release'
+FW_RELATIVE='output/CommissioningUnlock1/firmware'
+FW=ROOT/FW_RELATIVE
 PINNED_HASHES={
-    'hex':'C76059E0FAA126D5E52A6D640599A007E71D669080C022FEEE6180D3AB414B41',
-    'elf':'B6AEFBCAD93DE82A3514C134518A249A6D6851D3E8C4E8DF3EE7C41DC0984EFF',
+    'hex':'F96936FF7962ADC65737C0C6C97F5EBC49F30E8A3B33A20B75C450E3657DD46C',
+    'elf':'0925C1CDAEEDB7DCBFCD08EC0BF5E37505ABAA2175B2B11A17112D747CB86D41',
 }
 
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest().upper()
@@ -26,17 +27,18 @@ def verify_contents(elf_data, hex_data):
 
 
 def verify_contract(sym):
-    require(struct.unpack('<8I',sym['g_force_servo_contract'])==(0xF101,0x46530101,0,275,325,30000,5000,800),'Firmware identity/configuration assertion failed')
-    defaults=(1,0,0,.02,20,40,1000,250,100,-1000,1000,5,0,5,40,20,50,5,10,45000,5000,50,10000,2)
+    require(struct.unpack('<8I',sym['g_force_servo_contract'])==(0xF101,0x46530102,1,275,325,30000,100,100),'Firmware identity/configuration assertion failed')
+    defaults=(1,0,0,.02,20,40,1000,100,100,-1000,1000,5,0,5,40,20,50,5,10,45000,5000,50,10000,2)
     require(sym['g_force_servo_default_config']==struct.pack('<24f',*defaults),'Unexpected default parameter group')
     cfg=sym['g_sd700_auto_target_machine_config']
     require(len(cfg)==76 and struct.unpack_from('<17I',cfg)==(275,20,5,10,200,50,250,10000,20,50,10000,10,40,5000,10,40,30000),'Firmware identity/configuration assertion failed')
     require(cfg[68:70]==b'\1\1' and struct.unpack_from('<I',cfg,72)[0]==325,'Firmware identity/configuration assertion failed')
-    # ARM Thumb release implementation must return literal false, with no runtime bypass.
-    require(sym['MotorHwReal_OutputArmingAllowed']==bytes.fromhex('00207047'),'Physical output is not compiled locked')
+    # Exact reviewed commissioning release: literal true, never a runtime unlock.
+    require(sym['MotorHwReal_OutputArmingAllowed']==bytes.fromhex('01207047'),'Physical output is not commissioning armed')
     for name in ('ForceServo_Prepare','ForceServo_Commit','MotorExecutor_UpdateContinuous',
                  'MotorStopTimer_RenewLease','MotorStopTimer_ArmLease','TIM5_IRQHandler',
-                 'Machine_HandlePressureSample','ForceServoProtocol_Write','ForceServoProtocol_Read'):
+                 'Machine_HandlePressureSample','ForceServoProtocol_Write','ForceServoProtocol_Read',
+                 'MotorExecutor_GuardOutput','MotorHwReal_MatchesPlan'):
         require(name in sym and len(sym[name])>0,'Missing active implementation: '+name)
     require('Machine_ConsumePressFeedback' not in sym,'Legacy boost owner linked in ForceServo build')
 
@@ -47,8 +49,8 @@ def verify(objcopy_cross_check=False):
         digest,name=line.split(' *',1)
         require(name not in entries,'Duplicate firmware manifest entry')
         entries[name]=digest
-    expected={f'../output/ForceServo1/firmware/{STEM}.{ext}':digest for ext,digest in PINNED_HASHES.items()}
-    require(entries==expected,'Exact pinned locked current pair required')
+    expected={f'../{FW_RELATIVE}/{STEM}.{ext}':digest for ext,digest in PINNED_HASHES.items()}
+    require(entries==expected,'Exact pinned commissioning current pair required')
     for name,digest in entries.items():
         require(sha(ROOT/'Firmware'/name)==digest,'Hash mismatch: '+name)
     elf=FW/(STEM+'.elf')
@@ -62,7 +64,8 @@ def verify(objcopy_cross_check=False):
             converted=Path(d)/'converted.hex'
             subprocess.run([executable,'-O','ihex',str(elf),str(converted)],check=True)
             require(converted.read_bytes()==(FW/(STEM+'.hex')).read_bytes(),'objcopy HEX/ELF mismatch')
-    result=dict(configuration='PASS',schema='F101',physical_output='LOCKED',
+    result=dict(configuration='PASS',schema='F101',build_id='46530102',physical_output='COMMISSIONING_ARMED',
+                continuous_command_cap_mv=100,lease_timeout_ms=50,sample_age_ms=20,feedback_gap_ms=40,
                 convergence_timeout_ms=30000,total_session_ms=45000,
                 load_bytes_compared=len(image.load_bytes),offline_verifier='PURE_PYTHON',
                 hex_sha256=sha(FW/(STEM+'.hex')),elf_sha256=sha(elf),physical_test='NOT_RUN')

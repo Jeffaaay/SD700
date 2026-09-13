@@ -4,6 +4,17 @@
 #ifndef SD700_FORCE_SERVO_ENABLED
 #define SD700_FORCE_SERVO_ENABLED 0
 #endif
+#ifndef SD700_FORCE_SERVO_COMMISSIONING
+#define SD700_FORCE_SERVO_COMMISSIONING 0
+#endif
+#if (SD700_FORCE_SERVO_COMMISSIONING != 0) && (SD700_FORCE_SERVO_COMMISSIONING != 1)
+#error "ForceServo commissioning must be 0 or 1"
+#endif
+#if SD700_FORCE_SERVO_COMMISSIONING
+#if !SD700_FORCE_SERVO_ENABLED || !defined(SD700_REAL_BENCH_ACKNOWLEDGED) || (SD700_REAL_BENCH_ACKNOWLEDGED != 1)
+#error "CommissioningUnlock1 requires ForceServo and explicit RealBench acknowledgement"
+#endif
+#endif
 #if (SD700_FORCE_SERVO_ENABLED != 0) && (SD700_FORCE_SERVO_ENABLED != 1)
 #error "ForceServo enable must be 0 or 1"
 #endif
@@ -12,11 +23,11 @@
 #error "ForceServo and AutoTarget are mutually exclusive output owners"
 #endif
 #if !defined(SD700_MOTOR_MODE_REAL_BENCH) || !SD700_MOTOR_MODE_REAL_BENCH
-#error "ForceServo requires the RealBench backend (physical output remains locked)"
+#error "ForceServo requires the RealBench backend"
 #endif
 #endif
-/* There is deliberately no target unlock macro in ForceServo1. Timing, ratings,
- * and the new stop path require hardware qualification before a later release. */
+/* Default ForceServo builds remain locked. CommissioningUnlock1 explicitly
+ * permits only the bounded, contact-established continuous commissioning path. */
 
 
 /* Permission for operator AUTO_START; never a power-on start. */
