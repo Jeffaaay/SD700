@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 30312)
+        self.assertEqual(len(image.load_bytes), 30432)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -126,20 +126,25 @@ class VerifierTests(unittest.TestCase):
         # Content checks are exercised without pinning hashes first, so these
         # failures prove contract checks themselves, not just changed file hashes.
         for name, offset, value in (('g_force_servo_contract', 0, 0xF101),
+                                    ('g_force_servo_contract', 4, 0x46530104),
                                     ('g_force_servo_contract', 8, 0),
                                     ('g_force_servo_contract', 20, 45000),
-                                    ('g_force_servo_contract', 24, 101),
+                                    ('g_force_servo_contract', 24, 100),
+                                    ('g_force_servo_contract', 24, 721),
                                     ('g_force_servo_contract', 28, 101),
                                     ('g_force_servo_contract', 32, 500),
                                     ('g_force_servo_contract', 36, 500),
                                     ('g_force_servo_contract', 40, 126),
                                     ('g_force_servo_contract', 44, 131),
-                                    ('g_force_servo_contract', 48, 101),
+                                    ('g_force_servo_contract', 48, 100),
+                                    ('g_force_servo_contract', 48, 721),
                                     ('g_force_servo_contract', 52, 101),
                                     ('g_force_servo_contract', 56, 0),
-                                    ('g_force_servo_contract', 60, 1),
+                                    ('g_force_servo_contract', 60, 0),
+                                    ('g_force_servo_default_config', 0, 0x3F800000),
                                     ('g_force_servo_default_config', 4, 0x3F800000),
-                                    ('g_force_servo_default_config', 28, 0x42CA0000),
+                                    ('g_force_servo_default_config', 28, 0x42C80000),
+                                    ('g_force_servo_default_config', 28, 0x44344000),
                                     ('g_force_servo_default_config', 32, 0x42CA0000),
                                     ('g_force_servo_default_config', 56, 0x42240000),
                                     ('g_force_servo_default_config', 60, 0x41A80000),
@@ -165,6 +170,10 @@ class VerifierTests(unittest.TestCase):
 
     def test_mvp1_is_not_current_candidate(self):
         old = ROOT/'output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(), 'identity/configuration')
+
+    def test_continuous2_is_not_current_candidate(self):
+        old = ROOT/'output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.elf'
         self.reject_elf(old.read_bytes(), 'identity/configuration')
 
     def test_true_hash_and_manifest_pins(self):

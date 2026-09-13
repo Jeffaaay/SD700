@@ -1,168 +1,139 @@
-# SD700 - Target250Continuous2
+# SD700 - Target250Authority1
 
-**POWERED_TEST_READY=NO. PHYSICAL_PERFORMANCE=NOT_VALIDATED. physical test NOT RUN.**
+**SHORT supervised experimental profile. FIELD_STATUS=NOT_RUN.**
+720 command units are not a validated continuous or production-safe rating.
+Target250 is sensor control units, not calibrated Newtons. Keep the physical
+supply setting at0.5 A. No serial connection, flashing or physical test was
+performed by this software work.
 
-From clean main/origin/main `c73e55ba505c4f7f43dff481c32155d0558075b8`.
-GitHub main is the source of truth; delivery is the normally pushed commit, no ZIP.
-Target250 means sensor control units, not calibrated Newtons.
+From clean main/origin/main `a4c48457b723b715bc83c0ca5f2166df3735b737`.
+GitHub main is the source of truth; normal commit/push delivery, **no ZIP**.
+The user's explicit720 experimental profile supersedes the previous candidate's
+no-higher-output restriction; it does not provide a new hardware rating.
 
-The software change is complete, but the reported no-pressure-rise performance
-issue is unresolved. No motor continuous-current/duty rating or qualified
-continuous board/motor electrical and thermal measurements were found. The
-retained PRESS/RELEASE command ceilings remain 100/100; they are not newly
-certified ratings. **Do not repeat the old 100-cap field trial as a claimed fix.**
-No higher powered default or powered-test procedure is provided. The public
-capture CLI refuses SingleStart before connecting a port while readiness is NO.
-The explicit RealBench image retains its previous output arming gate at 100;
-it is not a physically locked image. Plain `-ForceServo` builds remain LOCKED.
+[Current RealBench Release HEX](output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.hex)
 
-[Current HEX](output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.hex)
+HEX SHA256: `322537355B059AA080B5C2356452D43C1C685E30889640D87E01CF5213037A48`
 
-HEX SHA256: `2B99E36C3694BDC8A9E9A0145161CBA537432607AA3A2268176CD62A18D0CA83`
+[Matching ELF](output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.elf)
 
-[Matching ELF](output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.elf)
+ELF SHA256: `DB6D3364EF0BFC1DF05A6F0E1065EF052684E0DBE63EE8B117C54015614D1E06`
 
-ELF SHA256: `CE5CF188C03AA229288B57DF766615BF5819B0FD9E9494BDB9BF3967C62E35AA`
+## Selected profile
 
-## What changed
+The existing trajectory -> PID -> continuous monitored executor -> active HOLD
+implementation is unchanged. Only the explicit first supervised profile changes
+from Kp1/PRESS100 to Kp10/PRESS720. Ki/Kd remain0; RELEASE stays100. No old pulse
+control, additional controller, gain schedule or START/safety architecture change.
 
-The same trajectory -> PID -> continuous executor -> active HOLD path remains.
-START still latches once, stays OFF until the next acceptable fresh sample, and
-cannot restart after STOP/fault. No pulse controller, gain schedule, feedforward,
-minimum positive command, new machine state, or communications framework was added.
-
-`Application/force_servo_output_profile.h` defines independent PRESS and RELEASE
-profile ceilings and operating defaults. Controller bounds, RAM parameter commit,
-FC03 readback, executor planning/update, capture validation, embedded contract and
-strict verifier agree. Operating limits must be positive and within their own
-ceiling; invalid writes reject the whole group. The old duplicate 100 checks and
-separate 5000/-800 fallback in the explicit profile no longer silently restrict a
-future reviewed profile. Production builds currently reject overrides above100.
-Host-only 600/200 ceiling fixtures prove scaling through actual production code;
-these arbitrary numbers are not operating recommendations or hardware approval.
-
-For the explicit profile, output magnitude increases at the existing1000 command
-units/s. Reducing PRESS or RELEASE magnitude follows the lower demand immediately
-on the next accepted control update. A sign change starts the opposite ramp from
-zero and still passes through executor OFF/deadtime. This avoids retaining a large
-PRESS command solely because a symmetric falling slew limiter was slow. STOP,
-overpressure, feedback loss and hardware faults bypass normal ramping and force OFF.
-Default locked-profile slew behavior is unchanged. PI actual-committed-command
-anti-windup, sub-unit quantization behavior and BUILD/HOLD state continuity remain.
-
-| Setting | Delivered value |
+| Setting | Current value |
 | --- | --- |
-| PRESS profile ceiling / operating cap | 100 /100 command units (nominal mV) |
-| RELEASE profile ceiling / operating cap | 100 /100, separately retained |
-| Kp / Ki / Kd | 1 /0 /0 |
-| e_taper = Upress/Kp | 100 sensor units; proportional taper starts below error100 |
-| Reference rate / acceleration | 200 units/s /1000 units/s^2, unchanged |
-| Output slew | 1000 command units/s increasing magnitude; immediate reduction |
-| Command ramp 0 to cap | about0.100 s if demand is already large; sample-grid dependent |
-| New-sample age / active feedback gap / lease | 20 /125 /130 ms, unchanged |
-| Pending OFF wait / minimum control / reversal OFF | 250 /5 /at least2 ms, unchanged |
-| Build / session / saturation / tracking timeout | 30000 /45000 /5000 /10000 ms, unchanged defaults |
-| Target maximum / raw abort / contact | 275 /325 /20, unchanged |
+| Target / Kp / Ki / Kd |250 sensor units /10 /0 /0 |
+| PRESS operating cap / profile ceiling |720 /720 command units |
+| RELEASE operating cap / profile ceiling |100 /100 command units |
+| Reference rate / acceleration |200 sensor units/s /1000 sensor units/s^2 |
+| Output slew |1000 command units/s increasing magnitude; immediate magnitude reduction, unchanged |
+| Nominal command ramp0 ->720 |0.720 s with sufficient demand; not mechanical acceleration |
+| New sample age / active feedback gap / lease |20 /125 /130 ms, unchanged |
+| Pending START OFF wait / control minimum / direction OFF |250 /5 /at least2 ms, unchanged |
+| Saturation / tracking / build / session timeout |5000 /10000 /30000 /45000 ms, unchanged |
+| Target maximum / raw abort / contact threshold |275 /325 /20, unchanged |
 
-With no justified higher ceiling, Kp1 is retained together with Upress100 rather
-than presented as new validated tuning. At error228 the raw command228 still
-clips to100. This e_taper leaves a broad100-unit proportional region; it is only
-candidate arithmetic, not measured braking distance. Reference movement, sample
-delay, inertia, command slew and hardware dead zones remain relevant. P-only may
-have steady-state error under load; Ki remains available for later measured tuning,
-but is zero in this candidate and is not used to defeat an output cap.
+At settled reference250, u_raw=10*(250-pressure), clamped to[-100,+720].
+The taper threshold is720/10=72 sensor units. At pressure178 output equals720;
+above178 it decreases proportionally, reaching0 at250. This arithmetic is not a
+physically validated braking distance or a promise of Target250 attainment.
+P-only may retain steady-state error under load. BUILD and HOLD use the same
+controller; existing PI/anti-windup remains available, with initial Ki0.
 
-## Calculated command sweep (not field measurements)
-
-Reference250, Ki=Kd=0, settled slew/interlock. Positive=PRESS, negative=RELEASE.
-
-| Pressure | Error / raw P | Submitted command |
+| Pressure | Calculated raw P | Calculated settled command |
 | --- | --- | --- |
-| 22 | 228 | 100 |
-| 100 | 150 | 100 |
-| 180 | 70 | 70 |
-| 220 | 30 | 30 |
-| 240 | 10 | 10 |
-| 245 | 5 | 5 |
-| 249 | 1 | 1 |
-| 250 | 0 | 0 |
-| 260 | -10 | -10 |
+|22 |2280 |720 |
+|100 |1500 |720 |
+|178 |720 |720 |
+|200 |500 |500 |
+|220 |300 |300 |
+|240 |100 |100 |
+|245 |50 |50 |
+|249 |10 |10 |
+|250 |0 |0 |
+|260 |-100 |-100 |
+|270 |-200 |-100 |
 
-## Electrical evidence and limits
+Values above are software calculations, not field measurements. Existing PWM
+mapping ceil(command*4799/24000) gives CCR144 at720. ARR4799 and20 kHz mean
+nominal duty144/4800=3%, nominal input high time1.5 us. Neither720 nor planned
+CCR144 is an externally measured voltage/current/waveform. PWM frequency, polarity,
+SD enable sequence and register/output guard are unchanged. The0.5 A supply setting
+is not a motor-winding current measurement or a continuous thermal qualification.
 
-The unchanged production mapping is `ceil(command * 4799 / 24000)` for nonzero
-commands. Zero uses the executor OFF path. At100, compare20 with ARR4799 and96 MHz
-timer clock means20 kHz carrier, nominal duty20/4800=0.416667%, nominal input high
-time20/96 MHz=0.208333 microseconds. PRESS selects TIM3_CH3/PB0; RELEASE selects
-TIM2_CH3/PB10; SD1/SD2 enable only after the existing safe apply sequence.
-These are source-derived planned values. CSV `tim2/tim3` are planned counts, not
-raw register telemetry or measured waveforms. The hardware guard checks actual
-CCR, timer and enable registers; host tests use register shims. No external voltage,
-current, gate waveform, motion or temperature measurement was made in this work.
+`Application/force_servo_output_profile.h` supplies parameter defaults and ceilings
+for controller validation, protocol writes/readback and executor admission/update.
+There is no downstream100 PRESS clamp.721 PRESS and101 RELEASE are rejected.
+The operating bounds remain writable within the profile, but SingleStart requires
+the exact initial parameter group, including720/100, Kp10, Ki/Kd0 and unchanged
+safety timings. Plain `-ForceServo` retains its locked gate, Kp1/caps100 defaults
+and prior reference/timing profile. Non-host overrides of the selected ceiling
+still fail compilation. Host-only900/200 test fixtures are not field settings.
 
-The schematic labels U6/U7 IR2104STRPBF, Q4-Q7 DON30N10T, 22-ohm gate resistors,
-12 V gate supply, bootstrap parts and U8 INA240A1DR/R35 1 milliohm. This is design
-evidence, not confirmation of the fitted motor, board thermal path or current
-calibration. IR2104 turn-on propagation delay is not a guaranteed minimum input
-pulse width;0.208 us cannot be called definitely suppressed without measurement.
-No switching-frequency/deadtime or pulse compensation changes were made.
-See the [official IR2104 datasheet](https://www.infineon.com/assets/row/public/documents/24/49/infineon-ir2104-ds-en.pdf).
+STOP priority, stale/invalid feedback shutdown, receive-anchored TIM5 lease,
+overpressure, direction break-before-make, finite deadlines, hardware guard,
+fault latch and no automatic restart remain intact. The five-second saturation
+fault is retained, not extended. It counts continuous amplitude clipping under
+the existing semantics and does not prove mechanical stall. The PC's five-second
+observation limit is separate and is not a new MCU five-second session deadline.
 
-**Keep the physical supply setting at0.5 A.** Supply current is not motor winding
-current in a PWM stage, and current limiting alone cannot qualify a duty cycle.
-[maxon electrical explanation](https://support.maxongroup.com/hc/en-us/articles/360006322414-Power-conversion-in-PWM-power-stages).
+## One short field test
 
-Exact missing evidence: the fitted motor model with rated continuous winding
-current, permissible duty/thermal limits and winding characteristics; confirmation
-of fitted power-stage parts/cooling; and measured gate/terminal waveform plus
-motor-side current and temperature under the proposed bounded continuous command
-and fixed load, sufficient for a responsible hardware review to approve a number.
-No exact revision/raw evidence identifying the user's previously successful250
-build was located. Older pulse amplitudes do not supply that missing rating.
-See [field evidence and output trace](Docs/Target250Continuous2/EVIDENCE_AND_PATH.md).
-
-## Capture and verification
-
-Reuse `tools/capture_force_servo.ps1`; no extra observe-only field round is required.
-The existing no-hardware tests exercise the complete Observe and simulated
-SingleStart transport flows. Actual SingleStart remains unavailable while this
-candidate is not powered-test ready. No serial port, flashing or motor operation
-was performed. No500/3500 test, current increase or automatic cap escalation.
-
-SchemaF103/build46530104 adds `post_limit_output` and two MCU fields:
-`session_peak_raw`, `session_peak_received_ms`. The peak is initialized at session
-start and updated from valid ordered fresh samples, including accepted samples
-between control updates and the raw-abort sample. STOP/fault preserve it; another
-explicit session resets it. It is a sensor-sampled MCU maximum, not a guaranteed
-analog-force peak. Pressure/reference/error, P/I, raw/post-limit/requested/committed
-commands, limiter bits, planned PWM counts, freshness, state/fault and stop reason
-remain in CSV/metadata/report. Parameters still use48 FC03 words; frozen diagnostics
-use128 words in the unchanged maximum11-word chunks.
-
-The report labels the PC sampled peak separately, records pressure rise, time to
-target/tolerance, overshoot, reported saturation clock and first observed exit from
-amplitude clipping, HOLD and software STOP readback. It never infers physical
-motion from commands. Physical motion and physical stop remain operator-reported
-in field_notes (otherwise NOT_REPORTED). Polling gaps cannot establish the exact
-instant of saturation exit or continuous HOLD quality. Saturation is a software
-condition, not proof of mechanical stall. The original five-second clipping fault
-is retained and the field failure is reproduced in host tests.
+Use the new verified HEX and the established supervised setup; confirm IDLE/OFF,
+fixed workpiece and initial light contact. Keep0.5 A unchanged. On COM5 run the
+capture once below: the script sends the only START, Target250, observes at most
+5 seconds and issues STOP/readback. STOP immediately for abnormal motion, noise
+or current behavior (S/Escape in the interactive console; use the physical E-stop
+for an immediate emergency). Confirm physical stop. Return CSV/report/metadata;
+no manual extra START, automatic retry, current increase or repeated trial.
 
 ```powershell
 git switch main
 git pull --ff-only
 git rev-parse HEAD
 python tools/verify_force_servo_firmware.py
+$gap = Read-Host 'Actual initial gap/contact setup'
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+.\tools\capture_force_servo.ps1 -Mode SingleStart -Port COM5 -Target 250 -MaximumSeconds 5 `
+  -ConfirmSupervisedMotion `
+  -ConfirmedFirmwareSha256 322537355B059AA080B5C2356452D43C1C685E30889640D87E01CF5213037A48 `
+  -CurrentLimitSetting '0.5 A; manually confirmed unchanged' -InitialGap $gap `
+  -FieldNotes 'One short supervised experiment; record motion/noise/current behavior and physical stop' `
+  -OutputCsv "captures/target250-authority1-$stamp.csv"
 ```
 
-The verifier is pure Python standard library, including strict hashes, identity,
-configuration/readiness/arming, ELF bounds and addressed HEX checksum/load bytes.
-`--objcopy-cross-check` is an optional development cross-check, not a field dependency.
-This is repository-file verification, not hashing MCU flash.
+Run in a normal interactive PowerShell console. Do not extend observation to
+wait for HOLD. Any brief HOLD must fit inside the same five-second window.
+The script's error/timeout path preserves available data and sends STOP without
+retrying START. Software StopVerified does not substitute for physical shutdown.
+Do not test500 or3500 N or use remote/unattended motor operation.
 
-[Actual software test record](Docs/Target250Continuous2/TEST_RESULTS.md),
-[defaults](Docs/Target250Continuous2/default_parameters.json),
-[schema and parameter bounds](Docs/Target250Continuous2/protocol_schema.json),
-[current manifest](Firmware/ForceServo1.SHA256SUMS.txt).
-Old firmware/evidence remains intact and historical. **Hardware STOP, Target250,
-active HOLD, electrical/thermal duty and rotating-load performance remain unvalidated.**
+## Identity, capture and software checks
+
+SchemaF103 is unchanged; build ID is46530105. Frozen diagnostics remain128 words,
+active parameters48 words, read in the existing11-word chunks. Telemetry retains
+pressure/reference/error, P/I, raw/post-limit/requested/committed output, limiter
+flags, planned PWM, freshness/lease, fault, MCU session peak and stop reason.
+The report separates PC sampled peaks from MCU sampled maxima and never infers
+motion from a nonzero command. Metadata labels the experiment as unvalidated.
+
+Strict verification pins the actual new HEX/ELF hashes,24 defaults and16-word
+contract, including720/100 limits, experimental readiness1 and the existing
+arming gate. Readiness1 means only this user-authorized short experiment, not
+continuous/production qualification. Python's standard library suffices offline;
+objcopy remains an optional developer cross-check. Hash attestation does not read
+MCU flash. All earlier firmware and evidence remain historical and byte-preserved.
+
+[Actual test commands/results](Docs/Target250Authority1/TEST_RESULTS.md),
+[defaults](Docs/Target250Authority1/default_parameters.json),
+[schema/bounds](Docs/Target250Authority1/protocol_schema.json),
+[current firmware manifest](Firmware/ForceServo1.SHA256SUMS.txt).
+
+**physical test NOT RUN.** Hardware STOP, Target250/HOLD response, electrical output,
+thermal duty and rotating-load performance remain physically unvalidated.

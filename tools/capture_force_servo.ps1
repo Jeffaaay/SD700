@@ -8,7 +8,7 @@ param(
     [string]$OutputCsv,
     [string]$ParameterFile,
     [ValidateRange(1,275)][int]$Target=250,
-    [ValidateRange(1,60)][int]$MaximumSeconds=60,
+    [ValidateRange(1,60)][int]$MaximumSeconds=5,
     [switch]$ConfirmMotorPowerDisconnected,
     [switch]$ConfirmSupervisedMotion,
     [string]$CurrentLimitSetting,
@@ -96,7 +96,7 @@ function Invoke-ForceCapture {
         [ValidateSet('Observe','Parameters','SingleStart')][string]$Mode,
         [Parameter(Mandatory=$true)][string]$OutputCsv,
         [Parameter(Mandatory=$true)][string]$ActualHash,
-        [ValidateRange(1,60)][int]$MaximumSeconds=60,
+        [ValidateRange(1,60)][int]$MaximumSeconds=5,
         [ValidateRange(1,275)][int]$Target=250,
         $Desired,
         [string]$CurrentLimitSetting,
@@ -104,6 +104,7 @@ function Invoke-ForceCapture {
         [string]$FieldNotes,
         [string]$ConfirmedFirmwareSha256
     )
+    if ($Mode -eq 'SingleStart' -and $MaximumSeconds -gt 5) { throw 'Target250Authority1 requires MaximumSeconds <= 5; no START sent' }
     $csvPath=[IO.Path]::GetFullPath($OutputCsv)
     $reportPath=[IO.Path]::ChangeExtension($csvPath,'.report.txt')
     $metaPath=[IO.Path]::ChangeExtension($csvPath,'.metadata.json')
@@ -141,8 +142,12 @@ function Invoke-ForceCapture {
         }
         if ($Mode -eq 'SingleStart') {
             if ($info[1] -ne 0 -or $first.locked -ne 0) { throw 'PHYSICAL_OUTPUT_LOCKED: no START sent; hardware qualification pending' }
-            if ($Target -ne 250) { throw 'Target250Continuous2 requires Target=250; no START sent' }
-            if ($activeConfig.ki -ne 0 -or $activeConfig.kd -ne 0) { throw 'Initial candidate requires Ki=0 and Kd=0; no START sent' }
+            if ($Target -ne 250) { throw 'Target250Authority1 requires Target=250; no START sent' }
+            foreach ($p in $schema.parameters) {
+                if ([single]$activeConfig.($p.name) -ne [single]$p.default) {
+                    throw "Target250Authority1 requires exact initial profile: $($p.name); no START sent"
+                }
+            }
             Write-ForceWord $exchange 0 $Target
             $ready=Read-ForceSnapshot $exchange 'TARGET_READBACK'
             [void]$rows.Add($ready)
@@ -181,7 +186,7 @@ function Invoke-ForceCapture {
     @{mode=$Mode;start_attempts=$startAttempts;start_accepted=$startAccepted;stop_reason=$stopReason;error=$errorText;config=$activeConfig;
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
-        commissioning='Target250Continuous2';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        commissioning='Target250Authority1';qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
         pwm_counts='tim2/tim3 are PLANNED; no external electrical measurement';
         maximum_observation_seconds=$MaximumSeconds;capture_wall_ms=$watch.ElapsedMilliseconds;
         bus='115200 8N1; frozen snapshot in <=11-register chunks; polling misses are reported'} |
@@ -250,6 +255,9 @@ if ($SelfTest) {
     return
 }
 if ($LibraryOnly) { return }
+if ($Mode -eq 'SingleStart' -and $MaximumSeconds -gt 5) {
+    throw 'Target250Authority1 requires MaximumSeconds <= 5; no serial connection or START'
+}
 if ($Mode -eq 'SingleStart' -and -not $schema.powered_test_ready) {
     throw 'POWERED_TEST_READY=NO: higher continuous motor/board rating evidence missing; no serial connection or START'
 }
@@ -258,7 +266,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'

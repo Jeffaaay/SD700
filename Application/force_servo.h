@@ -6,7 +6,7 @@
 #include "Application/force_servo_output_profile.h"
 
 #define FORCE_SERVO_SCHEMA 0xF103U
-#define FORCE_SERVO_BUILD_ID 0x46530104U
+#define FORCE_SERVO_BUILD_ID 0x46530105U
 #define FORCE_SERVO_MAX_TARGET 275U
 #define FORCE_SERVO_RAW_ABORT 325U
 #define FORCE_SERVO_CONTACT 20U

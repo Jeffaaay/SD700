@@ -72,20 +72,21 @@ static void TestTarget250BuildHold(void)
 {
  fixture(); start250(23);
  for (int i=0;i<20;i++) sample(23,101);
- assert(machine.servo.diagnostic.reference==250 && machine.servo.diagnostic.current_committed==100);
+ assert(machine.servo.diagnostic.reference==250 && machine.servo.diagnostic.current_committed==720);
  assert(machine.servo.diagnostic.limits&FS_LIMIT_AMPLITUDE);
- sample(210,101); assert(machine.servo.diagnostic.current_committed==40);
+ sample(210,101); assert(machine.servo.diagnostic.current_committed==400);
  sample(246,101); assert(machine.state==FORCE_HOLD && machine.servo.active);
- assert(machine.servo.diagnostic.current_committed==4 && MotorStopTimer_IsArmed());
- sample(247,101); assert(machine.state==FORCE_HOLD && machine.servo.diagnostic.current_committed==3);
+ assert(machine.servo.diagnostic.current_committed==40 && MotorStopTimer_IsArmed());
+ sample(247,101); assert(machine.state==FORCE_HOLD && machine.servo.diagnostic.current_committed==30);
  sample(260,101); off(); assert(machine.servo.diagnostic.limits&FS_LIMIT_INTERLOCK);
- sample(260,101); assert(machine.servo.diagnostic.current_committed==-10 && TIM2->CCR3>0);
+ sample(260,101); assert(machine.servo.diagnostic.current_committed==-100 && TIM2->CCR3>0);
  assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
  sample(247,101); off(); assert(machine.state==IDLE);
 }
 static void TestTarget250SmallIntegral(void)
 {
- fixture(); machine.servo.config.ki=.2f; start250(249);
+ fixture(); machine.servo.config.kp=1; /* Preserve the small-I quantization regression. */
+ machine.servo.config.ki=.2f; start250(249);
  for (int i=0;i<60;i++) sample(249,101);
  assert(machine.state==FORCE_HOLD && machine.servo.active);
  assert(machine.servo.diagnostic.p==1 && machine.servo.diagnostic.i>1);
@@ -116,7 +117,8 @@ static void TestTarget250SyntheticPI(void)
 {
  float final[2];
  for (int integral=0;integral<2;integral++) {
-     fixture(); machine.servo.config.ki=integral ? .8f : 0; start250(23);
+     fixture(); machine.servo.config.kp=1; machine.servo.config.press_cap=100; /* Historical synthetic comparison. */
+     machine.servo.config.ki=integral ? .8f : 0; start250(23);
      float pressure=23; unsigned held=0;
      for (int i=0;i<1000;i++) {
          /* Small first-order force plant with load: equilibrium=20+5*u.

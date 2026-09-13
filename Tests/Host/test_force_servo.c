@@ -422,7 +422,7 @@ static void TestCommissioningEnable(void)
  assert(actual==40 && TIM3->CCR3>0 && TIM2->CCR3==0 && MotorStopTimer_IsArmed());
  assert(MotorExecutor_GuardOutput()==MOTOR_RESULT_OK);
  ForceServoConfig c=g_force_servo_default_config;
- assert(c.press_cap==100 && c.release_cap==100);
+ assert(c.kp==10 && c.press_cap==720 && c.release_cap==100);
  c.press_cap=FS_PRESS_PROFILE_CEILING+1; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.release_cap=FS_RELEASE_PROFILE_CEILING+1; assert(!ForceServo_ConfigValid(&c));
  c=g_force_servo_default_config; c.lease_ms=131; assert(!ForceServo_ConfigValid(&c));
@@ -503,6 +503,7 @@ static void TestCommissioningReverseOff(void)
 #if SD700_FORCE_SERVO_COMMISSIONING
 #include "Tests/Host/test_target250_cases.h"
 #include "Tests/Host/test_continuous2_cases.h"
+#include "Tests/Host/test_authority1_cases.h"
 #endif
 int main(void)
 {
@@ -521,6 +522,7 @@ int main(void)
  RUN(TestTarget250SyntheticPI)
  RUN(TestContinuous2Range) RUN(TestContinuous2Sweep) RUN(TestContinuous2Ramp)
  RUN(TestContinuous2Pwm) RUN(TestContinuous2Peak) RUN(TestContinuous2OldSaturation)
+ RUN(TestAuthority1Sweep) RUN(TestAuthority1Ramp) RUN(TestAuthority1Safety)
 #endif
  printf("FORCE_SERVO_TEST_GROUPS=%u PASS; physical test NOT RUN\n",count);
  return 0;

@@ -21,12 +21,13 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current software candidate is Target250Continuous2: POWERED_TEST_READY=NO.
-No higher continuous motor/board rating is available. PRESS/RELEASE stay at the
-retained 100 command ceilings; this does not solve the reported lack of pressure
-rise or certify those ceilings. Keep the physical 0.5 A supply setting unchanged.
-Default ForceServo remains compiled LOCKED. The existing explicit output flag is
-reused by -Target250Continuous2; no runtime unlock. Do not arm higher defaults
-from host-only range fixtures. Keep STOP, lease/freshness, raw overpressure,
-direction interlock, hardware guard and no restart. Current README is authoritative;
-no powered field procedure until the missing continuous rating evidence is resolved.
+The current candidate is Target250Authority1, explicitly requested by the user
+as one SHORT supervised experiment: Target250, Kp10/Ki0/Kd0, PRESS720/RELEASE100.
+These are command units, not measured motor voltage or a production/continuous
+rating. Keep the physical 0.5 A supply setting and PC observation <=5 seconds.
+The current user instruction supersedes Continuous2's prior no-powered-profile
+restriction. Default ForceServo remains compiled LOCKED; the existing explicit
+output flag is reused by -Target250Authority1, without runtime unlock. Preserve
+STOP, freshness/lease, raw overpressure, direction interlock, hardware guard,
+fault latch, finite deadlines and no restart. No automatic cap increase or
+repeat START. Software PASS is not physical validation; use current README.

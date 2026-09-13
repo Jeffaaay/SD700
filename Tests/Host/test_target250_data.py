@@ -31,7 +31,8 @@ class Target250DataTests(unittest.TestCase):
 
     def test_direction_limits_from_authoritative_profile(self):
         s=schema(); c={p['name']:p['default'] for p in s['parameters']}
-        self.assertFalse(s['powered_test_ready'])
+        self.assertTrue(s['powered_test_ready'])
+        self.assertEqual((c['kp'],c['press_cap'],c['release_cap']),(10,720,100))
         self.assertEqual((c['ki'],c['kd']),(0,0))
         for name in ('press','release'):
             bound=s[name+'_profile_ceiling']; good=dict(c,**{name+'_cap':bound})

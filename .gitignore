@@ -113,3 +113,11 @@ desktop.ini
 /output/Target250Continuous2/firmware/*
 !/output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.hex
 !/output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.elf
+
+# Target250Authority1 short supervised experimental current pair.
+!/output/Target250Authority1/
+/output/Target250Authority1/*
+!/output/Target250Authority1/firmware/
+/output/Target250Authority1/firmware/*
+!/output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.hex
+!/output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.elf

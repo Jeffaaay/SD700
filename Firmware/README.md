@@ -1,31 +1,29 @@
-# Current firmware: Target250Continuous2
+# Current firmware: Target250Authority1
 
-**POWERED_TEST_READY=NO; physical test NOT RUN.**
-This is a software configuration/scaling and reduction-path repair. The explicit
-RealBench image retains the previous100/100 output ceilings and arming gate;
-it is not a locked image. Higher continuous output is not justified or armed.
-Default ForceServo builds remain LOCKED. Do not repeat the unchanged100-cap
-powered trial as a solved performance issue. See [current README](../README.md).
+SHORT supervised experiment only; **FIELD_STATUS=NOT_RUN**. Not a production-safe
+or continuous rated profile. See [current README](../README.md) for the single
+COM5/Target250/unchanged0.5 A session, maximum5 seconds, one scripted START.
 
-[HEX](../output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.hex)
+[HEX](../output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.hex)
 
-SHA256: `2B99E36C3694BDC8A9E9A0145161CBA537432607AA3A2268176CD62A18D0CA83`
+SHA256: `322537355B059AA080B5C2356452D43C1C685E30889640D87E01CF5213037A48`
 
-[ELF](../output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.elf)
+[ELF](../output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.elf)
 
-SHA256: `CE5CF188C03AA229288B57DF766615BF5819B0FD9E9494BDB9BF3967C62E35AA`
+SHA256: `DB6D3364EF0BFC1DF05A6F0E1065EF052684E0DBE63EE8B117C54015614D1E06`
 
-`python tools/verify_force_servo_firmware.py` checks the exact pair against
-[ForceServo1.SHA256SUMS.txt](ForceServo1.SHA256SUMS.txt), strict ELF/HEX load bytes,
-identityF103/build46530104,24 exact defaults,16-word contract including direction
-ceilings100/100, operating caps100/100, readiness0 and immediate-reduction policy1.
-Target250, max275/raw325, wait250, age20/gap125/lease130, build30000/session45000
-and saturation5000 remain.30312 addressed load bytes match. Python standard library
-suffices offline; objcopy is optional developer cross-check only. No checks skipped.
+Verify with `python tools/verify_force_servo_firmware.py`. Pure Python checks
+exact hashes, ELF/HEX structure and30432 addressed load bytes, F103/build46530105,
+24 exact defaults and16 contract words. Kp10/Ki0/Kd0, PRESS720/RELEASE100, selected
+ceilings720/100 and experimental-readiness1 are required, with the existing output
+arming gate. Reference200/accel1000/slew1000, age20/gap125/lease130, max275/raw325,
+build30000/session45000/saturation5000 are retained. Default ForceServo stays LOCKED.
+No verifier check was skipped. Optional objcopy is developer-only.
 
-The previous [Target250MVP1 manifest](Target250MVP1.SHA256SUMS.txt),
+The [current manifest](ForceServo1.SHA256SUMS.txt) names this pair. The previous
+[Continuous2 manifest](Target250Continuous2.SHA256SUMS.txt),
+[MVP1 manifest](Target250MVP1.SHA256SUMS.txt),
 [CommissioningUnlock1 manifest](CommissioningUnlock1.SHA256SUMS.txt),
 [locked manifest](ForceServo1_Locked.SHA256SUMS.txt) and [AutoTarget manifest](SHA256SUMS.txt)
-and their firmware remain unchanged. Historical instructions do not authorize a
-current powered trial. GitHub main is source of truth; no ZIP. Physical STOP,
-HOLD/Target250, motor current, thermal duty and rotating load are NOT_VALIDATED.
+retain their original bytes. GitHub main is source of truth; no ZIP.
+Physical STOP, force response, current, temperature and continuous rating are not validated.

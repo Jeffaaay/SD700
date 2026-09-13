@@ -9,8 +9,16 @@ def schema():
     # Current field profile only. The locked C profile retains its old defaults.
     profile=header.split('#if SD700_FORCE_SERVO_COMMISSIONING',1)[1].split('#else',1)[0]
     output_profile=(ROOT/'Application/force_servo_output_profile.h').read_text(encoding='utf-8')
-    constants=dict(re.findall(r'#define (FS_\w+) ([0-9.]+f?)',output_profile+'\n'+profile))
-    def number(value): return float(constants.get(value,value).rstrip('f'))
+    before, rest=output_profile.split('#if SD700_FORCE_SERVO_COMMISSIONING',1)
+    current, rest=rest.split('#else',1)
+    _, after=rest.split('#endif',1)
+    constants=dict(re.findall(r'#define (FS_\w+) ([\w.]+)',before+current+after+'\n'+profile))
+    def number(value):
+        seen=set()
+        while value in constants:
+            if value in seen: raise ValueError('Cyclic profile constant: '+value)
+            seen.add(value); value=constants[value]
+        return float(value.rstrip('fU'))
     params=[]
     for n,d,lo,hi in re.findall(r'X\((\w+),([^,]+),([^,]+),([^\)]+)\)',header):
         params.append(dict(name=n,default=number(d),minimum=number(lo),maximum=number(hi)))

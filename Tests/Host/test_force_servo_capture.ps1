@@ -47,7 +47,8 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     $caseDir=Join-Path $testOutput $Name
     Check (-not (Test-Path -LiteralPath $caseDir)) "Do not overwrite existing test evidence: $caseDir"
     New-Item -ItemType Directory -Path $caseDir -Force | Out-Null
-    $defaults=Get-Content -Raw "$root/Docs/Target250Continuous2/default_parameters.json" | ConvertFrom-Json
+    $defaults=Get-Content -Raw "$root/Docs/Target250Authority1/default_parameters.json" | ConvertFrom-Json
+    if ($Failure -eq 'WrongInitialProfile') { $defaults.press_cap=100 }
     $configWords=@()
     foreach ($parameter in $schema.parameters) {
         [uint32]$bits=[BitConverter]::ToUInt32([BitConverter]::GetBytes([single]$defaults.($parameter.name)),0)
@@ -132,11 +133,12 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     if ($Failure -like '*Timeout') { Check ($caught -like 'Partial Modbus response:*') "Expected bounded timeout, got: $caught" }
     elseif ($CaptureMode -eq 'SingleStart' -and -not $Commissioning) { Check ($caught -like 'PHYSICAL_OUTPUT_LOCKED*') "Lock refusal missing: $caught" }
     elseif ($Commissioning -and $Target -ne 250) {
-        Check ($caught -like 'Target250Continuous2 requires*') "Commissioning admission refusal missing: $caught"
+        Check ($caught -like 'Target250Authority1 requires*') "Commissioning admission refusal missing: $caught"
         Check (@($sim.Requests | Where-Object {$_.Function -eq 6 -and $_.Address -eq 0}).Count -eq 0) 'Refused session wrote target'
     }
+    elseif ($Failure -eq 'WrongInitialProfile') { Check ($caught -like 'Target250Authority1 requires exact initial profile*') "Initial profile refusal missing: $caught" }
     else { Check ($caught -eq '') "Observe failed: $caught" }
-    $expectedStarts=[int]($Commissioning -and $CaptureMode -eq 'SingleStart' -and $Target -eq 250)
+    $expectedStarts=[int]($Commissioning -and $CaptureMode -eq 'SingleStart' -and $Target -eq 250 -and $Failure -ne 'WrongInitialProfile')
     Check ($sim.Starts -eq $expectedStarts -and $sim.Stops -eq 1) 'Expected START count and exactly one STOP required'
     Check ($sim.Framed -eq $sim.Requests.Count) 'A response bypassed production length parsing'
     $metadata=Get-Content -Raw ([IO.Path]::ChangeExtension($csv,'.metadata.json')) | ConvertFrom-Json
@@ -177,14 +179,14 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
 }
 # Public CLI must refuse before any SerialPort construction, even with a named port.
 $savedErrorAction=$ErrorActionPreference; $ErrorActionPreference='Continue'
-$blocked=& powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/../../tools/capture_force_servo.ps1" -Mode SingleStart -Port NEVER_OPEN_THIS_PORT 2>&1
+$blocked=& powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/../../tools/capture_force_servo.ps1" -Mode SingleStart -Port NEVER_OPEN_THIS_PORT -MaximumSeconds 6 2>&1
 $blockedExit=$LASTEXITCODE; $ErrorActionPreference=$savedErrorAction
-Check ($blockedExit -ne 0 -and "$blocked" -like '*POWERED_TEST_READY=NO*') 'Not-ready CLI must fail before serial connection'
+Check ($blockedExit -ne 0 -and "$blocked" -like '*MaximumSeconds <= 5*') 'Overlong experimental session must fail before serial connection'
 $script:caseCount++
 $good=& python "$PSScriptRoot/../../tools/force_servo_data.py" --defaults | ConvertFrom-Json
 Assert-ForceConfig $good
 foreach ($name in @('press_cap','release_cap')) {
-    $original=$good.$name; $good.$name=101; $rejected=$false
+    $original=$good.$name; $bound=($schema.parameters | Where-Object name -eq $name).maximum; $good.$name=$bound+1; $rejected=$false
     try { Assert-ForceConfig $good } catch { $rejected=$true }
     Check $rejected "Above-profile $name accepted by capture"
     $good.$name=$original
@@ -195,6 +197,7 @@ Invoke-ObserveCase ConfigTimeout ConfigTimeout
 Invoke-ObserveCase DiagnosticTimeout DiagnosticTimeout
 Invoke-ObserveCase DeviceFault DeviceFault
 Invoke-ObserveCase LockedSingleStart '' SingleStart
+Invoke-ObserveCase Authority1RejectOldCap WrongInitialProfile SingleStart $true
 Invoke-ObserveCase CommissioningSingleStart '' SingleStart $true
 Invoke-ObserveCase CommissioningStartEchoTimeout StartEchoTimeout SingleStart $true
 Invoke-ObserveCase CommissioningRunningFault RunningFault SingleStart $true
