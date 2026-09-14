@@ -23,11 +23,20 @@ uint32_t ForceServo_ProfileDigest(const ForceServoProfile *p)
 #undef FS_PROFILE_HASH
  return h;
 }
-/* Exact compiled experimental envelope only; this does not assert N qualification. */
-bool ForceServo_IsBreakawayProfile(const ForceServoProfile *p)
+/* Compiled, explicitly disabled candidates. No guessed exposure/cooling limits. */
+const ForceServoProfile g_force_servo_candidates[FORCE_SERVO_CANDIDATE_COUNT]={
+#define FS_CANDIDATE(cid,cmd) { .id=cid,.unit=0,.raw_trip=325,.scale=1, \
+ .operating_max=275,.force_trip=325,.contact=20,.continuous_press=2400,.release=100, \
+ .peak_press=cmd,.progress_window_ms=500,.progress_units=2,.no_response_ms=5000 },
+ FORCE_SERVO_CANDIDATES(FS_CANDIDATE)
+#undef FS_CANDIDATE
+};
+const ForceServoProfile *ForceServo_FindProfile(uint16_t id)
 {
- return SD700_FORCE_SERVO_COMMISSIONING && FS_PEAK_PRESS==6000 && p &&
-     memcmp(p,&g_force_servo_profile,sizeof(*p))==0;
+ if (id==(uint16_t)g_force_servo_profile.id) return &g_force_servo_profile;
+ for (unsigned i=0;i<FORCE_SERVO_CANDIDATE_COUNT;i++)
+     if (id==(uint16_t)g_force_servo_candidates[i].id) return &g_force_servo_candidates[i];
+ return NULL;
 }
 bool ForceServo_ProfileValid(const ForceServoProfile *p)
 {
@@ -42,10 +51,25 @@ bool ForceServo_ProfileValid(const ForceServoProfile *p)
      floorf(p->raw_min)!=p->raw_min || floorf(p->raw_trip)!=p->raw_trip ||
      p->scale<=0 || p->operating_max<=0 || p->operating_max>=p->force_trip ||
      p->force_trip>FORCE_SERVO_REPRESENTABLE || p->contact<0 || p->contact>=p->operating_max ||
-     p->continuous_press<1 || p->continuous_press>FS_CONTINUOUS_CEILING ||
+     p->continuous_press<1 || p->continuous_press>2400 ||
      p->release<1 || p->release>FS_RELEASE_PROFILE_CEILING ||
-     p->peak_press<0 || p->peak_press>6000 || p->boost_ms<0 || p->boost_total_ms<0 || p->taper_margin<0)
+     p->peak_press<0 || p->peak_press>9600 || p->boost_ms<0 || p->boost_total_ms<0 || p->taper_margin<0)
      return false;
+ if ((p->experiment_enabled!=0 && p->experiment_enabled!=1) ||
+     p->limits_source<0 || p->limits_source>2 || floorf(p->limits_source)!=p->limits_source ||
+     p->assist_rise_ms<0 || p->assist_end_ms<0 || p->off_ms<0 || p->off_ms>60000 ||
+     p->response_units<0 || p->excessive_rise_units<0) return false;
+ if (!p->experiment_enabled) {
+     return p->limits_source==0 && p->unit==0 && p->scale==1 && p->offset==0 &&
+         p->peak_press>p->continuous_press && p->energized_ms==0 && p->session_ms==0 &&
+         p->capture_ms==0 && p->build_ms==0 && p->boost_ms==0 && p->boost_total_ms==0 &&
+         p->assist_rise_ms==0 && p->assist_end_ms==0 && p->off_ms==0;
+ }
+ if (p->limits_source==0) return false;
+ if (p->peak_press>0 && (p->boost_ms<4 || p->assist_rise_ms<1 ||
+     p->assist_rise_ms>=p->assist_end_ms || p->assist_end_ms>p->boost_ms-2 ||
+     p->off_ms<1 || p->taper_margin<=0 || p->response_units<=0 ||
+     p->excessive_rise_units<=p->response_units)) return false;
  if (p->energized_ms<1 || p->energized_ms>60000 || p->session_ms<p->energized_ms ||
      p->session_ms>60000 || p->capture_ms<1 || p->capture_ms>p->energized_ms ||
      p->build_ms<1 || p->build_ms>p->energized_ms || p->progress_window_ms<1 ||
@@ -53,9 +77,10 @@ bool ForceServo_ProfileValid(const ForceServoProfile *p)
      p->no_response_ms>p->session_ms || p->boost_ms>p->energized_ms ||
      p->boost_total_ms>60000 || p->boost_ms>p->boost_total_ms) return false;
  const float times[]={p->energized_ms,p->session_ms,p->capture_ms,p->build_ms,
-     p->progress_window_ms,p->no_response_ms,p->boost_ms,p->boost_total_ms};
+     p->progress_window_ms,p->no_response_ms,p->boost_ms,p->boost_total_ms,
+     p->assist_rise_ms,p->assist_end_ms,p->off_ms};
  for (unsigned i=0;i<sizeof(times)/sizeof(times[0]);i++) if (floorf(times[i])!=times[i]) return false;
- if (p->unit==0) return p->scale==1 && p->offset==0 && (p->peak_press==0 || ForceServo_IsBreakawayProfile(p));
+ if (p->unit==0) return p->scale==1 && p->offset==0;
  /* Numeric margin must lie below BOTH the actuator/mechanical boundary and
   * calibration coverage. The missing qualification bits are reported separately. */
  return p->hardware_boundary>p->force_trip && p->hardware_boundary<=FORCE_SERVO_REPRESENTABLE &&
@@ -90,7 +115,7 @@ bool ForceServo_Measure(const ForceServoProfile *p,uint32_t raw,int32_t control,
 }
 bool ForceServo_BoostQualified(const ForceServoProfile *p)
 {
- return ForceServo_ProfileValid(p) && (ForceServo_IsBreakawayProfile(p) || (p->unit==1 && p->qualifications==15)) &&
+ return ForceServo_ProfileValid(p) && p->experiment_enabled && (p->unit==0 || p->qualifications==15) &&
      p->peak_press>p->continuous_press && p->peak_press<=FS_PRESS_PROFILE_CEILING &&
      p->boost_ms>0 && p->boost_total_ms>=p->boost_ms && p->taper_margin>0;
 }
@@ -107,6 +132,7 @@ bool ForceServo_ProfileConfigValid(const ForceServoProfile *p,const ForceServoCo
 ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const ForceServoConfig *c,
     float m,float t,float *seconds)
 {
+ if (p && !p->experiment_enabled) return FS_EXPERIMENT_LIMITS_UNREVIEWED;
  if (!seconds || !ForceServo_ProfileConfigValid(p,c) || !isfinite(m) || m<0 || m>=p->force_trip)
      return FS_PROFILE_INVALID;
  ForceServoRejection r=ForceServo_TargetAllowed(p,t,p->unit==1);
@@ -117,14 +143,15 @@ ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const Forc
      return FS_TRAJECTORY_EXCEEDS_BUDGET;
  return FS_PROFILE_OK;
 }
-const uint32_t g_force_servo_contract[16] = {
+const uint32_t g_force_servo_contract[20] = {
  FORCE_SERVO_SCHEMA, FORCE_SERVO_BUILD_ID, SD700_FORCE_SERVO_COMMISSIONING, FS_LEGACY_OPERATING_MAX,
  FS_LEGACY_RAW_TRIP, FS_EXPERIMENT_BUDGET_MS,
  FS_PRESS_PROFILE_CEILING, FS_RELEASE_PROFILE_CEILING,
  FORCE_SERVO_DEFAULT_TARGET, FORCE_SERVO_START_WAIT_MS, FS_FEEDBACK_GAP, FS_LEASE,
  FS_PRESS_OPERATING_CAP, FS_RELEASE_OPERATING_CAP,
  SD700_FORCE_SERVO_COMMISSIONING, /* immediate magnitude reduction; ramp increases */
- FS_POWERED_TEST_READY
+ FS_POWERED_TEST_READY, FS_EXECUTOR_PRESS_CEILING, FS_CONTINUOUS_CEILING,
+ FS_APPROVED_PEAK_MS, FORCE_SERVO_CANDIDATE_COUNT
 };
 static float clamp(float x, float lo, float hi) { return fminf(hi,fmaxf(lo,x)); }
 bool ForceServo_SequenceAfter(uint64_t a, uint64_t b)

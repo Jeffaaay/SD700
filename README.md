@@ -1,118 +1,67 @@
-# SD700 - StaticForce3000_Boost1
+# SD700 - StaticForceAuthority2
 
-**physical test NOT RUN.** Current candidate from StaticForce3000_1,
-`ed3c213b689929524dba2af016d85724097c7850`. Local HEAD and origin/main matched
-and the worktree was clean before changes. GitHub main is the delivery; no ZIP.
+**physical test NOT RUN.** GitHub main is the delivery; no ZIP. Built from actual
+main `07fe6077c095f4229f68fbbb9168b9aaf55271b2` (StaticForce3000_Boost1), preserving
+its independent cutoff and verified lower-output handoff.
 
-The user reports that720 continuous command reached TIM3=144 but produced no
-motion or pressure rise (27 ->27). PSU display stayed about0.028 A; a scope
-captured one approximately600 ns /22 V pulse. STOP removed PWM, output_off=1,
-and no abnormal noise/heat/jamming was reported. See the exact
-[input evidence and its limits](Docs/StaticForce3000_Boost1/FIELD_EVIDENCE.md).
+The existing ForceServo now supports an explicit bounded assist rise, independent
+normal PRESS cap, response/taper exit and continuous P/PI BUILD/HOLD. The requested
+20/30/40% assists and 10% normal cap pass synthetic production-path tests, but
+**those profiles are disabled in this HEX**. The named field files and a reviewed
+output/on-time/cumulative/OFF-cooling envelope were unavailable. No new physical
+rating or N calibration is inferred from the observations described by the user.
 
-This candidate enables one **short supervised breakaway experiment** using the
-existing continuous ForceServo boost path. It is **not a continuous25% rating
-or3000 N qualification**. No serial connection, flashing or motion was performed.
+**Actually enabled: profile4, PRESS720 / RELEASE100, no assist, maximum5 s.**
+This is the inherited short low-output envelope, not a force-building improvement
+at3%. Do not repeat the reported no-motion3% test expecting this build to supply
+10/20/30/40%. Plain `-ForceServo` remains compiled LOCKED; no runtime unlock.
 
-[Current HEX](output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.hex)
-and [ELF](output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.elf).
+[Current HEX](output/StaticForceAuthority2/firmware/SD700_ForceServo1_StaticForceAuthority2_RealBench_Release.hex)
+and [ELF](output/StaticForceAuthority2/firmware/SD700_ForceServo1_StaticForceAuthority2_RealBench_Release.elf).
 
-HEX SHA256: `4EA0CDB953C06B4DB32F77746B16677B4421C752D828AC9F423F24BBC4DFF7E0`
+HEX SHA256: `D895A3895FDC08ABDCA7231F5D71140610FD5C192D606BB45E6E909AB52F0BC6`
 
-ELF SHA256: `A301D51A61F312BE680D259832B83C34DAB2EF6A0D4D1527C310BF1E83A58D82`
+ELF SHA256: `5BFE60DED2B6F2392F7EB47FA38794298A05CFF1F4CD60EE02874DD366D43B6F`
 
-## Current experiment
-
-| Setting | Value |
+| Setting | Actual state |
 | --- | --- |
-| Profile / protocol / build |3 /F105 /46530107 |
-| Field target |250 legacy control units, **not N** |
-| Existing target range / raw abort |1..275 /325, unchanged |
-| Kp / Ki / Kd |10 /0 /0 |
-| Continuous PRESS / RELEASE |720 /100 command units |
-| Peak PRESS |6000 command units; nominal25%, CCR1200/4800 |
-| Boost duration / total reservation |10 /10 ms; at most one admission per START |
-| Normal handoff attempt |8 ms, reduction to the already computed normal command <=720 |
-| Independent cutoff if no handoff |Existing TIM5 reserve: approximately9 ms after boost admission |
-| PWM frequency |20 kHz, unchanged |
-| Ordinary increasing-output slew |1000 command units/s, unchanged |
-| Reference rate / acceleration |200 /1000, unchanged |
-| Pressure age / active gap / receive-anchored lease |20 /125 /130 ms, unchanged |
-| Pending START / control minimum / direction OFF |250 /5 /at least2 ms, unchanged |
-| Build / energized / session / PC capture maximum |5000 ms, unchanged |
-| No-response / saturation policy |Existing5 s bounded policy, unchanged |
-| Field PSU setting |**0.5 A unchanged**; display current is not winding current |
+| Profile / protocol / build |4 /F106 /46530108 |
+| Target range / raw trip |1..275 legacy control units /325; not N |
+| Default Kp / Ki / Kd |10 /0 /0; existing PI configurable |
+| Live PRESS / RELEASE |720 /100; nominal3% /0.417%, CCR144 /20 of4800 |
+| Disabled candidates |ID20:4800/CCR960; ID30:7200/CCR1440; ID40:9600/CCR1920 |
+| Candidates' separate normal cap |Up to2400/CCR480 (10%), disabled pending reviewed limits |
+| New assist timing and cooling |Unreviewed: zero sentinels, **not permission for a zero-time burst** |
+| Live build / energized / session / capture maximum |5000 ms, unchanged |
+| Sample age / feedback gap / receive lease |20 /125 /130 ms, unchanged |
+| Reference rate / acceleration / ordinary slew |200 /1000 /1000, unchanged |
+| PWM / field PSU setting |20 kHz /0.5 A unchanged; not measured winding current |
 
-The PID, cubic trajectory, active HOLD, START admission, STOP priority,
-pressure/contact/overpressure checks, lease expiry, break-before-make, output
-guard and fault latch remain. Plain `-ForceServo` stays compiled LOCKED with no
-runtime unlock. Newton qualification bits remain0: this is a count-domain
-experiment, not a new sensor calibration or mechanical/thermal qualification.
+[Handoff and evidence limits](Docs/StaticForceAuthority2/HANDOFF.md),
+[actual software tests](Docs/StaticForceAuthority2/TEST_RESULTS.md),
+[execution record](Docs/StaticForceAuthority2/verification.json),
+[defaults](Docs/StaticForceAuthority2/default_parameters.json),
+[wire schema](Docs/StaticForceAuthority2/protocol_schema.json).
+Historical evidence, failed logs and firmware are preserved. The previous pair's
+manifest is `Firmware/StaticForce3000_Boost1.SHA256SUMS.txt`.
 
-## Bounded boost and handoff
+## Field checkout and one supervised capture
 
-Admission requires the exact compiled profile, Target250, the above P-only
-settings, valid contact, fresh ordered pressure, healthy continuous owner,
-positive ordinary demand, both target and reference margin above72 control
-units (720/Kp10), and remaining fixed/cumulative budgets. Lower targets or other
-valid tuning retain ordinary control; they do not admit this experimental peak.
-No runtime parameter can select a different peak profile or increase its budget.
+No new high-assist hardware test is enabled by this delivery. First supply the
+reviewed time/cooling limits identified in the handoff; no additional observe-only
+round is requested to invent them. The command below is the **existing low-output
+profile's safety capture**, for an independently authorized supervised checkout;
+it is not a recommendation to repeat the known3% no-motion performance trial.
 
-Simply raising the old cap would not reach6000 within10 ms at the existing slew.
-During this one admitted stage the request is explicitly6000; diagnostics set
-`FS_LIMIT_BOOST=16`. The ordinary PID step still runs and computes a <=720
-handoff request. The controller records the executor's actual command with Ki0.
-The ordinary PID algorithm and its slew are unchanged outside this bounded
-peak stage. The continuous profile and executor reject persistent PRESS>720;
-6000 cannot be enabled without an armed, fixed boost deadline.
-
-The unslept main loop attempts reduction at deadline-2 ms. It installs the lower
-hardware compare and verifies the existing guard before releasing the peak
-compare. It restores only the previously accepted pressure frame's original
-receive lease, bounded by the original absolute session deadline. There is no
-new pressure sequence, PID integration or lease extension from the handoff time.
-Fresh feedback can taper/exit sooner. Pending expiry wins even during transfer.
-Late servicing, STOP, a fault, feedback loss or lease expiry forces OFF; there
-is no automatic revival after the independent cutoff. **10 ms is a configured
-maximum budget, not a claim of exactly10 ms measured peak PWM.** Nominal timely
-handoff is8 ms; field scheduling and the waveform remain unmeasured.
-
-The full10 ms is reserved at admission and never refunded by early exit, STOP,
-fault reset, config writes or later explicit STARTs in the same MCU boot. This
-preserves the existing stronger cumulative-budget rule: **only the first admitted
-boost in that boot can fire**. Reboot is not permission to repeat the experiment.
-
-## Telemetry and capture
-
-The frozen schema has69 u32 +25 float fields (188 words); config remains50 FC03
-words and profile52 FC03 words. Existing framing, CRC, station/function, exact
-length and timeout checks remain. Scripts verify the current firmware offline
-before serial access. Python/PowerShell field use does not require ARM tools.
-
-`boost_active`, `boost_peak_command`, configured `boost_duration_ms`, reserved
-`boost_spent_ms`, `boost_started_ms`, `boost_deadline_ms`, `boost_elapsed_ms`,
-`boost_end_ms`, `boost_end_reason`, and `boost_handoff_command` distinguish the
-peak and its handoff. End reason0=none,1=active,2=verified lower handoff,3=STOP/fault.
-The event survives STOP/fault and slow PC polling; a new session starts a new
-event record while retaining spent budget. Report `boost_event` may therefore
-show a6000 peak even when no PC RUN snapshot happened during those milliseconds.
-
-`boost_pressure_before` has its accepted receive timestamp. `boost_pressure_after`
-is unavailable until `boost_after_valid=1`: it is the first fresh, ordered,
-in-range pressure frame after the recorded end, with its own timestamp.
-At roughly101 ms feedback cadence, this does **not** measure pressure at10 ms.
-Abort elapsed is a capped main-service-time bound, not measured PWM on-time.
-CCR fields and verified output OFF concern MCU registers, not physical cessation.
-
-## One supervised field capture
-
-Use the existing supervised setup, confirmed travel/fixture and accessible
-physical stop. Verify correct firmware, IDLE/output OFF, live pressure, initial
-gap/contact and unchanged0.5 A limit. Do not increase current, test3000 N/rotating
-load, or automatically repeat. One script invocation sends the only START;
-do not add a manual START. Stop immediately for abnormal movement/noise/current,
-visible limiting/dropout, heat or mechanical problems. Return CSV/report/metadata
-and a brief account of movement, PSU behavior and physical STOP.
+Verify firmware/IDLE/output OFF and live pressure before motion; use a fixed
+workpiece/light-contact setup and accessible physical stop, record the initial
+gap, keep0.5 A unchanged. The script sends exactly one START, observes at most5 s
+and sends STOP before readback. Use console S/Escape or the physical stop to abort
+abnormal motion/noise/current/heat. An already planned active-STOP or feedback-loss
+termination check ends this invocation; do not restart automatically to test the
+other. Record which check actually ran. If output never becomes active, do not
+claim an active-output shutdown was validated. Return CSV/report/metadata and a
+short field account. No250 N/500/3000 N trial or live profile escalation.
 
 ```powershell
 git switch main
@@ -121,30 +70,32 @@ git rev-parse HEAD
 python tools/verify_force_servo_firmware.py
 $gap = Read-Host 'Actual initial gap/contact setup'
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
-.\tools\capture_force_servo.ps1 -Mode SingleStart -Port COM5 -ProfileId 3 -Target 250 -MaximumSeconds 5 `
-  -ConfirmSupervisedMotion -ConfirmedFirmwareSha256 4EA0CDB953C06B4DB32F77746B16677B4421C752D828AC9F423F24BBC4DFF7E0 `
+.\tools\capture_force_servo.ps1 -Mode SingleStart -Port COM5 -ProfileId 4 -Target 250 -MaximumSeconds 5 `
+  -ConfirmSupervisedMotion -ConfirmedFirmwareSha256 D895A3895FDC08ABDCA7231F5D71140610FD5C192D606BB45E6E909AB52F0BC6 `
   -CurrentLimitSetting '0.5 A; manually confirmed unchanged' -InitialGap $gap `
-  -FieldNotes 'One supervised breakaway experiment; record movement, current display, waveform and physical STOP' `
-  -OutputCsv "captures/static-force3000-boost1-$stamp.csv"
+  -FieldNotes 'One inherited low-output safety capture; NO ASSIST; record actual termination check' `
+  -OutputCsv "captures/static-force-authority2-$stamp.csv"
 ```
 
-## Software verification
+Parameters, config/profile/catalog readback and strict firmware verification run
+before START. Field verification is pure Python; ARM tools are only needed for
+development. A local file hash plus operator flash attestation is not a device
+flash hash measurement. Capture stops between bounded transactions and discards
+partial snapshots; true communication errors and unknown START echo remain errors.
+A target crossing is not a sustained HOLD result. Register OFF is not physical
+stop qualification. **HARDWARE_STOP_VALIDATION / STATIC_250 / ROTATING_LOAD remain
+unvalidated.**
 
-[Actual test record](Docs/StaticForce3000_Boost1/TEST_RESULTS.md),
-[machine-readable execution record](Docs/StaticForce3000_Boost1/verification.json),
-[default parameters](Docs/StaticForce3000_Boost1/default_parameters.json),
-[protocol schema](Docs/StaticForce3000_Boost1/protocol_schema.json).
-Firmware hashes are pinned in `Firmware/ForceServo1.SHA256SUMS.txt`;
-`Firmware/StaticForce3000_1.SHA256SUMS.txt` preserves the predecessor pair.
+## Reproduce software checks
 
 ```powershell
-python tools/run_force_servo_tests.py --commissioning --output output/StaticForce3000_Boost1/recheck-host
-.\tools\build_gcc.ps1 -ForceServo -StaticForce3000Boost1 -MotorMode RealBench -Configuration Release `
-  -RealBenchAck I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION -BuildDir output/StaticForce3000_Boost1/rebuild
+.\tools\run_host_tests.ps1 -OutputDirectory output/StaticForceAuthority2/recheck-legacy
+python tools/run_force_servo_tests.py --output output/StaticForceAuthority2/recheck-plain
+python tools/verify_capturefix1.py --commissioning --objcopy-cross-check --output output/StaticForceAuthority2/recheck-all
+.\tools\build_gcc.ps1 -ForceServo -StaticForceAuthority2 -MotorMode RealBench -Configuration Release `
+  -RealBenchAck I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION -BuildDir output/StaticForceAuthority2/rebuild
 python tools/verify_force_servo_firmware.py --objcopy-cross-check
 ```
 
-The last command verifies the tracked current pair; development objcopy is an
-optional extra cross-check. Test/build PASS does not establish hardware timing,
-physical STOP, static Target250 performance, or rotating-load performance.
-**HARDWARE_STOP_VALIDATION / STATIC_250 / ROTATING_LOAD remain unvalidated.**
+Use new output directories to preserve evidence. The verifier checks the tracked
+current pair; the optional objcopy check independently reconstructs its HEX.

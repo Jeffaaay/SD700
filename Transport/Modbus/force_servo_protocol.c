@@ -43,8 +43,16 @@ MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16
  if (m->state!=IDLE || s->active || s->start_pending || !MotorExecutor_OutputIsDisabled() ||
      MotorExecutor_GetSnapshot()->logical_active) return COMMAND_BUSY;
  if (a==FS_REG_PROFILE_SELECT) {
-     if (v!=(uint16_t)s->profile.id) { s->diagnostic.rejection=FS_PROFILE_INVALID; m->target_valid=false; return COMMAND_INVALID_VALUE; }
-     return COMMAND_ACCEPTED; /* Confirm immutable reviewed profile; never unlock. */
+     if (v==(uint16_t)s->profile.id && s->profile.experiment_enabled) return COMMAND_ACCEPTED;
+     const ForceServoProfile *selected=ForceServo_FindProfile(v);
+     if (!selected) { s->diagnostic.rejection=FS_PROFILE_INVALID; m->target_valid=false; return COMMAND_INVALID_VALUE; }
+     if (!selected->experiment_enabled) {
+         s->diagnostic.rejection=FS_EXPERIMENT_LIMITS_UNREVIEWED; m->target_valid=false;
+         Machine_Tick(m,now); return COMMAND_NOT_READY;
+     }
+     if (!ForceServo_ProfileConfigValid(selected,&s->config)) return COMMAND_INVALID_VALUE;
+     s->profile=*selected; s->staging_open=false;
+     Machine_Tick(m,now); return COMMAND_ACCEPTED; /* IDLE/OFF only; no accounting reset. */
  }
  if (a==FS_REG_TARGET_N) {
      s->diagnostic.rejection=ForceServo_TargetAllowed(&s->profile,(float)v,true);
@@ -86,6 +94,11 @@ bool ForceServoProtocol_Read(const MachineContext *m,bool holding,uint16_t a,uin
 {
  if (!m || !v) return false;
  const ForceServoMachine *s=&m->servo;
+ if (holding && a>=0x400 && a<0x400+FORCE_SERVO_CANDIDATE_COUNT*FORCE_SERVO_PROFILE_WORDS) {
+     unsigned index=(a-0x400)/2; uint32_t bits;
+     memcpy(&bits,(const unsigned char*)g_force_servo_candidates+index*4,4);
+     *v=(uint16_t)((a-0x400)%2 ? bits : bits>>16); return true;
+ }
  if (holding && a>=FS_REG_PROFILE && a<FS_REG_PROFILE+FORCE_SERVO_PROFILE_WORDS) {
      uint32_t bits; unsigned index=(a-FS_REG_PROFILE)/2;
      memcpy(&bits,(const unsigned char*)&s->profile+index*4,4);

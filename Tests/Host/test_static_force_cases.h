@@ -92,6 +92,7 @@ static void TestStaticProgressNoiseAndCreep(void)
      if (mode==1) { machine.servo.profile.scale=.5f; machine.servo.profile.raw_trip=6500;
          machine.servo.profile.offset=10; }
      assert(write_reg(FS_REG_TARGET_N,3000)==COMMAND_ACCEPTED);
+     sample(30,1000);
      assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); sample(30,5);
      bool progress=false,saturation=false;
      for (int i=0;i<120 && machine.state!=FAULT;i++) {
@@ -133,7 +134,7 @@ static void TestStaticStopStagesAndReadback(void)
  assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); off();
  assert(write_reg(FS_REG_PROFILE_SELECT,1)==COMMAND_BUSY);
  assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
- assert(ForceServo_BoostQualified(&g_force_servo_profile));
+ assert(!ForceServo_BoostQualified(&g_force_servo_profile));
 }
 #if FS_SYNTHETIC_BOOST
 static void expire_during_boost_transfer(void)
@@ -144,6 +145,9 @@ static void boost_fixture(void)
  /* Deliberately synthetic 800 ms / 1600 ms session exposure, NOT actuator duty. */
  machine.servo.profile.peak_press=6000; machine.servo.profile.boost_ms=800;
  machine.servo.profile.boost_total_ms=1600; machine.servo.profile.taper_margin=80;
+ machine.servo.profile.assist_rise_ms=100; machine.servo.profile.assist_end_ms=798;
+ machine.servo.profile.off_ms=1000; machine.servo.profile.response_units=2;
+ machine.servo.profile.excessive_rise_units=1000; machine.servo.profile.limits_source=2;
  machine.servo.config.kp=100; machine.servo.config.output_rate=10000; /* explicit synthetic fast-ramp fixture */
  assert(ForceServo_BoostQualified(&machine.servo.profile));
  assert(write_reg(FS_REG_TARGET_N,1000)==COMMAND_ACCEPTED);
@@ -191,6 +195,7 @@ static void TestStaticBoostBudgetAndStop(void)
      uint32_t spent=machine.servo.diagnostic.boost_spent_ms;
      for (int i=0;i<5;i++) { sample(30,10); off(); }
      assert(machine.servo.diagnostic.boost_spent_ms==spent);
+     sample(30,1000);
      assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); sample(30,5);
      for (int i=0;i<150;i++) { sample(30,10); assert(machine.state!=FAULT);
          if (machine.servo.diagnostic.boost_active) break; }

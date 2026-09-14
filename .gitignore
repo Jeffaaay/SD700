@@ -134,3 +134,10 @@ output/StaticForce3000_Boost1/*
 !output/StaticForce3000_Boost1/firmware/
 !output/StaticForce3000_Boost1/firmware/*.hex
 !output/StaticForce3000_Boost1/firmware/*.elf
+
+# Current StaticForceAuthority2 firmware; retain logs locally, no packages.
+!output/StaticForceAuthority2/
+output/StaticForceAuthority2/*
+!output/StaticForceAuthority2/firmware/
+!output/StaticForceAuthority2/firmware/*.hex
+!output/StaticForceAuthority2/firmware/*.elf

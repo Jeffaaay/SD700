@@ -9,7 +9,7 @@ param(
     [string]$ParameterFile,
     [ValidateRange(1,65535)][int]$Target=250,
     [switch]$TargetN,
-    [int]$ProfileId=3,
+    [int]$ProfileId=4,
     [ValidateRange(1,60)][int]$MaximumSeconds=5,
     [switch]$ConfirmMotorPowerDisconnected,
     [switch]$ConfirmSupervisedMotion,
@@ -28,6 +28,32 @@ foreach ($entry in $saved.GetEnumerator()) { Set-Variable -Name $entry.Key -Valu
 $schema=(& python "$PSScriptRoot/force_servo_data.py" --schema | ConvertFrom-Json)
 if ($LASTEXITCODE -ne 0) { throw 'ForceServo schema unavailable' }
 
+# A transaction retains its normal100 ms timeout. Do not start it without
+# that budget AND100 ms for STOP; never create an artificial2 ms serial timeout.
+$forceTransactionMs=100
+$forceStopReserveMs=100
+function Stop-ForceCaptureBudget([string]$Reason) {
+    $exception=New-Object OperationCanceledException $Reason
+    $exception.Data['ForceCaptureBudgetStop']=$true
+    throw $exception
+}
+function Read-ForceCandidates([scriptblock]$Exchange) {
+    $words=@(Read-ForceWords $Exchange 3 0x400 ($schema.candidates.Count*2*$schema.profile.Count))
+    $i=0; $result=@()
+    foreach ($candidate in $schema.candidates) {
+        $values=[ordered]@{}
+        foreach ($field in $schema.profile) {
+            [uint32]$bits=[uint64]$words[$i]*65536+[uint64]$words[$i+1]; $i+=2
+            $value=[BitConverter]::ToSingle([BitConverter]::GetBytes($bits),0)
+            if ($value -ne [single]$candidate.($field.name) -or [single]::IsNaN($value) -or [single]::IsInfinity($value)) {
+                throw "Candidate catalog mismatch: $($candidate.id).$($field.name); no START"
+            }
+            $values[$field.name]=$value
+        }
+        $result+= [pscustomobject]$values
+    }
+    return $result
+}
 function Read-ForceWords([scriptblock]$Exchange,[int]$Function,[int]$Address,[int]$Count) {
     for ($offset=0;$offset -lt $Count;$offset+=11) {
         $n=[Math]::Min(11,$Count-$offset); $a=$Address+$offset
@@ -113,6 +139,9 @@ function Read-ForceProfile([scriptblock]$Exchange) {
     return [pscustomobject]$values
 }
 function Assert-ForceAdmission($Profile,[int]$Target,[bool]$Newtons,[int]$Id,[int]$Seconds) {
+    if ($Profile.experiment_enabled -ne 1 -or $Profile.limits_source -eq 0) {
+        throw 'EXPERIMENT_LIMITS_UNREVIEWED: assist rise/end/cutoff/cumulative, continuous/HOLD exposure and required OFF/cooling not approved; no START'
+    }
     if ($Id -ne $Profile.id) { throw 'Reviewed operating profile ID unavailable; no START' }
     if ($Newtons -or $Profile.unit -eq 1) {
         $reasons=@('MISSING_CONFIRMED_SENSOR_RANGE','MISSING_FORCE_N_CALIBRATION',
@@ -142,8 +171,10 @@ function Assert-ForcePlan($Profile,$Config,[int]$Target,[bool]$Newtons,[int]$Id,
     $distance=[Math]::Abs($Target-$Measured)
     $planned=[Math]::Max(1.5*$distance/$Config.reference_rate,[Math]::Sqrt(6*$distance/$Config.reference_acceleration))*1000
     $budget=[Math]::Min($Config.session_ms,[Math]::Min($Profile.session_ms,[Math]::Min($Profile.energized_ms,$Seconds*1000)))
-    if ($planned+$Config.hold_dwell_ms -gt $budget -or $planned -gt $Profile.build_ms) {
-        throw "TRAJECTORY_HOLD_EXCEEDS_BUDGET: reference=${planned}ms hold=$($Config.hold_dwell_ms)ms budget=${budget}ms; no START"
+    $snapshotBudget=(1+[Math]::Ceiling((2*($schema.u32.Count+$schema.floats.Count))/11))*$forceTransactionMs
+    $captureRequired=250+$planned+$Config.hold_dwell_ms+$snapshotBudget+$forceStopReserveMs
+    if ($planned+$Config.hold_dwell_ms -gt $budget -or $planned -gt $Profile.build_ms -or $captureRequired -gt $Seconds*1000) {
+        throw "TRAJECTORY_HOLD_EXCEEDS_BUDGET: reference=${planned}ms hold=$($Config.hold_dwell_ms)ms snapshot=${snapshotBudget}ms start=250ms stop=${forceStopReserveMs}ms required=${captureRequired}ms budget=${budget}ms; no START"
     }
 }
 function Invoke-ForceCapture {
@@ -158,7 +189,7 @@ function Invoke-ForceCapture {
         [ValidateRange(1,60)][int]$MaximumSeconds=5,
         [ValidateRange(1,65535)][int]$Target=250,
     [switch]$TargetN,
-    [int]$ProfileId=3,
+    [int]$ProfileId=4,
         $Desired,
         [string]$CurrentLimitSetting,
         [string]$InitialGap,
@@ -173,21 +204,35 @@ function Invoke-ForceCapture {
     New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName($csvPath)) | Out-Null
     $rows=New-Object Collections.ArrayList; $errorText=''; $startAttempts=0
     $startAccepted=$false; $stopReason='OBSERVATION_COMPLETE'
-    $activeConfig=$null; $activeProfile=$null; $plannedReference=$null; $enforceDeadline=$false
+    $activeConfig=$null; $activeProfile=$null; $activeCandidates=$null; $plannedReference=$null; $enforceDeadline=$false
+    $budgetState=@{phase='PREFLIGHT';snapshot_open=$false;snapshot_start_transaction=0;discarded_snapshots=0;skipped_polls=0;transactions=0;
+        stop_sent_ms=$null;errors=(New-Object Collections.ArrayList);last_transaction=$null}
     try {
         $exchange={param([byte[]]$Request,[int]$TimeoutMs)
             if ($enforceDeadline) {
+                if (& $StopRequested) { Stop-ForceCaptureBudget 'OPERATOR_STOP' }
                 $remaining=$deadline-$watch.ElapsedMilliseconds
-                if ($remaining -le 0) { throw 'OBSERVATION_DEADLINE' }
-                $TimeoutMs=[int][Math]::Min($TimeoutMs,$remaining)
+                if ($remaining -lt $TimeoutMs+$forceStopReserveMs) { Stop-ForceCaptureBudget 'OBSERVATION_COMPLETE' }
             }
-            & $TransportExchange -Request $Request -TimeoutMs $TimeoutMs
+            $transaction=[ordered]@{phase=$budgetState.phase;started_ms=$watch.ElapsedMilliseconds;
+                timeout_ms=$TimeoutMs;request_hex=([BitConverter]::ToString($Request));response_hex=$null;error=$null}
+            $budgetState.last_transaction=$transaction; $budgetState.transactions++
+            try {
+                [byte[]]$response=@(& $TransportExchange -Request $Request -TimeoutMs $TimeoutMs)
+                $transaction.response_hex=[BitConverter]::ToString($response)
+                return $response
+            } catch {
+                $transaction.error=$_.Exception.Message
+                [void]$budgetState.errors.Add([pscustomobject]$transaction)
+                throw # True communication errors are never reclassified as budget expiry.
+            }
         }
         $info=@(Read-ForceWords $exchange 4 0x100 8)
         if ($info[0] -ne $schema.schema -or $info[2] -ne 2*$schema.parameters.Count -or
             $info[3] -ne 2*($schema.u32.Count+$schema.floats.Count)) { throw 'ForceServo1 capability/schema required' }
         $activeConfig=Read-ForceConfig $exchange
         $activeProfile=Read-ForceProfile $exchange
+        $activeCandidates=@(Read-ForceCandidates $exchange)
         $configDigest=Get-ForceDigest $activeConfig $schema.parameters
         $profileDigest=Get-ForceDigest $activeProfile $schema.profile
         if (([uint64]$info[6]*65536+$info[7]) -ne $configDigest) { throw 'Active configuration digest mismatch' }
@@ -233,7 +278,10 @@ function Invoke-ForceCapture {
         if ($Mode -ne 'SingleStart') { $deadline=$watch.ElapsedMilliseconds+$MaximumSeconds*1000; $enforceDeadline=$true }
         while ($watch.ElapsedMilliseconds -lt $deadline) {
             if (& $StopRequested) { $stopReason='OPERATOR_STOP'; break }
-            $row=Read-ForceSnapshot $exchange $(if ($Mode -eq 'SingleStart') {'RUN'} else {'OBSERVE'})
+            $budgetState.phase=if ($Mode -eq 'SingleStart') {'RUN'} else {'OBSERVE'}
+            $budgetState.snapshot_open=$true; $budgetState.snapshot_start_transaction=$budgetState.transactions
+            $row=Read-ForceSnapshot $exchange $budgetState.phase
+            $budgetState.snapshot_open=$false
             [void]$rows.Add($row)
             if ($row.fault -ne 0) { $stopReason="DEVICE_FAULT_$($row.fault)_DETAIL_$($row.detail)"; break }
             if ($Mode -eq 'SingleStart' -and $row.state -eq 1 -and $row.start_pending -eq 0) {
@@ -242,13 +290,20 @@ function Invoke-ForceCapture {
             & $SleepMilliseconds 10
         }
     } catch {
-        if ($_.Exception.Message -ne 'OBSERVATION_DEADLINE') {
+        if ($budgetState.snapshot_open) {
+            if ($budgetState.transactions -gt $budgetState.snapshot_start_transaction) { $budgetState.discarded_snapshots++ }
+            else { $budgetState.skipped_polls++ }
+        }
+        if ($_.Exception.Data['ForceCaptureBudgetStop'] -eq $true) {
+            $stopReason=$_.Exception.Message
+        } else {
             $errorText=$_.Exception.Message; $stopReason='CAPTURE_ERROR'
             if ($startAttempts -eq 1 -and $null -eq $startAccepted -and $errorText -like 'Modbus exception:*') { $startAccepted=$false }
         }
     }
     finally {
-        $enforceDeadline=$false
+        $enforceDeadline=$false; $budgetState.phase='STOP_READBACK'
+        $budgetState.stop_sent_ms=$watch.ElapsedMilliseconds
         try {
                 Send-SingleCoil $exchange 1 0 100
                 [void]$rows.Add((Read-ForceSnapshot $exchange 'STOP_READBACK'))
@@ -259,9 +314,12 @@ function Invoke-ForceCapture {
     @{mode=$Mode;start_attempts=$startAttempts;start_accepted=$startAccepted;stop_reason=$stopReason;error=$errorText;config=$activeConfig;
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
-        commissioning='StaticForce3000_Boost1';profile=$activeProfile;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        commissioning='StaticForceAuthority2';profile=$activeProfile;candidate_catalog=$activeCandidates;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
         pwm_counts='tim2/tim3 are PLANNED; no external electrical measurement';
         maximum_observation_seconds=$MaximumSeconds;capture_wall_ms=$watch.ElapsedMilliseconds;
+        stop_reserve_ms=$forceStopReserveMs;transaction_timeout_ms=$forceTransactionMs;
+        stop_sent_pc_ms=$budgetState.stop_sent_ms;discarded_snapshots=$budgetState.discarded_snapshots;skipped_polls=$budgetState.skipped_polls;
+        communication_errors=@($budgetState.errors);last_transaction=$budgetState.last_transaction;
         bus='115200 8N1; frozen snapshot in <=11-register chunks; polling misses are reported'} |
         ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $metaPath
     & python "$PSScriptRoot/force_servo_data.py" --report $csvPath --metadata $metaPath
@@ -331,6 +389,8 @@ if ($LibraryOnly) { return }
 if ($Mode -eq 'SingleStart') {
     $compiledProfile=[pscustomobject]@{}
     foreach ($p in $schema.profile) { $compiledProfile | Add-Member -NotePropertyName $p.name -NotePropertyValue $p.default }
+    $selectedCandidate=@($schema.candidates | Where-Object id -eq $ProfileId)
+    if ($selectedCandidate.Count -eq 1) { $compiledProfile=$selectedCandidate[0] }
     Assert-ForceAdmission $compiledProfile $Target $TargetN $ProfileId $MaximumSeconds
 }
 if ($Mode -eq 'SingleStart' -and -not $schema.powered_test_ready) {
@@ -341,7 +401,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/StaticForceAuthority2/firmware/SD700_ForceServo1_StaticForceAuthority2_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'

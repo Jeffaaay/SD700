@@ -50,6 +50,7 @@ typedef struct
     uint32_t logical_deadline_ms;
     uint32_t logical_backstop_ms;
     uint32_t request_sequence;
+    uint32_t boost_started_ms, boost_deadline_ms, boost_planned_end_ms;
     uint16_t planned_tim2_ccr3;
     uint16_t planned_tim3_ccr3;
     bool logical_active;
@@ -92,6 +93,13 @@ MotorResult MotorExecutor_BeginContinuous(uint32_t *token);
 bool MotorExecutor_SetContinuousBudget(uint32_t token,uint32_t now_ms,uint32_t duration_ms,int32_t normal_cap);
 bool MotorExecutor_ArmContinuousBoost(uint32_t token,uint32_t now_ms,uint32_t duration_ms);
 bool MotorExecutor_EndContinuousBoost(uint32_t token);
+/* Prevalidated short assist plan; only the existing owner may service it.
+ * Rise/completion are bounded by the original independent hard compare. */
+bool MotorExecutor_SetContinuousBoostPlan(uint32_t token,uint32_t now_ms,uint32_t rise_ms,
+    uint32_t end_ms,int32_t peak,int32_t handoff);
+MotorResult MotorExecutor_ServiceContinuousBoost(uint32_t token,uint32_t now_ms,
+    int32_t *committed,bool *finished);
+int32_t MotorExecutor_ContinuousBoostCommand(uint32_t token,uint32_t now_ms);
 /* Reduction only, same owner/sample lease; cannot start output or renew feedback. */
 MotorResult MotorExecutor_HandoffContinuousBoost(uint32_t token,uint32_t now_ms,int32_t requested_mv);
 MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,

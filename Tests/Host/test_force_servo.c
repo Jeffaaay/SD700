@@ -533,7 +533,11 @@ int main(void)
  RUN(TestContinuous2Pwm) RUN(TestContinuous2Peak) RUN(TestContinuous2OldSaturation)
  RUN(TestAuthority1Sweep) RUN(TestAuthority1Ramp) RUN(TestAuthority1Safety)
  RUN(TestStaticUnitsAndQualification) RUN(TestStaticPlanAndAbsoluteBudget)
+ RUN(TestAuthority2LiveEnvelope)
+#if FS_SYNTHETIC_BOOST
  RUN(TestBoost1PeakHandoff) RUN(TestBoost1Safety) RUN(TestBoost1AdmissionAndBudget)
+ RUN(TestAuthority2PIAndExit) RUN(TestAuthority2WrapAndCooling)
+#endif
  RUN(TestStaticProgressNoiseAndCreep) RUN(TestStaticStopStagesAndReadback)
 #if FS_SYNTHETIC_BOOST
  RUN(TestStaticBoostDeadlineAndTransfer) RUN(TestStaticBoostBudgetAndStop)

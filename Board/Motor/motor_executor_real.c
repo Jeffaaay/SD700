@@ -14,6 +14,9 @@ static uint32_t s_servo_off_ms;
 static bool s_budget_set, s_boost_set, s_boost_used, s_boost_end;
 static uint32_t s_session_deadline, s_boost_deadline, s_receive_deadline;
 static int32_t s_normal_cap;
+static bool s_boost_plan;
+static uint32_t s_boost_started, s_boost_rise, s_boost_end_ms;
+static int32_t s_boost_initial, s_boost_peak, s_boost_lower;
 #endif
 #include <stddef.h>
 #include <string.h>
@@ -799,7 +802,8 @@ MotorResult MotorExecutor_BeginContinuous(uint32_t *token)
         if (++s_servo_generation==0) ++s_servo_generation;
         *token=s_servo_generation; s_servo_open=true; s_servo_has_sequence=false;
         s_servo_committed=0; s_servo_last_sign=0;
-        s_budget_set=false; s_boost_set=false; s_boost_used=false; s_boost_end=false;
+        s_budget_set=false; s_boost_set=false; s_boost_used=false; s_boost_end=false; s_boost_plan=false;
+        s_motor.boost_started_ms=0; s_motor.boost_deadline_ms=0; s_motor.boost_planned_end_ms=0;
         s_motor.last_action=MOTOR_ACTION_CONTINUOUS; s_motor.last_completion=MOTOR_COMPLETION_NONE;
         r=MOTOR_RESULT_OK;
     }
@@ -819,10 +823,11 @@ bool MotorExecutor_ArmContinuousBoost(uint32_t token,uint32_t now,uint32_t durat
     uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
     bool ok=s_servo_open && token==s_servo_generation && s_budget_set && !s_boost_used &&
         duration>=3 && duration<=60000 &&
-        (!SD700_FORCE_SERVO_COMMISSIONING || FS_SYNTHETIC_BOOST || duration<=FS_BOOST_MS) &&
+        (!SD700_FORCE_SERVO_COMMISSIONING || FS_SYNTHETIC_BOOST || duration<=FS_APPROVED_PEAK_MS) &&
         (int32_t)(s_session_deadline-now)>(int32_t)duration &&
         MotorExecutor_ActiveRequestIsValid();
-    if (ok) { s_boost_set=true; s_boost_used=true; s_boost_deadline=now+duration; }
+    if (ok) { s_boost_set=true; s_boost_used=true; s_boost_deadline=now+duration; s_boost_started=now;
+        s_motor.boost_started_ms=now; s_motor.boost_deadline_ms=s_boost_deadline; }
     MotorAtomic_Leave(key); return ok;
 }
 bool MotorExecutor_EndContinuousBoost(uint32_t token)
@@ -866,7 +871,7 @@ MotorResult MotorExecutor_HandoffContinuousBoost(uint32_t token,uint32_t now,int
     if (s_session_deadline-now<remaining) remaining=s_session_deadline-now;
     if (!MotorStopTimer_RenewLease(remaining) || !MotorStopTimer_CommitArm() ||
         !s_servo_open || s_completion_event_pending) goto fail;
-    s_boost_set=false; s_boost_end=false; s_servo_committed=requested;
+    s_boost_set=false; s_boost_end=false; s_boost_plan=false; s_servo_committed=requested;
     s_motor.command_mv=(uint32_t)requested;
     s_motor.planned_tim2_ccr3=t2; s_motor.planned_tim3_ccr3=t3;
     s_motor.logical_deadline_ms=now+remaining;
@@ -876,6 +881,66 @@ MotorResult MotorExecutor_HandoffContinuousBoost(uint32_t token,uint32_t now,int
 fail:
     s_servo_open=false;
     MotorHwReal_DisableImmediate(); MotorStopTimer_Cancel();
+    if (!s_completion_event_pending) MotorExecutor_LatchCompletion(MOTOR_STOP_TIMER_ERROR);
+    result=MOTOR_RESULT_HARDWARE_ERROR;
+done:
+    MotorExecutor_SetPhysicalStatus(); MotorAtomic_Leave(key); return result;
+}
+
+bool MotorExecutor_SetContinuousBoostPlan(uint32_t token,uint32_t now,uint32_t rise,
+    uint32_t end,int32_t peak,int32_t lower)
+{
+    uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
+    bool ok=s_servo_open && token==s_servo_generation && s_boost_set && !s_boost_plan &&
+        rise>=1 && rise<end && end<=s_boost_deadline-s_boost_started-2 &&
+        (int32_t)(now-(s_boost_started+end))<0 && s_servo_committed>0 &&
+        peak>s_normal_cap && peak<=FS_EXECUTOR_PRESS_CEILING &&
+        lower>=0 && lower<=s_normal_cap && MotorExecutor_ActiveRequestIsValid();
+    if (ok) {
+        s_boost_plan=true; s_boost_initial=s_servo_committed;
+        s_boost_peak=peak; s_boost_lower=lower; s_boost_rise=rise;
+        s_boost_end_ms=s_boost_started+end; s_motor.boost_planned_end_ms=s_boost_end_ms;
+    }
+    MotorAtomic_Leave(key); return ok;
+}
+int32_t MotorExecutor_ContinuousBoostCommand(uint32_t token,uint32_t now)
+{
+    if (!s_servo_open || token!=s_servo_generation || !s_boost_plan || !s_boost_set) return 0;
+    uint32_t elapsed=(int32_t)(now-s_boost_started)<0 ? 0U : now-s_boost_started;
+    if (elapsed>=s_boost_rise) return s_boost_peak;
+    return s_boost_initial+(int32_t)(((uint64_t)(s_boost_peak-s_boost_initial)*elapsed)/s_boost_rise);
+}
+MotorResult MotorExecutor_ServiceContinuousBoost(uint32_t token,uint32_t now,int32_t *actual,bool *finished)
+{
+    uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
+    MotorResult result=MOTOR_RESULT_INVALID;
+    uint16_t t2=0,t3=0;
+    if (!s_servo_open || token!=s_servo_generation || !actual || !finished) goto done;
+    *finished=false;
+    if (!s_boost_plan || !s_boost_set || s_completion_event_pending ||
+        (int32_t)(s_boost_deadline-now)<2 || (int32_t)(s_receive_deadline-now)<2 ||
+        (int32_t)(s_session_deadline-now)<2 || !MotorExecutor_ActiveRequestIsValid()) goto fail;
+    if ((int32_t)(now-s_boost_end_ms)>=0) {
+        int32_t lower=s_boost_lower<s_servo_committed ? s_boost_lower : s_servo_committed;
+        result=MotorExecutor_HandoffContinuousBoost(token,now,lower);
+        if (result==MOTOR_RESULT_OK) { *actual=lower; *finished=true; }
+        goto done;
+    }
+    int32_t requested=MotorExecutor_ContinuousBoostCommand(token,now);
+    if (requested<s_servo_committed || requested>s_boost_peak || requested<=0 ||
+        !MotorStopTimer_CommitArm()) goto fail;
+    if (requested!=s_servo_committed) {
+        if (MotorExecutor_PlanCommand(MOTOR_DIRECTION_PRESS,(uint32_t)requested,&t2,&t3)!=MOTOR_RESULT_OK ||
+            !MotorHwReal_Update(true,t3) || !MotorHwReal_MatchesPlan(t2,t3) ||
+            !MotorStopTimer_CommitArm() || !s_servo_open || s_completion_event_pending) goto fail;
+        s_servo_committed=requested; s_motor.command_mv=(uint32_t)requested;
+        s_motor.planned_tim2_ccr3=t2; s_motor.planned_tim3_ccr3=t3; ++s_motor.request_sequence;
+    }
+    /* Neither the compare nor the receive deadline/sequence is renewed here.
+     * This is a finite preauthorized output segment, not a stale-feedback PID step. */
+    *actual=s_servo_committed; result=MOTOR_RESULT_OK; goto done;
+fail:
+    s_servo_open=false; MotorHwReal_DisableImmediate(); MotorStopTimer_Cancel();
     if (!s_completion_event_pending) MotorExecutor_LatchCompletion(MOTOR_STOP_TIMER_ERROR);
     result=MOTOR_RESULT_HARDWARE_ERROR;
 done:
@@ -901,11 +966,13 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
         (requested_mv>s_normal_cap && !s_boost_set))) goto fail;
 #if SD700_FORCE_SERVO_COMMISSIONING
     if ((requested_mv>FS_CONTINUOUS_CEILING && !s_boost_set) ||
-        requested_mv>(int32_t)FS_PRESS_PROFILE_CEILING ||
+        requested_mv>(int32_t)FS_EXECUTOR_PRESS_CEILING ||
         requested_mv<-(int32_t)FS_RELEASE_PROFILE_CEILING ||
         lease_ms>FORCE_SERVO_COMMISSIONING_LEASE_MS || max_age_ms>FORCE_SERVO_COMMISSIONING_AGE_MS ||
         deadtime_ms<FORCE_SERVO_COMMISSIONING_DEADTIME_MS) goto fail;
 #endif
+    if (s_boost_plan && !s_boost_end &&
+        requested_mv>MotorExecutor_ContinuousBoostCommand(token,now_ms)) goto fail;
     if (s_completion_event_pending || lease_ms<3 ||
 #if !SD700_FORCE_SERVO_COMMISSIONING
         lease_ms>100 ||
@@ -961,7 +1028,7 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
         /* The lower command is physically installed and verified at this point.
          * Never extend a still-high output's compare while attempting transfer. */
         if (!MotorStopTimer_RenewLease(normal_remaining) || !MotorStopTimer_CommitArm()) goto fail;
-        s_boost_set=false; remaining=normal_remaining;
+        s_boost_set=false; s_boost_plan=false; remaining=normal_remaining;
     }
     s_receive_deadline=received_ms+lease_ms;
     s_servo_sequence=sequence; s_servo_has_sequence=true; s_servo_committed=actual;

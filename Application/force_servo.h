@@ -5,8 +5,8 @@
 #include "Application/motion_build_policy.h"
 #include "Application/force_servo_output_profile.h"
 
-#define FORCE_SERVO_SCHEMA 0xF105U
-#define FORCE_SERVO_BUILD_ID 0x46530107U
+#define FORCE_SERVO_SCHEMA 0xF106U
+#define FORCE_SERVO_BUILD_ID 0x46530108U
 #define FORCE_SERVO_REPRESENTABLE 100000.0f
 #define FORCE_SERVO_DEFAULT_TARGET 250U
 #define FORCE_SERVO_COMMISSIONING_LEASE_MS 130U
@@ -50,7 +50,7 @@ typedef struct {
 #define FORCE_SERVO_CONFIG_WORDS (sizeof(ForceServoConfig)/2U)
 extern const ForceServoConfig g_force_servo_default_config;
 /* Kept in the ELF as a verifiable candidate contract; not a hardware certificate. */
-extern const uint32_t g_force_servo_contract[16];
+extern const uint32_t g_force_servo_contract[20];
 #include "Application/force_servo_profile.h"
 float ForceServo_TrajectorySeconds(const ForceServoConfig *c,float measured,float target);
 ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const ForceServoConfig *c,

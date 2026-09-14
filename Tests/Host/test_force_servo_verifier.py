@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 38232)
+        self.assertEqual(len(image.load_bytes), 39968)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -141,6 +141,10 @@ class VerifierTests(unittest.TestCase):
                                     ('g_force_servo_contract', 52, 101),
                                     ('g_force_servo_contract', 56, 0),
                                     ('g_force_servo_contract', 60, 0),
+                                    ('g_force_servo_contract', 64, 9600),
+                                    ('g_force_servo_contract', 68, 2400),
+                                    ('g_force_servo_contract', 72, 12),
+                                    ('g_force_servo_contract', 76, 0),
                                     ('g_force_servo_default_config', 0, 0x3F800000),
                                     ('g_force_servo_default_config', 4, 0x3F800000),
                                     ('g_force_servo_default_config', 28, 0x42C80000),
@@ -158,12 +162,24 @@ class VerifierTests(unittest.TestCase):
     def test_profile_mutations_rejected(self):
         # Every field is pinned independently of hash: unlocking/calibration,
         # target/trip, raw bounds, caps, timing, peak and cumulative budget.
-        for index in range(26):
+        for index in range(33):
             bad=bytearray(self.elf)
             offset=self.image.symbol_offsets['g_force_servo_profile']+index*4
             old=struct.unpack_from('<f',bad,offset)[0]
             struct.pack_into('<f',bad,offset,old+1)
             self.reject_elf(bad,'operating profile')
+
+    def test_all_candidate_fields_pinned_including_enable_and_cooling(self):
+        for index in range(3*33):
+            bad=bytearray(self.elf)
+            offset=self.image.symbol_offsets['g_force_servo_candidates']+index*4
+            old=struct.unpack_from('<f',bad,offset)[0]
+            struct.pack_into('<f',bad,offset,old+1)
+            self.reject_elf(bad,'candidate catalog')
+
+    def test_boost1_is_not_current_candidate(self):
+        old=ROOT/'output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(),'identity/configuration')
 
     def test_static3000_1_is_not_current_candidate(self):
         old=ROOT/'output/StaticForce3000_1/firmware/SD700_ForceServo1_StaticForce3000_1_RealBench_Release.elf'

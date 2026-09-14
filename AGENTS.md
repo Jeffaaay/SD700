@@ -21,16 +21,15 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current candidate is StaticForce3000_Boost1, explicitly authorized by the
-user for one short supervised Target250 breakaway experiment. Profile3 is legacy
-control counts, continuous PRESS720/RELEASE100, peak6000, boost10 ms/total10 ms.
-Normal main-loop handoff is attempted at8 ms; unchanged TIM5 cutoff reserves1 ms
-and forces OFF if handoff is missed. Keep existing0.5 A and absolute5 s limits.
-No continuous25% rating, N calibration or3000 N qualification is established.
-Cumulative reservation survives STOP/fault/reset/new START within a boot. No
-retrigger, automatic repeated START or permission inferred from a reboot.
-Plain ForceServo remains LOCKED with no runtime unlock. Preserve STOP, freshness,
-receive-anchored lease, fixed boost/session deadlines, independent overpressure,
-direction interlock, hardware guard and fault latch. No Codex serial connection,
-flashing or hardware motion. Preserve original field evidence; software PASS
-is not physical validation. Use the current README and exact verifier hashes.
+The current candidate is StaticForceAuthority2. Requested20/30/40% assist and
+10% normal profiles are represented and synthetic-tested, but disabled pending
+reviewed output/on-time/cumulative/OFF-cooling limits. The only enabled live
+profile4 is inherited short PRESS720/RELEASE100, no assist, absolute5 s. Do not
+advertise new high-output availability or invent time/current ratings. Plain
+ForceServo remains LOCKED with no runtime unlock. Keep0.5 A unchanged.
+Preserve STOP, freshness, receive-anchored lease, independent peak/session
+cutoffs, overpressure, direction interlock, hardware guard and fault latch.
+Assist reservation and cooling survive STOP/fault/reset/config/new START within
+a boot; reboot is not permission for more exposure. No auto-retrigger/restart.
+No Codex serial connection, flashing or motion. Preserve original field evidence;
+software PASS is not physical validation. Use current README/verifier hashes.

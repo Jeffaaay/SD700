@@ -6,7 +6,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--output',default='output/ForceServo1/host')
     ap.add_argument('--commissioning',action='store_true',help='Current explicit profile with the production arming gate')
-    ap.add_argument('--range-fixture',action='store_true',help='SYNTHETIC host-only ceilings 6000/200; not a hardware rating')
+    ap.add_argument('--range-fixture',action='store_true',help='SYNTHETIC host-only command ceilings9600/200, continuous2400; not a hardware rating')
     args=ap.parse_args();
     if args.range_fixture and not args.commissioning: ap.error('--range-fixture requires --commissioning')
     out=Path(args.output); out.mkdir(parents=True,exist_ok=True)
@@ -23,7 +23,7 @@ def main():
     if args.commissioning:
         defines+=['SD700_FORCE_SERVO_COMMISSIONING=1','SD700_TEST_PRODUCTION_ARMING_GATE=1']
         sources+=['Board/Motor/motor_real_gate.c']
-    if args.range_fixture: defines+=['FS_PRESS_PROFILE_CEILING=6000','FS_RELEASE_PROFILE_CEILING=200']
+    if args.range_fixture: defines+=['FS_PRESS_PROFILE_CEILING=9600','FS_RELEASE_PROFILE_CEILING=200']
     results=[]
     for opt in ('-O0','-O2','-Os'):
         exe=out/('force_servo_'+opt[1:]+'.exe')

@@ -28,10 +28,20 @@ def schema():
     schema_id=int(re.search(r'#define FORCE_SERVO_SCHEMA (0x[0-9A-Fa-f]+)U',header)[1],16)
     profile_header=(ROOT/'Application/force_servo_profile.h').read_text(encoding='utf-8')
     constants.update(dict(re.findall(r'#define (FS_\w+) ([\w.]+)',profile_header)))
-    profile_fields=[dict(name=n,default=number(d)) for n,d in re.findall(r'X\((\w+),([^,)]+)\)',profile_header)]
-    return dict(profile=profile_fields,schema=schema_id,build_id=build_id,parameters=params,
+    profile_fields=[dict(name=n,default=number(d)) for n,d in re.findall(r'X\((\w+),([^,)]+)\)',profile_header.split('#define FORCE_SERVO_PROFILE_FIELDS(X)',1)[1].split('typedef struct',1)[0])]
+    defaults={p['name']:p['default'] for p in profile_fields}
+    candidate_line=profile_header.split('#define FORCE_SERVO_CANDIDATES(X)',1)[1].splitlines()[0]
+    candidates=[]
+    for identity,peak in re.findall(r'X\((\d+),(\d+)\)',candidate_line):
+        candidate=dict(defaults,id=int(identity),continuous_press=2400,peak_press=int(peak),
+            energized_ms=0,session_ms=0,capture_ms=0,build_ms=0,experiment_enabled=0,limits_source=0)
+        candidates.append(candidate)
+    return dict(profile=profile_fields,candidates=candidates,schema=schema_id,build_id=build_id,parameters=params,
                 powered_test_ready=bool(number('FS_POWERED_TEST_READY')),
                 press_profile_ceiling=number('FS_PRESS_PROFILE_CEILING'),
+                live_executor_press_ceiling=number('FS_EXECUTOR_PRESS_CEILING'),
+                live_continuous_ceiling=number('FS_CONTINUOUS_CEILING'),
+                live_approved_peak_ms=number('FS_APPROVED_PEAK_MS'),
                 release_profile_ceiling=number('FS_RELEASE_PROFILE_CEILING'),
                 u32=re.findall(r'X\((\w+)\)',u),floats=re.findall(r'X\((\w+)\)',f.split('typedef struct')[0]))
 
@@ -151,19 +161,24 @@ def metrics(rows):
     statuses={0:'NO_BUILD_COMMAND',1:'SATURATING_WITH_PROGRESS',2:'COMMAND_WITHOUT_MEASURED_FORCE_RESPONSE',3:'COMMAND_WITH_PROGRESS'}
     result['observed_progress_statuses']={name:sum(r.get('progress_status')==code for r in valid) for code,name in statuses.items()}
     result['force_N_status']='CALIBRATED_PROFILE' if result['unit']=='N' else 'NOT_CALIBRATED_NO_N_MEASUREMENT'
-    # A 10 ms event can fall entirely between PC polls. Use the persistent MCU
-    # event fields, including STOP/fault rows; never interpolate a pressure at 10 ms.
+    # A short event can fall entirely between PC polls. Use the persistent MCU
+    # event fields, including STOP/fault rows; never interpolate pressure at its end.
     event=next((r for r in reversed(rows) if r.get('boost_duration_ms',0)>0),None)
     result['boost_event']=None if event is None else dict(
         session=event.get('session'), active=bool(event.get('boost_active')),
         peak_command=event.get('boost_peak_command') or None,
         configured_duration_ms=event.get('boost_duration_ms'), reserved_total_ms=event.get('boost_spent_ms'),
         started_ms=event.get('boost_started_ms'), end_ms=event.get('boost_end_ms'),
+        hard_deadline_ms=event.get('boost_deadline_ms'),
         elapsed_ms=event.get('boost_elapsed_ms'), end_reason=event.get('boost_end_reason'),
         handoff_command=event.get('boost_handoff_command') if event.get('boost_end_reason')==2 else None,
         pressure_before=event.get('boost_pressure_before'), before_received_ms=event.get('boost_before_received_ms'),
         pressure_after=event.get('boost_pressure_after') if event.get('boost_after_valid') else None,
         after_received_ms=event.get('boost_after_received_ms') if event.get('boost_after_valid') else None,
+        admission_reason=event.get('assist_admission'), exit_reason=event.get('assist_exit'),
+        requested_peak=event.get('assist_requested_peak'), maximum_committed_ccr=event.get('assist_peak_ccr'),
+        rise_ms=event.get('assist_rise_ms'), planned_end_ms=event.get('assist_normal_end_ms'),
+        peak_pressure=event.get('assist_pressure_peak'),
         measurement_limit='MCU command/register event, not measured waveform. After pressure is the next fresh in-range frame after the event; absent until valid. Abort elapsed is a capped service-time bound, not actual PWM duration.')
     result['progress_limit']='Bounded net-change diagnostic, not a stall or physical-root-cause diagnosis.'
     # tim2/tim3 are planned counts; output_off includes the hardware guard's register checks.
@@ -213,7 +228,7 @@ def decode_csv_row(row):
 
 
 def self_test():
-    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==69 and len(s['floats'])==25 and len(s['profile'])==26
+    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==77 and len(s['floats'])==26 and len(s['profile'])==33 and len(s['candidates'])==3
     c={p['name']:p['default'] for p in s['parameters']}; validate(c)
     bad=dict(c,lease_ms=10)
     try: validate(bad)

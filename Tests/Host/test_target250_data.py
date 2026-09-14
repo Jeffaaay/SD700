@@ -36,10 +36,22 @@ class Target250DataTests(unittest.TestCase):
 
     def test_static_profile_is_unqualified_and_finitely_bounded(self):
         p={f['name']:f['default'] for f in schema()['profile']}
-        self.assertEqual((p['id'],p['unit'],p['qualifications']),(3,0,0))
+        self.assertEqual((p['id'],p['unit'],p['qualifications']),(4,0,0))
         self.assertEqual((p['operating_max'],p['raw_trip']),(275,325))
-        self.assertEqual((p['peak_press'],p['boost_ms'],p['boost_total_ms']),(6000,10,10))
+        self.assertEqual((p['peak_press'],p['boost_ms'],p['boost_total_ms']),(0,0,0))
         self.assertEqual((p['energized_ms'],p['session_ms'],p['capture_ms']),(5000,5000,5000))
+
+    def test_disabled_authority_catalog_is_not_live_authorization(self):
+        s=schema()
+        self.assertEqual((s['live_executor_press_ceiling'],s['live_continuous_ceiling'],s['live_approved_peak_ms']),(720,720,0))
+        self.assertEqual([(p['id'],p['peak_press']) for p in s['candidates']],[(20,4800),(30,7200),(40,9600)])
+        for p in s['candidates']:
+            self.assertEqual((p['continuous_press'],p['release']),(2400,100))
+            for name in ('experiment_enabled','limits_source','boost_ms','boost_total_ms','assist_rise_ms','assist_end_ms','off_ms','energized_ms','session_ms','build_ms','capture_ms'):
+                self.assertEqual(p[name],0,name)
+        c={p['name']:p['default'] for p in s['parameters']}
+        for cap in (2400,4800,7200,9600):
+            with self.assertRaises(AssertionError): validate(dict(c,press_cap=cap))
 
     def test_continuous2_peaks_and_exit(self):
         a=sample(1,22,limits=1,session_peak_raw=260,saturated_ms=4900)
@@ -72,12 +84,16 @@ class Target250DataTests(unittest.TestCase):
     def test_boost_event_survives_unsampled_peak_and_stop(self):
         r=sample(1,27,boost_active=0,boost_peak_command=6000,boost_duration_ms=10,
                  boost_spent_ms=10,boost_started_ms=100,boost_end_ms=108,boost_elapsed_ms=8,
+                 boost_deadline_ms=110,assist_admission=1,assist_exit=1,assist_requested_peak=6000,assist_peak_ccr=1200,
+                 assist_rise_ms=3,assist_normal_end_ms=108,assist_pressure_peak=27,
                  boost_end_reason=2,boost_handoff_command=720,boost_pressure_before=27,
                  boost_before_received_ms=100,boost_after_valid=0,boost_pressure_after=0)
         r['phase']='STOP_READBACK'; r['current_committed']=0
         b=metrics([r])['boost_event']
         self.assertEqual((b['peak_command'],b['handoff_command'],b['elapsed_ms']),(6000,720,8))
         self.assertIsNone(b['pressure_after'])
+        self.assertEqual((b['admission_reason'],b['exit_reason'],b['requested_peak'],b['maximum_committed_ccr']),(1,1,6000,1200))
+        self.assertEqual((b['rise_ms'],b['planned_end_ms'],b['hard_deadline_ms'],b['peak_pressure']),(3,108,110,27))
         r.update(boost_after_valid=1,boost_pressure_after=28,boost_after_received_ms=201)
         b=metrics([r])['boost_event']
         self.assertEqual((b['pressure_before'],b['pressure_after'],b['after_received_ms']),(27,28,201))
