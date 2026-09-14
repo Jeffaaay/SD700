@@ -8,6 +8,7 @@ function New-CharacterizationPlan([double]$TargetForceN,[double]$AssistPercent,[
         $AssistPercent -lt 0 -or $AssistPercent -gt 40 -or $ContinuousPercent -lt 0 -or $ContinuousPercent -gt 10) {
         throw 'Runtime bounds: integer TargetForceN 1..3000, AssistPercent 0..40, ContinuousPercent 0..10; ZERO START'
     }
+    if ($schema.build_to_target -and ($AssistPercent -ne 0 -or $ContinuousPercent -ne 0)) { throw 'BuildToTarget1 exposes Target only; legacy plan output slots must be zero; ZERO START' }
     return [pscustomobject]@{target_N=[single]$TargetForceN;assist_percent=[single]$AssistPercent;continuous_percent=[single]$ContinuousPercent}
 }
 function Convert-CharacterizationPercent([single]$Percent) {

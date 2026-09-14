@@ -1,6 +1,19 @@
 #ifndef FORCE_SERVO_MACHINE_H
 #define FORCE_SERVO_MACHINE_H
 #include "Application/force_servo.h"
+#include "Application/force_build.h"
+#if SD700_BUILD_TO_TARGET
+#define FORCE_BUILD_DIAG_U32(X) \
+ X(build_mode) X(build_config_digest) X(build_phase) X(segment_request) X(segment_phase) \
+ X(segment_command) X(segment_hard_ms) X(segment_started_ms) X(segment_deadline_ms) X(segment_end_ms) X(segment_end_reason) \
+ X(post_pulse_pending) X(post_pulse_valid) X(post_pulse_request) X(post_pulse_received_ms) X(post_pulse_sample_hi) X(post_pulse_sample_lo) \
+ X(exposure_epoch) X(energized_reserved_ms) X(approach_reserved_ms) X(energized_upper_ms) X(full_rest_remaining_ms) X(exposure_inhibited) \
+ X(build_boost_command) X(build_low_response_count) X(build_no_response_ms)
+#define FORCE_BUILD_DIAG_FLOAT(X) X(pulse_force_before) X(pulse_force_after) X(build_progress_anchor)
+#else
+#define FORCE_BUILD_DIAG_U32(X)
+#define FORCE_BUILD_DIAG_FLOAT(X)
+#endif
 /* Wire order is explicitly serialized; no C struct ABI on the bus. */
 #define FORCE_SERVO_DIAG_U32(X) \
  X(schema) X(build_id) X(revision) X(now_ms) X(control_at_ms) \
@@ -19,14 +32,16 @@
  X(assist_admission) X(assist_exit) X(assist_requested_peak) X(assist_peak_ccr) \
  X(assist_rise_ms) X(assist_normal_end_ms) X(cooling_until_ms) X(cooling_active) \
  X(assist_response_pending) X(assist_after_result) X(boost_after_sample_hi) X(boost_after_sample_lo) \
- X(run_reason) X(target_reached) X(target_reached_ms) X(plan_version) X(plan_digest)
+ X(run_reason) X(target_reached) X(target_reached_ms) X(plan_version) X(plan_digest) \
+ FORCE_BUILD_DIAG_U32(X)
 #define FORCE_SERVO_DIAG_FLOAT(X) \
  X(dt_s) X(filtered) X(target) X(reference) X(reference_rate) X(error) \
  X(p) X(i) X(d) X(ff) X(raw_output) X(control_committed) X(next_integral) X(current_committed) \
  X(control_pressure) X(requested_output) X(post_limit_output) \
  X(measured) X(force_N) X(planned_reference_s) X(progress_delta) X(session_peak_measured) \
  X(boost_handoff_command) X(boost_pressure_before) X(boost_pressure_after) X(assist_pressure_peak) \
- X(assist_response_peak)
+ X(assist_response_peak) \
+ FORCE_BUILD_DIAG_FLOAT(X)
 typedef struct {
 #define FS_U32(n) uint32_t n;
  FORCE_SERVO_DIAG_U32(FS_U32)
@@ -37,6 +52,9 @@ typedef struct {
 } ForceServoDiagnostic;
 #define FORCE_SERVO_DIAG_WORDS (sizeof(ForceServoDiagnostic)/2U)
 typedef struct {
+#if SD700_BUILD_TO_TARGET
+ ForceBuildState build;
+#endif
  ForceCharacterizationPlan plan;
  uint16_t plan_staging[10], plan_ack[4];
  uint16_t plan_mask, plan_read_mask, plan_ack_mask;

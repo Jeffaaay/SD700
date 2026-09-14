@@ -1,42 +1,17 @@
 # SD700 repository delivery policy
 
-GitHub `main` is the source of truth. After a validated software change:
+GitHub main is the source of truth. After validated software changes, run applicable host/script/ARM tests and strict firmware verification; retain the current field HEX/ELF, update README/current and root tracked-source SHA256 manifests, then normal commit/push origin/main and live ls-remote verification. No PR or force push. Do not generate ZIPs, archives, bundles, nested deliveries or package-verification prerequisites.
 
-1. Run applicable builds/tests and strict firmware verification.
-2. Keep the current field HEX/ELF tracked, with README and firmware manifests accurate.
-3. Update the root tracked-source SHA256 manifest when tracked files change.
-4. Commit and push `origin/main` through a normal fast-forward update.
+Preserve unique field evidence and historical engineering records/firmware. Inspect generated directories before removing regenerable objects/caches/temporary build trees; retain useful test logs. Never reset --hard, clean -fdx or overwrite field originals. Do not connect serial, flash or move hardware in an agent session. Software PASS is not physical validation.
 
-Delivery is the pushed commit. Do not generate ZIPs, tarballs, source/review
-bundles, archive hash sidecars, extracted-package copies or nested deliveries.
-Do not add a package-verification prerequisite for field use. This policy
-supersedes historical packaging instructions in engineering records.
+Current candidate: BuildToTarget1 (F10A/4653010C/profile6), based on9de33246b67603e797ff31cc8472f54b9bd0520d. Authoritative request: user-provided SD700_BuildToTarget1_Codex.md. Actual modified old attachment source is referenced only for pressure strategy, with exact hashes and decisions in Docs/BuildToTarget1/SOURCE_BASIS.md. Do not substitute the old Git HEAD or copy old hardware drivers.
 
-Field checkouts use `git switch main`, `git pull --ff-only`, `git rev-parse HEAD`,
-then `python tools/verify_force_servo_firmware.py`. Use the current repository
-firmware identified by README and `Firmware/ForceServo1.SHA256SUMS.txt`.
+Preserve the modern state machine, single executor, communication, atomic plan/full readback/version/digest/one START, fresh feedback, receive-anchored lease, STOP priority, fault latch, hardware output guard, anti-windup and direction interlock. BuildToTarget1 uses its own bounded segment contract; never bypass the executor or retrigger ONE Assist to create BUILD pulses. Continuous/Assist owner admission is disabled in this candidate; legacy behavior remains regression tested with its original compile flag.
 
-Preserve unique field evidence and useful historical engineering records.
-Inspect generated directories before removing them. Retain useful test logs;
-remove regenerable objects, caches, temporary build trees and duplicate outputs.
-Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
+APPROACH5000 normal99/hard100 ms from0 N, contact10 N, approach cumulative8 s. BUILD3000+bounded boost0..4000, hard floor(30000/command) ms (4..10), normal hard-1. TAPER error<=50 N uses800..3000 hard10; fine<=3 N uses400..1000 hard5. Every segment needs30 ms true OFF plus a fresh post-segment frame; no timeout retry. Low/already-reached targets take precedence. All targets1..3000 turn truly OFF at first valid reach and monitor only; no active HOLD, brake/preload, repress or release. Raw overforce remains protected.
 
-The current candidate is StaticForceRuntimeCharacterization2. The user explicitly
-provided the supervised1/2/4 ms assist envelope (4 ms reserved per deliberate
-session),5000 ms administrative inter-run lockout,30/2/25 N guards,
-and USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT (scale1 offset0, unit2).
-The current user removed overall session/build/capture deadlines. Zero force START
-uses normal continuous approach; first valid contact at20 N latches one assist
-eligibility. Below3000 N: active HOLD until manual STOP or fault;3000 N: first
-valid reach immediately OFF, no HOLD. Keep receive/assist and conditional stall
-protections; zero deadline fields apply only to this runtime unit2 profile.
-Only TargetForceN1..3000, AssistPercent0..40 and ContinuousPercent0..10 are runtime
-field inputs. All gains, timing, RELEASE100, reference/slew and protection remain
-firmware-owned. The lockout is NOT validated thermal cooling time. No motor,
-thermal, continuous output or3000 N qualification is claimed.
-Preserve atomic plan/readback/version/digest and single-consumption START authority,
-post-assist pending checks, STOP, freshness, receive-anchored lease, independent
-cutoffs, direction interlock, hardware guard and fault latch. No auto-retrigger,
-escalation, restart or field PI tuning. Plain ForceServo remains locked.
-No Codex serial connection, flashing or motion. Preserve original field evidence;
-software PASS is not physical validation. Use current README/verifier hashes.
+No normal5 s session/build/capture stop. Tracking elapsed stays diagnostic; cumulative net>=2 N post-pulse progress is required within5 s active BUILD/TAPER, including pulse OFF. Noise, START/STOP and phase changes must not wash budgets. Reserve all hard durations before output (no refunds), maximum12 s total/8 s approach; reset only after108 s uninterrupted true OFF, including after boot. These are experimental exposure constraints, not a validated thermal model or motor rating. No claim of mechanical stall without position/current evidence.
+
+Only integer TargetForceN1..3000 is field writable. Reserved legacy Assist/Continuous plan slots must be0; actual fixed stage ceilings are independently read back at FC03 0x600 and verified. Kp/Ki/Kd10/0/0 are locked. Keep PSU0.5 A unchanged; PWM commands are not measured current. No rotating PID tuning or Ki in this delivery.
+
+Field checkout: git switch main; git pull --ff-only; git rev-parse HEAD; python tools/verify_force_servo_firmware.py. Follow current README/hash, not historical field scripts or firmware instructions. PHYSICAL_STATUS=NOT_RUN; hardware STOP, achieved force, thermal limits and rotating load remain unvalidated.

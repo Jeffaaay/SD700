@@ -9,13 +9,19 @@ param(
     [switch]$AutoTarget,
     [switch]$ForceServo,
     [switch]$StaticForceAuthority2,
-    [switch]$StaticForceRuntimeCharacterization2
+    [switch]$StaticForceRuntimeCharacterization2,
+    [switch]$BuildToTarget1
 )
 
 $ErrorActionPreference = "Stop"
+if ($BuildToTarget1) {
+    if ($StaticForceRuntimeCharacterization2) { throw "Select one candidate" }
+    $StaticForceRuntimeCharacterization2=$true
+    Write-Host "BUILD_TO_TARGET1; FIXED_SEGMENT_PROFILE; TARGET_ONLY; PHYSICAL_NOT_RUN"
+}
 if ($StaticForceRuntimeCharacterization2) {
     if (-not $ForceServo -or $StaticForceAuthority2) { throw 'Characterization requires -ForceServo and excludes old profile selection' }
-    Write-Host 'STATIC_FORCE_RUNTIME_CHARACTERIZATION2; ONE_RUNTIME_PLAN; USER_CONFIRMED_SENSOR_N; PHYSICAL_NOT_RUN'
+    if (-not $BuildToTarget1) { Write-Host 'STATIC_FORCE_RUNTIME_CHARACTERIZATION2; ONE_RUNTIME_PLAN; USER_CONFIRMED_SENSOR_N; PHYSICAL_NOT_RUN' }
 }
 if ($StaticForceAuthority2 -and -not $ForceServo) { throw 'StaticForceAuthority2 requires -ForceServo' }
 if ($ForceServo -and ($AutoTarget -or $MotorMode -ne 'RealBench')) {
@@ -132,6 +138,7 @@ if ($AutoTarget) { $defines += 'SD700_AUTO_TARGET_ENABLED=1' }
 if ($ForceServo) { $defines += 'SD700_FORCE_SERVO_ENABLED=1' }
 if ($StaticForceAuthority2 -or $StaticForceRuntimeCharacterization2) { $defines += 'SD700_FORCE_SERVO_COMMISSIONING=1' }
 if ($StaticForceRuntimeCharacterization2) { $defines += 'SD700_FORCE_CHARACTERIZATION=1' }
+if ($BuildToTarget1) { $defines += 'SD700_BUILD_TO_TARGET=1' }
 
 $includes = @(
     ".",
@@ -211,6 +218,8 @@ if ($ForceServo) {
     $sources += @('Application/force_servo.c', 'Application/force_servo_machine.c',
                   'Transport/Modbus/force_servo_protocol.c')
 }
+
+if ($BuildToTarget1) { $sources += @('Application/force_build.c','Application/force_build_machine.c') }
 
 $cpuFlags = @("-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard")
 $commonFlags = @("-ffunction-sections", "-fdata-sections", "-Wall", "-Wextra", "-Wno-unused-parameter")

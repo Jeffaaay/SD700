@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 41688)
+        self.assertEqual(len(image.load_bytes), 47168)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -168,6 +168,27 @@ class VerifierTests(unittest.TestCase):
                     old=struct.unpack_from('<I',bad,offset)[0]
                     struct.pack_into('<I',bad,offset,old ^ 1)
                     self.reject_elf(bad,'configuration|parameter group')
+
+    def test_all_build_configuration_words_rejected(self):
+        for index in range(26):
+            with self.subTest(index=index):
+                bad=bytearray(self.elf); offset=self.image.symbol_offsets['g_force_build_config']+index*4
+                old=struct.unpack_from('<I',bad,offset)[0]
+                struct.pack_into('<I',bad,offset,old^1)
+                self.reject_elf(bad,'Build configuration')
+
+    def test_continuous_admission_unlock_rejected(self):
+        bad=bytearray(self.elf); bad[self.image.symbol_offsets['MotorExecutor_BeginContinuous']]=0
+        self.reject_elf(bad,'Continuous owner admission')
+
+    def test_build_implementation_presence_required(self):
+        for name in ('MotorExecutor_StartBuildSegment','MotorExecutor_AcceptBuildPost','ForceBuildMachine_Safety','MotorStopTimer_Arm'):
+            sym=dict(self.image.symbols); del sym[name]
+            with self.assertRaisesRegex(ValueError,'Missing active implementation'): verifier.verify_contract(sym)
+
+    def test_runtime2_predecessor_rejected(self):
+        old=ROOT/'output/StaticForceRuntimeCharacterization2/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization2_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(),'identity/configuration')
 
     def test_runtime1_predecessor_rejected(self):
         old=ROOT/'output/StaticForceRuntimeCharacterization1/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization1_RealBench_Release.elf'

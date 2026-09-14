@@ -4,10 +4,35 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
 
-def schema(characterization=False):
-    header=(ROOT/'Application/force_servo.h').read_text(encoding='utf-8')
-    output_profile=(ROOT/'Application/force_servo_output_profile.h').read_text(encoding='utf-8')
-    profile_header=(ROOT/'Application/force_servo_profile.h').read_text(encoding='utf-8')
+def select_build_branch(text, enabled):
+    """Select only the new named conditional; retain historical branch parsing."""
+    output=[]; stack=[]; active=True
+    for line in text.splitlines(keepends=True):
+        stripped=line.strip()
+        if re.match(r'#if(?:def|ndef)?\b',stripped):
+            controlled=stripped=='#if SD700_BUILD_TO_TARGET'
+            stack.append((controlled,active))
+            if controlled: active=active and enabled
+            elif active: output.append(line)
+        elif stripped=='#else' and stack:
+            controlled,parent=stack[-1]
+            if controlled: active=parent and not enabled
+            elif active: output.append(line)
+        elif stripped.startswith('#endif') and stack:
+            controlled,parent=stack.pop()
+            if not controlled and active: output.append(line)
+            active=parent
+        elif active: output.append(line)
+    if stack: raise ValueError('Unbalanced C profile conditional')
+    return ''.join(output)
+
+
+def schema(characterization=False, build_to_target=False):
+    if build_to_target and not characterization: raise ValueError('Build mode requires characterization substrate')
+    def read(name): return select_build_branch((ROOT/name).read_text(encoding='utf-8'),build_to_target)
+    header=read('Application/force_servo.h')
+    output_profile=read('Application/force_servo_output_profile.h')
+    profile_header=read('Application/force_servo_profile.h')
     # Deliberately select the named C branches; no external compiler in the field.
     def defines(text): return dict(re.findall(r'#define (FS_\w+|FORCE_SERVO_SCHEMA|FORCE_SERVO_BUILD_ID) ([\w.]+)',text))
     constants=defines(header+'\n'+output_profile+'\n'+profile_header)
@@ -32,29 +57,39 @@ def schema(characterization=False):
     params=[]
     for n,d,lo,hi in re.findall(r'X\((\w+),([^,]+),([^,]+),([^\)]+)\)',header):
         params.append(dict(name=n,default=number(d),minimum=number(lo),maximum=number(hi)))
-    diag=(ROOT/'Application/force_servo_machine.h').read_text()
-    u,f=diag.split('#define FORCE_SERVO_DIAG_FLOAT(X)',1)
+    diag=read('Application/force_servo_machine.h')
+    def fields(macro):
+        body=diag.split('#define '+macro+'(X)',1)[1].split('#',1)[0].split('typedef struct',1)[0]
+        return re.findall(r'X\((\w+)\)',body)
+    u=fields('FORCE_SERVO_DIAG_U32')+fields('FORCE_BUILD_DIAG_U32')
+    f=fields('FORCE_SERVO_DIAG_FLOAT')+fields('FORCE_BUILD_DIAG_FLOAT')
     build_id=int(constants['FORCE_SERVO_BUILD_ID'].rstrip('U'),16)
     schema_id=int(constants['FORCE_SERVO_SCHEMA'].rstrip('U'),16)
-    profile_header=(ROOT/'Application/force_servo_profile.h').read_text(encoding='utf-8')
+    profile_header=read('Application/force_servo_profile.h')
     profile_fields=[dict(name=n,default=number(d)) for n,d in re.findall(r'X\((\w+),([^,)]+)\)',profile_header.split('#define FORCE_SERVO_PROFILE_FIELDS(X)',1)[1].split('typedef struct',1)[0])]
     defaults={p['name']:p['default'] for p in profile_fields}
     candidate_line=profile_header.split('#define FORCE_SERVO_CANDIDATES(X)',1)[1].splitlines()[0]
     candidates=[]
     for identity,peak in re.findall(r'X\((\d+),(\d+)\)',candidate_line):
-        candidate=dict(defaults,id=int(identity),unit=0,raw_trip=325,operating_max=275,force_trip=325,
+        candidate=dict(defaults,id=int(identity),unit=0,contact=20,raw_trip=325,operating_max=275,force_trip=325,
             boost_ms=0,boost_total_ms=0,taper_margin=0,assist_rise_ms=0,assist_end_ms=0,off_ms=0,response_units=0,excessive_rise_units=0,
             continuous_press=2400,peak_press=int(peak),
             energized_ms=0,session_ms=0,capture_ms=0,build_ms=0,experiment_enabled=0,limits_source=0)
         candidates.append(candidate)
-    return dict(characterization=characterization,profile=profile_fields,candidates=candidates,schema=schema_id,build_id=build_id,parameters=params,
+    build_profile=None; build_digest=None
+    if build_to_target:
+        build_profile={n:int(v) for n,v in re.findall(r'X\((\w+),(\d+)\)',(ROOT/'Application/force_build.h').read_text())}
+        build_digest=2166136261
+        for value in build_profile.values():
+            for b in struct.pack('<I',value): build_digest=((build_digest^b)*16777619)&0xffffffff
+    return dict(characterization=characterization,build_to_target=build_to_target,build_profile=build_profile,build_digest=build_digest,profile=profile_fields,candidates=candidates,schema=schema_id,build_id=build_id,parameters=params,
                 powered_test_ready=bool(number('FS_POWERED_TEST_READY')),
                 press_profile_ceiling=number('FS_PRESS_PROFILE_CEILING'),
                 live_executor_press_ceiling=number('FS_EXECUTOR_PRESS_CEILING'),
                 live_continuous_ceiling=number('FS_CONTINUOUS_CEILING'),
                 live_approved_peak_ms=number('FS_APPROVED_PEAK_MS'),
                 release_profile_ceiling=number('FS_RELEASE_PROFILE_CEILING'),
-                u32=re.findall(r'X\((\w+)\)',u),floats=re.findall(r'X\((\w+)\)',f.split('typedef struct')[0]))
+                u32=u,floats=f)
 
 def digest(config):
     h=2166136261
@@ -247,7 +282,7 @@ def characterization_metrics(rows, metadata):
     event=next((r for r in reversed(runs) if r.get('boost_duration_ms')),None)
     reason=int(final.get('run_reason',0))
     reasons={0:'NO_MCU_TERMINATION_RECORDED',1:'OPERATOR_STOP',2:'FAULT',3:'TARGET_NOT_REACHED_WITHIN_SESSION',
-             4:'SESSION_COMPLETE',5:'BOUNDARY_TARGET_REACHED'}
+             4:'SESSION_COMPLETE',5:'BOUNDARY_TARGET_REACHED',6:'TARGET_REACHED_OFF'}
     return dict(TargetForceN=plan['target_N'],AssistPercentRequested=plan['assist_percent'],
         AssistCommandRequested=plan['assist_command'],AssistCommandCommitted=event.get('boost_peak_command') if event else None,
         AssistPeakCCR=event.get('assist_peak_ccr') if event else None,
@@ -265,6 +300,33 @@ def characterization_metrics(rows, metadata):
         runtime_measurement_limit='Sampled HOLD statistics; polling gaps remain unknown. MCU command/CCR is not a measured waveform. PSU setting is not winding current.',
         fixed_envelope='SHORTEST_SOFTWARE_VALID_SUPERVISED_CHARACTERIZATION_ENVELOPE',
         ratings='NOT_A_MOTOR_RATING; NOT_A_THERMAL_RATING; NOT_A_CONTINUOUS_RATING')
+
+
+def build_to_target_metrics(rows, metadata):
+    if not metadata.get('build_profile'): return {}
+    plan=metadata.get('runtime_plan') or {}
+    selected=[r for r in rows if r.get('phase') in ('RUN','STOP_READBACK') and r.get('session') and
+          r.get('plan_digest')==plan.get('digest') and r.get('plan_version')==plan.get('version') and not r.get('start_pending')]
+    runs=[r for r in selected if r.get('phase')=='RUN' and r.get('measured_valid')]
+    reached=next((r for r in selected if r.get('target_reached')),None)
+    off=[r for r in runs if r.get('state')==16 and r.get('output_off')==1 and
+         r.get('current_committed')==0 and r.get('tim2')==0 and r.get('tim3')==0 and not r.get('lease_active') and not r.get('fault')]
+    forces=[r['measured'] for r in off]
+    post=next((r for r in reversed(selected) if r.get('post_pulse_valid')),None)
+    return dict(build_to_target=True,target_reached=bool(reached),
+        target_behavior='FIRST_VALID_REACH_OFF_MONITOR_ONLY_ALL_TARGETS',
+        stable_hold='NOT_ESTABLISHED_BY_TARGET_REACH; NO_ACTIVE_HOLD',
+        off_monitor_samples=len(off),off_monitor_first_N=forces[0] if forces else None,
+        off_monitor_last_N=forces[-1] if forces else None,
+        off_monitor_min_N=min(forces) if forces else None,off_monitor_max_N=max(forces) if forces else None,
+        off_monitor_drop_N=forces[0]-forces[-1] if forces else None,
+        off_monitor_observed_ms=delta(off[-1]['latest_received_ms'],off[0]['latest_received_ms']) if off else None,
+        maximum_segment_command=max((r.get('segment_command',0) for r in rows),default=0),
+        maximum_reserved_on_ms=max((r.get('energized_reserved_ms',0) for r in rows),default=0),
+        maximum_energized_upper_ms=max((r.get('energized_upper_ms',0) for r in rows),default=0),
+        last_post_pulse=None if post is None else dict(before_N=post['pulse_force_before'],after_N=post['pulse_force_after'],
+            received_ms=post['post_pulse_received_ms'],request=post['post_pulse_request']),
+        runtime_measurement_limit='OFF force decay is sampled, not a holding qualification. Segment command/CCR is not measured current. Energized upper bound is bridge-enabled wall time, not measured winding current or thermal energy.')
 
 
 def decode_csv_row(row):
@@ -304,11 +366,12 @@ def self_test():
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--self-test',action='store_true')
-    ap.add_argument('--characterization-schema',action='store_true')
+    ap.add_argument('--characterization-schema',action='store_true'); ap.add_argument('--build-to-target-schema',action='store_true')
     ap.add_argument('--schema',action='store_true'); ap.add_argument('--defaults',action='store_true')
     ap.add_argument('--validate'); ap.add_argument('--report'); ap.add_argument('--metadata')
     a=ap.parse_args()
     if a.self_test: self_test()
+    elif a.build_to_target_schema: print(json.dumps(schema(True,True)))
     elif a.characterization_schema: print(json.dumps(schema(True)))
     elif a.schema: print(json.dumps(schema()))
     elif a.defaults: print(json.dumps({p['name']:p['default'] for p in schema()['parameters']},indent=2))
@@ -320,6 +383,7 @@ def main():
         result=metrics(rows); metadata=json.loads(Path(a.metadata).read_text(encoding='utf-8-sig'))
         result.update(metadata)
         result.update(characterization_metrics(rows,metadata))
+        result.update(build_to_target_metrics(rows,metadata))
         result['binary_verification']='OPERATOR_ATTESTATION_ONLY_NOT_MCU_BINARY_VERIFICATION'
         text=json.dumps(result,indent=2,ensure_ascii=False)
         report=Path(a.report).with_suffix('.report.txt')

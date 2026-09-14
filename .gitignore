@@ -161,3 +161,10 @@ output/StaticForceRuntimeCharacterization2/*
 !output/StaticForceRuntimeCharacterization2/firmware/
 !output/StaticForceRuntimeCharacterization2/firmware/*.hex
 !output/StaticForceRuntimeCharacterization2/firmware/*.elf
+
+# Current BuildToTarget1 field pair; no generated bundles.
+!output/BuildToTarget1/
+output/BuildToTarget1/*
+!output/BuildToTarget1/firmware/
+!output/BuildToTarget1/firmware/*.hex
+!output/BuildToTarget1/firmware/*.elf

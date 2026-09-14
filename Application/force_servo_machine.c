@@ -4,6 +4,9 @@
 #include "Board/Motor/motor_atomic.h"
 #include <math.h>
 #include <string.h>
+#if SD700_BUILD_TO_TARGET
+#include "Application/force_build_machine.h"
+#endif
 
 static void publish(MachineContext *m,uint32_t now)
 {
@@ -42,6 +45,9 @@ static void publish(MachineContext *m,uint32_t now)
  d->cooling_active=s->cooling_active && (int32_t)(now-s->cooling_until_ms)<0;
  d->start_pending=s->start_pending; d->start_requested_ms=s->start_requested_ms;
  d->last_command_result=m->last_command_result;
+#if SD700_BUILD_TO_TARGET
+ ForceBuildMachine_Publish(m,now);
+#endif
  MotorAtomic_Leave(key);
 }
 /* Event fields survive STOP/fault and slow PC polling. Elapsed is MCU ms,
@@ -75,6 +81,9 @@ static void record_assist_output(ForceServoMachine *s,int32_t committed)
 }
 static void fault(MachineContext *m,MachineFault f,FaultDetail detail,uint32_t now)
 {
+#if SD700_BUILD_TO_TARGET
+ ForceBuildMachine_Account(m,now);
+#endif
  (void)MotorExecutor_Disable();
  m->servo.plan_armed=false; m->servo.plan_available=false;
  if (!m->servo.diagnostic.run_reason) m->servo.diagnostic.run_reason=
@@ -180,6 +189,10 @@ static MachineCommandResult begin_session(MachineContext *m,uint32_t now)
  s->diagnostic.sample_hi=(uint32_t)(m->pressure.sequence>>32);
  s->diagnostic.sample_lo=(uint32_t)m->pressure.sequence;
  m->state=FORCE_APPROACH;
+#if SD700_BUILD_TO_TARGET
+ if (!ForceBuildMachine_Begin(m,now)) fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now);
+ return m->state==FAULT ? COMMAND_EXECUTOR_FAILED : COMMAND_ACCEPTED;
+#endif
 #if !SD700_FORCE_SERVO_COMMISSIONING
  if (s->progress_start>=s->profile.contact)
 #endif
@@ -197,6 +210,9 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
  MachineCommandResult r=COMMAND_UNSUPPORTED;
  ForceServoMachine *s=&m->servo;
  if (c->type==CMD_STOP || c->type==CMD_JOG_STOP) {
+#if SD700_BUILD_TO_TARGET
+     ForceBuildMachine_Account(m,now);
+#endif
      s->start_pending=false; s->plan_armed=false; s->plan_available=false;
      if (!s->diagnostic.run_reason) s->diagnostic.run_reason=FS_RUN_OPERATOR_STOP;
      if (s->diagnostic.boost_active) s->diagnostic.assist_exit=5;
@@ -228,6 +244,9 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
          s->diagnostic.rejection=FS_COOLING_REQUIRED; r=COMMAND_NOT_READY;
      }
      else if (!m->target_valid ||
+#if SD700_BUILD_TO_TARGET
+              !ForceBuildMachine_Ready(m,now) ||
+#endif
 #if SD700_FORCE_CHARACTERIZATION
               !s->plan_armed || !s->plan_available ||
 #endif
@@ -272,6 +291,9 @@ void Machine_CheckPressureSafety(MachineContext *m,uint32_t now)
          fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_TIMEOUT,now);
      return;
  }
+#if SD700_BUILD_TO_TARGET
+ ForceBuildMachine_Safety(m,now); return;
+#endif
  if (!s->active) return;
  uint32_t session_limit=(uint32_t)fminf(s->config.session_ms,fminf(s->profile.session_ms,s->profile.energized_ms));
  /* Zero is the compiled runtime profile's no-overall-deadline sentinel. */
@@ -339,7 +361,14 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
      s->diagnostic.session_peak_received_ms=p->received_at_ms;
  }
  float measured=0;
-#if SD700_FORCE_CHARACTERIZATION
+#if SD700_BUILD_TO_TARGET
+ if (!s->start_pending) { ForceBuildMachine_Pressure(m,now); publish(m,now); return; }
+ if (Machine_IsPressureFresh(m,now) && (int32_t)(p->received_at_ms-s->start_requested_ms)>=0 &&
+     m->target_pressure_units==3000 && p->raw_pressure_counts==3000) {
+     m->last_command_result=begin_session(m,now); publish(m,now); return;
+ }
+#endif
+#if SD700_FORCE_CHARACTERIZATION && !SD700_BUILD_TO_TARGET
  if ((s->active || s->start_pending) && Machine_IsPressureFresh(m,now) &&
      (!s->start_pending || (int32_t)(p->received_at_ms-s->start_requested_ms)>=0) &&
      m->target_pressure_units==3000 && p->raw_pressure_counts>=3000) {
@@ -598,6 +627,9 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
 void Machine_HandleMotorService(MachineContext *m,uint32_t now)
 {
  if (!m || !m->servo.active) return;
+#if SD700_BUILD_TO_TARGET
+ ForceBuildMachine_Service(m,now); publish(m,now); return;
+#endif
  const MotorExecutorSnapshot *e=MotorExecutor_GetSnapshot();
  if (m->servo.contacted) {
      if (e->last_completion==MOTOR_COMPLETION_LEASE)
@@ -616,6 +648,9 @@ void Machine_Tick(MachineContext *m,uint32_t now)
 {
  if (!m) return;
  Machine_CheckPressureSafety(m,now);
+#if SD700_BUILD_TO_TARGET
+ ForceBuildMachine_Service(m,now); publish(m,now); return;
+#endif
  service_assist(m,now);
  ForceServoMachine *s=&m->servo;
  if (s->active && !s->contacted && !MotorExecutor_GetSnapshot()->logical_active &&

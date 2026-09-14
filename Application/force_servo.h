@@ -6,8 +6,13 @@
 #include "Application/force_servo_output_profile.h"
 
 #if SD700_FORCE_CHARACTERIZATION
+#if SD700_BUILD_TO_TARGET
+#define FORCE_SERVO_SCHEMA 0xF10AU
+#define FORCE_SERVO_BUILD_ID 0x4653010CU
+#else
 #define FORCE_SERVO_SCHEMA 0xF109U
 #define FORCE_SERVO_BUILD_ID 0x4653010BU
+#endif
 #define FS_CONFIG_PRESS_MIN 0
 #define FS_CONFIG_SESSION_MS 0
 #define FS_CONFIG_SESSION_MIN 0
@@ -79,7 +84,7 @@ int32_t ForceServo_PercentCommand(float percent);
 extern const uint32_t g_force_characterization_contract[16];
 enum { FS_RUN_NONE=0, FS_RUN_OPERATOR_STOP=1, FS_RUN_FAULT=2,
  FS_RUN_TARGET_NOT_REACHED_WITHIN_SESSION=3, FS_RUN_SESSION_COMPLETE=4,
- FS_RUN_BOUNDARY_TARGET_REACHED=5 };
+ FS_RUN_BOUNDARY_TARGET_REACHED=5, FS_RUN_TARGET_REACHED_OFF=6 };
 
 typedef struct {
  float reference, reference_rate, filtered, derivative, integral;

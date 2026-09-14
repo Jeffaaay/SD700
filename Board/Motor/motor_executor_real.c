@@ -31,6 +31,43 @@ static bool s_initialized;
    single consumer of at most one pending completion event. */
 static volatile MotorStopTimerEvent s_pending_completion_event;
 static volatile bool s_completion_event_pending;
+#if SD700_BUILD_TO_TARGET
+static volatile bool s_build_open; /* ISR can revoke ownership, as for s_servo_open. */
+static bool s_build_have_sequence, s_build_rest_required;
+static uint32_t s_build_generation, s_build_off_at;
+static uint64_t s_build_used_sequence;
+static MotorBuildSnapshot s_build;
+/* Called only after hardware OFF. Count full bridge-enabled wall time, never
+ * PWM-high fraction; admission reserves the full hard limit without refunds. */
+static void MotorExecutor_BuildRecordOff(uint32_t now,uint32_t reason)
+{
+ if (!s_build.segment_active) return;
+ uint32_t elapsed=now-s_build.started_ms+1U;
+ s_build.energized_upper_ms+=elapsed;
+ if (elapsed>s_build.hard_ms) {
+     s_build.reserved_ms+=elapsed-s_build.hard_ms;
+     if (s_build.phase==BUILD_PHASE_APPROACH) s_build.approach_reserved_ms+=elapsed-s_build.hard_ms;
+     reason=BUILD_END_DEADLINE; s_build_rest_required=true;
+ }
+ s_build.segment_active=false; s_build.post_pending=true;
+ s_build.ended_ms=now; s_build.end_reason=reason; s_build_off_at=now;
+ if (reason!=BUILD_END_NORMAL && reason!=BUILD_END_REDUCED) s_build_open=false;
+}
+static void MotorExecutor_BuildRefreshRest(uint32_t now)
+{
+ if (!s_build.segment_active && MotorHwReal_IsDisabled() &&
+     (s_build_rest_required || s_build.reserved_ms)) {
+     uint32_t off=now-s_build_off_at;
+     if (off>=g_force_build_config.full_rest_ms) {
+         s_build.reserved_ms=0; s_build.approach_reserved_ms=0; s_build.energized_upper_ms=0;
+         s_build_rest_required=false; ++s_build.epoch;
+     }
+     s_build.rest_remaining_ms=off>=g_force_build_config.full_rest_ms ? 0 : g_force_build_config.full_rest_ms-off;
+ } else s_build.rest_remaining_ms=s_build.segment_active ? g_force_build_config.full_rest_ms : 0;
+ s_build.inhibited=s_build_rest_required ? 1U : 0U;
+}
+#endif
+
 
 static void MotorExecutor_ClearFailure(void)
 {
@@ -133,6 +170,9 @@ static void MotorExecutor_StopTimerExpiredFromIsr(
 {
     /* ISR ordering: output off, timer cleared, minimal event latched. */
     MotorHwReal_DisableImmediate();
+#if SD700_BUILD_TO_TARGET
+    MotorExecutor_BuildRecordOff(MotorAtomic_Now(0),event==MOTOR_STOP_TIMER_NORMAL ? BUILD_END_NORMAL : BUILD_END_DEADLINE);
+#endif
     MotorStopTimer_Cancel();
 #if SD700_FORCE_SERVO_ENABLED
     s_servo_open = false;
@@ -145,6 +185,10 @@ static MotorResult MotorExecutor_PublishCompletion(
 {
     MotorResult result = MOTOR_RESULT_OK;
 
+#if SD700_BUILD_TO_TARGET
+    if (s_motor.last_action==MOTOR_ACTION_BUILD_SEGMENT && s_build.end_reason==BUILD_END_DEADLINE)
+        event=MOTOR_STOP_TIMER_ERROR;
+#endif
     MotorExecutor_SetPhysicalStatus();
     if (!s_motor.physical_output_disabled)
     {
@@ -223,6 +267,11 @@ MotorResult MotorExecutor_Initialize(void)
     MotorHwReal_DisableImmediate();
     (void)memset(&s_motor, 0, sizeof(s_motor));
     s_initialized = false;
+#if SD700_BUILD_TO_TARGET
+    memset(&s_build,0,sizeof(s_build)); s_build_open=false; s_build_have_sequence=false;
+    s_build_off_at=MotorAtomic_Now(0); s_build_rest_required=true;
+    /* Reboot is not proof that a hot motor cooled. Require a full OFF interval. */
+#endif
 #if SD700_FORCE_SERVO_ENABLED
     s_servo_open = false;
 #endif
@@ -276,6 +325,9 @@ MotorResult MotorExecutor_Disable(void)
     bool timer_armed;
 
     MotorHwReal_DisableImmediate();
+#if SD700_BUILD_TO_TARGET
+    MotorExecutor_BuildRecordOff(MotorAtomic_Now(0),BUILD_END_STOP); s_build_open=false;
+#endif
     MotorStopTimer_Cancel();
     MotorExecutor_ClearPendingCompletion();
     s_motor.last_action = MOTOR_ACTION_DISABLED;
@@ -794,6 +846,9 @@ const MotorExecutorSnapshot *MotorExecutor_GetSnapshot(void)
 #if SD700_FORCE_SERVO_ENABLED
 MotorResult MotorExecutor_BeginContinuous(uint32_t *token)
 {
+#if SD700_BUILD_TO_TARGET
+    (void)token; return MOTOR_RESULT_INVALID; /* Only the accounted segment contract can energize this mode. */
+#endif
     uint32_t key=MotorAtomic_Enter();
     MotorResult r=MOTOR_RESULT_INVALID;
     if (token && s_initialized && !s_servo_open && !s_motor.logical_active &&
@@ -1061,5 +1116,126 @@ bool MotorExecutor_ContinuousExpired(void)
 {
     return s_motor.last_action==MOTOR_ACTION_CONTINUOUS &&
            (!s_servo_open || s_completion_event_pending);
+}
+#endif
+
+#if SD700_BUILD_TO_TARGET
+MotorBuildSnapshot MotorExecutor_GetBuildSnapshot(uint32_t now)
+{
+ uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
+ MotorExecutor_BuildRefreshRest(now); MotorBuildSnapshot r=s_build;
+ if (s_build.segment_active) r.energized_upper_ms+=now-s_build.started_ms+1U;
+ MotorAtomic_Leave(key); return r;
+}
+bool MotorExecutor_BuildOwnerValid(uint32_t token)
+{
+ return s_build_open && token==s_build_generation && MotorExecutor_IsHealthy();
+}
+MotorResult MotorExecutor_BeginBuild(uint32_t now,uint32_t *token)
+{
+ uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now); MotorResult result=MOTOR_RESULT_INVALID;
+ MotorExecutor_BuildRefreshRest(now);
+ if (token && !s_build_rest_required && !s_build_open && !s_servo_open && s_initialized &&
+     !s_motor.logical_active && !s_completion_event_pending && MotorHwReal_IsDisabled() &&
+     !MotorStopTimer_IsArmed() && MotorStopTimer_IsHealthy() && MotorHwReal_OutputArmingAllowed()) {
+     if (++s_build_generation==0) ++s_build_generation;
+     *token=s_build_generation; s_build_open=true; s_build_have_sequence=false;
+     s_build.post_pending=false; result=MOTOR_RESULT_OK;
+ }
+ MotorAtomic_Leave(key); return result;
+}
+MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildRequest *r,
+ uint64_t sequence,uint32_t received,uint32_t now)
+{
+ uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now); MotorResult result=MOTOR_RESULT_INVALID;
+ uint16_t t2=0,t3=0; const ForceBuildConfig *c=&g_force_build_config;
+ if (!r || !s_build_open || token!=s_build_generation) goto done;
+ if (s_build.segment_active || s_motor.logical_active || s_completion_event_pending || s_build.post_pending ||
+     (s_build_have_sequence && !ForceServo_SequenceAfter(sequence,s_build_used_sequence))) goto done;
+ MotorExecutor_BuildRefreshRest(now);
+ if (s_build_rest_required || now-received>FORCE_SERVO_COMMISSIONING_AGE_MS ||
+     !MotorHwReal_IsDisabled() || MotorStopTimer_IsArmed() || !MotorExecutor_IsHealthy()) goto fail;
+ if (r->phase==BUILD_PHASE_APPROACH) {
+     if (r->command!=c->approach_command || r->hard_ms<2 || r->hard_ms>c->approach_hard_ms) goto fail;
+ } else if (r->phase==BUILD_PHASE_BUILD) {
+     if (r->command<c->micro_max_command || r->command>c->build_ceiling ||
+         r->hard_ms<c->pulse_hard_min_ms || r->hard_ms>c->pulse_hard_max_ms ||
+         r->command*r->hard_ms>c->micro_max_command*c->pulse_base_ms) goto fail;
+ } else if (r->phase==BUILD_PHASE_TAPER) {
+     if (r->command<c->fine_min_command || r->command>c->micro_max_command ||
+         r->hard_ms<c->pulse_hard_min_ms || r->hard_ms>c->pulse_hard_max_ms) goto fail;
+ } else goto fail;
+ if (r->hard_ms>=FORCE_SERVO_COMMISSIONING_LEASE_MS-(now-received) ||
+     (s_build_have_sequence && now-s_build_off_at<c->off_settle_ms)) goto fail;
+ if (s_build.reserved_ms+r->hard_ms>c->total_on_ms ||
+     (r->phase==BUILD_PHASE_APPROACH && s_build.approach_reserved_ms+r->hard_ms>c->approach_total_ms)) {
+     s_build_rest_required=true; goto fail;
+ }
+ /* Reserve before arming. Neither STOP nor a failed start refunds exposure. */
+ s_build.reserved_ms+=r->hard_ms;
+ if (r->phase==BUILD_PHASE_APPROACH) s_build.approach_reserved_ms+=r->hard_ms;
+ s_build.started_ms=now; s_build.deadline_ms=now+r->hard_ms;
+ s_build.receive_deadline_ms=received+FORCE_SERVO_COMMISSIONING_LEASE_MS;
+ s_build.phase=r->phase; s_build.command=r->command; s_build.hard_ms=r->hard_ms;
+ s_build.end_reason=BUILD_END_NONE; ++s_build.request;
+ s_build_used_sequence=sequence; s_build_have_sequence=true;
+ if (MotorExecutor_PlanCommand(MOTOR_DIRECTION_PRESS,r->command,&t2,&t3)!=MOTOR_RESULT_OK) goto fail;
+ s_motor.last_action=MOTOR_ACTION_BUILD_SEGMENT; s_motor.last_completion=MOTOR_COMPLETION_NONE;
+ s_motor.direction=MOTOR_DIRECTION_PRESS; s_motor.command_mv=r->command;
+ s_motor.requested_duration_ms=r->hard_ms-1; s_motor.logical_deadline_ms=now+r->hard_ms-1;
+ s_motor.logical_backstop_ms=now+r->hard_ms; s_motor.planned_tim2_ccr3=t2; s_motor.planned_tim3_ccr3=t3;
+ s_motor.logical_active=true; ++s_motor.request_sequence;
+ /* Normal OFF one ms before the independently programmed hard backstop.
+  * Both precede the original receive lease. No feedback update renews this segment. */
+ if (!MotorStopTimer_Arm(r->hard_ms-1,r->hard_ms)) goto fail;
+ s_build.segment_active=true;
+ if (!MotorStopTimer_CommitArm() || !s_build_open || s_completion_event_pending) goto fail;
+ if (!MotorHwReal_ApplyPress(t3) || !MotorHwReal_MatchesPlan(t2,t3) || MotorHwReal_IsDisabled() ||
+     !MotorStopTimer_CommitArm() || !s_build_open || s_completion_event_pending) goto fail;
+ result=MOTOR_RESULT_OK; goto done;
+fail:
+ MotorHwReal_DisableImmediate(); MotorExecutor_BuildRecordOff(now,BUILD_END_HARDWARE);
+ s_build_open=false; MotorStopTimer_Cancel();
+ if (!s_completion_event_pending) MotorExecutor_LatchCompletion(MOTOR_STOP_TIMER_ERROR);
+ result=MOTOR_RESULT_HARDWARE_ERROR;
+done:
+ MotorExecutor_SetPhysicalStatus(); MotorAtomic_Leave(key); return result;
+}
+MotorResult MotorExecutor_EndBuildSegment(uint32_t token,uint32_t now)
+{
+ uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now); MotorResult result=MOTOR_RESULT_INVALID;
+ if (s_build_open && token==s_build_generation && s_build.segment_active && !s_completion_event_pending) {
+     MotorHwReal_DisableImmediate();
+     now=MotorAtomic_Now(now);
+     /* OFF is immediate, but a pending/elapsed cutoff cannot be canceled into
+      * a successful reduction and followed by another segment. */
+     if (!MotorStopTimer_CommitArm() || s_completion_event_pending || !s_build_open ||
+         MotorExecutor_TimeReached(now,s_build.deadline_ms) ||
+         MotorExecutor_TimeReached(now,s_build.receive_deadline_ms)) {
+         MotorExecutor_BuildRecordOff(now,BUILD_END_DEADLINE);
+         s_build.end_reason=BUILD_END_DEADLINE; s_build_open=false; s_build_rest_required=true;
+         MotorStopTimer_Cancel();
+         if (!s_completion_event_pending) MotorExecutor_LatchCompletion(MOTOR_STOP_TIMER_ERROR);
+         result=MOTOR_RESULT_TIMER_ERROR;
+     } else {
+         MotorExecutor_BuildRecordOff(now,BUILD_END_REDUCED); MotorStopTimer_Cancel();
+         s_motor.last_completion=MOTOR_COMPLETION_NORMAL; MotorExecutor_ClearActivePlan();
+         result=MotorHwReal_IsDisabled() ? MOTOR_RESULT_OK : MOTOR_RESULT_HARDWARE_ERROR;
+         if (result!=MOTOR_RESULT_OK) s_build_open=false;
+     }
+ }
+ MotorExecutor_SetPhysicalStatus(); MotorAtomic_Leave(key); return result;
+}
+bool MotorExecutor_AcceptBuildPost(uint32_t token,uint32_t request,uint64_t sequence,uint32_t received,uint32_t now)
+{
+ uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
+ bool ok=s_build_open && token==s_build_generation && s_build.post_pending && request==s_build.request &&
+     !s_build.segment_active && !s_motor.logical_active && !s_completion_event_pending &&
+     (s_build.end_reason==BUILD_END_NORMAL || s_build.end_reason==BUILD_END_REDUCED) &&
+     ForceServo_SequenceAfter(sequence,s_build_used_sequence) && now-received<=FORCE_SERVO_COMMISSIONING_AGE_MS &&
+     (int32_t)(received-s_build.ended_ms)>=(int32_t)g_force_build_config.off_settle_ms &&
+     MotorHwReal_IsDisabled() && MotorExecutor_IsHealthy();
+ if (ok) { s_build.post_pending=false; }
+ MotorAtomic_Leave(key); return ok;
 }
 #endif

@@ -29,7 +29,7 @@ void MotorAtomic_Leave(uint32_t saved)
  if (!critical && MotorStopTimer_IsArmed() && FakeStm32Hal_GetState()->tim5_irq_enabled &&
      (TIM5->SR & (TIM_SR_CC1IF|TIM_SR_CC1OF|TIM_SR_UIF))) MotorStopTimer_IrqHandler();
 }
-uint32_t MotorAtomic_Now(uint32_t supplied) { return supplied; }
+uint32_t MotorAtomic_Now(uint32_t supplied) { return SD700_BUILD_TO_TARGET ? now : supplied; }
 void FakeForceServo_Dsb(void)
 { if (dsb_hook) { void (*h)(void)=dsb_hook; dsb_hook=NULL; h(); } }
 static void advance(uint32_t ms)

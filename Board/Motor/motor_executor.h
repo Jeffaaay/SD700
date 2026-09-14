@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "Application/motion_build_policy.h"
 
 #include "Board/Motor/motor_diagnostics.h"
 
@@ -28,7 +29,8 @@ typedef enum
     MOTOR_ACTION_RELEASE_RUN,
     MOTOR_ACTION_PRESS_PULSE,
     MOTOR_ACTION_RELEASE_PULSE,
-    MOTOR_ACTION_CONTINUOUS
+    MOTOR_ACTION_CONTINUOUS,
+    MOTOR_ACTION_BUILD_SEGMENT
 } MotorAction;
 
 typedef enum
@@ -108,4 +110,21 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     uint32_t received_ms, uint32_t now_ms, uint32_t lease_ms, uint32_t max_age_ms,
     uint32_t deadtime_ms, int32_t requested_mv, int32_t *committed_mv, bool *interlocked);
 
+#if SD700_BUILD_TO_TARGET
+#include "Application/force_build.h"
+typedef struct {
+ uint32_t epoch, reserved_ms, approach_reserved_ms, energized_upper_ms;
+ uint32_t rest_remaining_ms, inhibited, request, phase, command, hard_ms;
+ uint32_t started_ms, ended_ms, deadline_ms, receive_deadline_ms, end_reason;
+ bool segment_active, post_pending;
+} MotorBuildSnapshot;
+MotorResult MotorExecutor_BeginBuild(uint32_t now_ms,uint32_t *token);
+MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildRequest *request,
+ uint64_t sequence,uint32_t received_ms,uint32_t now_ms);
+MotorResult MotorExecutor_EndBuildSegment(uint32_t token,uint32_t now_ms);
+bool MotorExecutor_AcceptBuildPost(uint32_t token,uint32_t request,uint64_t sequence,
+ uint32_t received_ms,uint32_t now_ms);
+bool MotorExecutor_BuildOwnerValid(uint32_t token);
+MotorBuildSnapshot MotorExecutor_GetBuildSnapshot(uint32_t now_ms);
+#endif
 #endif

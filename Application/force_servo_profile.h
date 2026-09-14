@@ -12,6 +12,11 @@
 #if SD700_FORCE_CHARACTERIZATION
 #define FS_LEGACY_OPERATING_MAX 3000
 #define FS_LEGACY_RAW_TRIP 3000
+#if SD700_BUILD_TO_TARGET
+#define FS_CONTACT_UNITS 10
+#else
+#define FS_CONTACT_UNITS 20
+#endif
 #define FS_SENSOR_UNIT 2
 #define FS_LIMITS_SOURCE 3
 #define FS_ASSIST_RISE 1
@@ -26,6 +31,7 @@
 #define FS_LEGACY_OPERATING_MAX 275
 #define FS_LEGACY_RAW_TRIP 325
 #define FS_SENSOR_UNIT 0
+#define FS_CONTACT_UNITS 20
 #define FS_LIMITS_SOURCE 1
 #define FS_ASSIST_RISE 0
 #define FS_ASSIST_END 0
@@ -39,7 +45,7 @@
  X(raw_min,0) X(raw_trip,FS_LEGACY_RAW_TRIP) X(scale,1) X(offset,0) \
  X(calibration_min,0) X(calibration_max,0) \
  X(operating_max,FS_LEGACY_OPERATING_MAX) X(force_trip,FS_LEGACY_RAW_TRIP) X(hardware_boundary,0) \
- X(contact,20) X(continuous_press,FS_PRESS_OPERATING_CAP) X(release,FS_RELEASE_OPERATING_CAP) \
+ X(contact,FS_CONTACT_UNITS) X(continuous_press,FS_PRESS_OPERATING_CAP) X(release,FS_RELEASE_OPERATING_CAP) \
  X(peak_press,FS_PEAK_PRESS) X(boost_ms,FS_BOOST_MS) X(boost_total_ms,FS_BOOST_TOTAL_MS) X(taper_margin,FS_BOOST_TAPER_MARGIN) \
  X(energized_ms,FS_EXPERIMENT_BUDGET_MS) X(session_ms,FS_EXPERIMENT_BUDGET_MS) X(capture_ms,FS_EXPERIMENT_BUDGET_MS) X(build_ms,FS_EXPERIMENT_BUDGET_MS) \
  X(progress_window_ms,500) X(progress_units,2) X(no_response_ms,5000) \

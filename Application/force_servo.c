@@ -39,12 +39,12 @@ const ForceServoProfile *ForceServo_FindProfile(uint16_t id)
  return NULL;
 }
 const uint32_t g_force_characterization_contract[16]={
- SD700_FORCE_CHARACTERIZATION,1,3000,40,10,240,1,2,4,4,5000,FS_EXPERIMENT_BUDGET_MS,30,2,25,2
+ SD700_FORCE_CHARACTERIZATION,1,3000,(SD700_BUILD_TO_TARGET ? 0 : 40),(SD700_BUILD_TO_TARGET ? 0 : 10),240,1,2,4,4,5000,FS_EXPERIMENT_BUDGET_MS,30,2,25,2
 };
 int32_t ForceServo_PercentCommand(float percent) { return (int32_t)floorf(percent*240.0f+0.5f); }
 bool ForceServo_CharacterizationPlanValid(const ForceCharacterizationPlan *p)
 {
- return p && isfinite(p->target_N) && p->target_N>=1 && p->target_N<=3000 &&
+ return p && (!SD700_BUILD_TO_TARGET || (p->assist_percent==0 && p->continuous_percent==0)) && isfinite(p->target_N) && p->target_N>=1 && p->target_N<=3000 &&
      floorf(p->target_N)==p->target_N && isfinite(p->assist_percent) &&
      p->assist_percent>=0 && p->assist_percent<=40 && isfinite(p->continuous_percent) &&
      p->continuous_percent>=0 && p->continuous_percent<=10;
@@ -68,7 +68,8 @@ bool ForceServo_ProfileValid(const ForceServoProfile *p)
      ForceServoProfile fixed=*p;
      fixed.peak_press=g_force_servo_profile.peak_press;
      fixed.continuous_press=g_force_servo_profile.continuous_press;
-     return memcmp(&fixed,&g_force_servo_profile,sizeof(fixed))==0 &&
+     return (!SD700_BUILD_TO_TARGET || (p->peak_press==0 && p->continuous_press==0)) &&
+         memcmp(&fixed,&g_force_servo_profile,sizeof(fixed))==0 &&
          p->continuous_press>=0 && p->continuous_press<=2400 &&
          floorf(p->continuous_press)==p->continuous_press && p->peak_press>=0 &&
          p->peak_press<=9600 && floorf(p->peak_press)==p->peak_press;
@@ -186,7 +187,8 @@ ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const Forc
     float m,float t,float *seconds)
 {
  if (p && !p->experiment_enabled) return FS_EXPERIMENT_LIMITS_UNREVIEWED;
- if (!seconds || !ForceServo_ProfileConfigValid(p,c) || !isfinite(m) || m<0 || m>=p->force_trip)
+ if (!seconds || !ForceServo_ProfileConfigValid(p,c) || !isfinite(m) || m<0 ||
+     (m>=p->force_trip && !(SD700_BUILD_TO_TARGET && m==3000 && t==3000)))
      return FS_PROFILE_INVALID;
  ForceServoRejection r=ForceServo_TargetAllowed(p,t,p->unit!=0);
  if (r!=FS_PROFILE_OK) return r;

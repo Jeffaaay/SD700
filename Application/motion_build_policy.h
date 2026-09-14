@@ -1,6 +1,15 @@
 #ifndef APPLICATION_MOTION_BUILD_POLICY_H
 #define APPLICATION_MOTION_BUILD_POLICY_H
 
+#ifndef SD700_BUILD_TO_TARGET
+#define SD700_BUILD_TO_TARGET 0
+#endif
+#if SD700_BUILD_TO_TARGET != 0 && SD700_BUILD_TO_TARGET != 1
+#error "BuildToTarget selection must be 0 or 1"
+#endif
+#if SD700_BUILD_TO_TARGET && (!defined(SD700_FORCE_CHARACTERIZATION) || SD700_FORCE_CHARACTERIZATION != 1)
+#error "BuildToTarget requires the atomic characterization base"
+#endif
 #ifndef SD700_FORCE_CHARACTERIZATION
 #define SD700_FORCE_CHARACTERIZATION 0
 #endif

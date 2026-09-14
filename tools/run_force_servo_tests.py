@@ -7,8 +7,10 @@ def main():
     ap.add_argument('--output',default='output/ForceServo1/host')
     ap.add_argument('--commissioning',action='store_true',help='Current explicit profile with the production arming gate')
     ap.add_argument('--characterization',action='store_true')
+    ap.add_argument('--build-to-target',action='store_true')
     ap.add_argument('--range-fixture',action='store_true',help='SYNTHETIC host-only command ceilings9600/200, continuous2400; not a hardware rating')
     args=ap.parse_args();
+    if args.build_to_target and not args.characterization: ap.error('BuildToTarget requires --characterization')
     if args.characterization and (not args.commissioning or args.range_fixture): ap.error('Characterization requires commissioning without synthetic overrides')
     if args.range_fixture and not args.commissioning: ap.error('--range-fixture requires --commissioning')
     out=Path(args.output); out.mkdir(parents=True,exist_ok=True)
@@ -28,6 +30,10 @@ def main():
     if args.characterization:
         sources[0]='Tests/Host/test_force_characterization.c'
         defines+=['SD700_FORCE_CHARACTERIZATION=1']
+    if args.build_to_target:
+        sources[0]='Tests/Host/test_build_to_target.c'
+        sources+=['Application/force_build.c','Application/force_build_machine.c']
+        defines+=['SD700_BUILD_TO_TARGET=1']
     if args.range_fixture: defines+=['FS_PRESS_PROFILE_CEILING=9600','FS_RELEASE_PROFILE_CEILING=200']
     results=[]
     for opt in ('-O0','-O2','-Os'):

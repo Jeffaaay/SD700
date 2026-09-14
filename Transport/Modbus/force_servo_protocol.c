@@ -157,6 +157,13 @@ bool ForceServoProtocol_Read(MachineContext *m,bool holding,uint16_t a,uint16_t 
 {
  if (!m || !v) return false;
  ForceServoMachine *s=&m->servo;
+#if SD700_BUILD_TO_TARGET
+ if (holding && a>=0x600 && a<0x600+FORCE_BUILD_CONFIG_WORDS) {
+     uint32_t bits; unsigned i=(a-0x600)/2;
+     memcpy(&bits,(const unsigned char*)&g_force_build_config+i*4,4);
+     *v=(uint16_t)((a-0x600)%2 ? bits : bits>>16); return true;
+ }
+#endif
 #if SD700_FORCE_CHARACTERIZATION
  if (holding && a>=FS_REG_PLAN_ACTIVE && a<FS_REG_PLAN_ACTIVE+FS_PLAN_READ_WORDS) {
      unsigned i=a-FS_REG_PLAN_ACTIVE; uint32_t u;

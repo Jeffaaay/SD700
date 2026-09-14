@@ -4,6 +4,7 @@ param(
     [switch]$SelfTest,
     [switch]$LibraryOnly,
     [switch]$Characterization,
+    [switch]$BuildToTarget,
     [string]$Port,
     [string]$ConfirmedFirmwareSha256,
     [string]$OutputCsv,
@@ -20,13 +21,14 @@ param(
 )
 $ErrorActionPreference='Stop'
 # Import the existing length-aware CRC/RTU transport. Preserve this script's options.
-$saved=@{}; foreach ($name in @('Mode','SelfTest','LibraryOnly','Characterization','Port','ConfirmedFirmwareSha256','OutputCsv','ParameterFile','Target',
+$saved=@{}; foreach ($name in @('Mode','SelfTest','LibraryOnly','Characterization','BuildToTarget','Port','ConfirmedFirmwareSha256','OutputCsv','ParameterFile','Target',
     'TargetN','ProfileId','MaximumSeconds','ConfirmMotorPowerDisconnected','ConfirmSupervisedMotion','CurrentLimitSetting','InitialGap','FieldNotes')) {
     $saved[$name]=Get-Variable -Name $name -ValueOnly
 }
 . "$PSScriptRoot/capture_pressure_response.ps1" -LibraryOnly
 foreach ($entry in $saved.GetEnumerator()) { Set-Variable -Name $entry.Key -Value $entry.Value }
-$schemaOption=if ($Characterization) {'--characterization-schema'} else {'--schema'}
+if ($BuildToTarget) { $Characterization=$true }
+$schemaOption=if ($BuildToTarget) {'--build-to-target-schema'} elseif ($Characterization) {'--characterization-schema'} else {'--schema'}
 $schema=(& python "$PSScriptRoot/force_servo_data.py" $schemaOption | ConvertFrom-Json)
 if ($LASTEXITCODE -ne 0) { throw 'ForceServo schema unavailable' }
 . "$PSScriptRoot/force_characterization_plan.ps1"
@@ -86,12 +88,19 @@ function Read-ForceSnapshot([scriptblock]$Exchange,[string]$Phase) {
         $values[$name]=$value
     }
     if ($values.schema -ne $schema.schema -or $values.build_id -ne $schema.build_id) { throw 'Snapshot identity mismatch' }
+    if ($schema.build_to_target -and ($values.build_mode -ne 1 -or $values.build_config_digest -ne $schema.build_digest)) {
+        throw 'Build execution contract diagnostic mismatch'
+    }
     $values.feedback_gap_ms=$activeConfig.feedback_gap_ms
     $values.hold_enter_units=$activeConfig.hold_enter
     $values.feedback_age_ms=([long]$values.now_ms-[long]$values.latest_received_ms+4294967296) % 4294967296
     $values.at_output_cap=[int]($null -ne $activeConfig -and $values.current_committed -ne 0 -and
         ($values.current_committed -ge $activeConfig.press_cap -or $values.current_committed -le -$activeConfig.release_cap))
     $values.saturated=[int](($values.limits -band 1) -ne 0 -or $values.at_output_cap -ne 0)
+    if ($schema.build_to_target) {
+        $values.at_output_cap=[int]($values.current_committed -ge $schema.build_profile.build_ceiling)
+        $values.saturated=$values.at_output_cap # PID diagnostic clipping is not a build command cap.
+    }
     $values.direction=[Math]::Sign($values.current_committed)
     return [pscustomobject]$values
 }
@@ -116,7 +125,7 @@ function Assert-ForceConfig($Config) {
     if ($schema.characterization) {
         foreach ($p in $schema.parameters) {
             if ($p.name -eq 'press_cap') {
-                if ($Config.press_cap -lt 0 -or $Config.press_cap -gt 2400 -or [Math]::Floor($Config.press_cap) -ne $Config.press_cap) { throw 'Invalid runtime continuous ceiling' }
+                if ($Config.press_cap -lt 0 -or $Config.press_cap -gt $schema.live_continuous_ceiling -or [Math]::Floor($Config.press_cap) -ne $Config.press_cap) { throw 'Invalid runtime continuous ceiling' }
             } elseif ([single]$Config.($p.name) -ne [single]$p.default) { throw "Firmware-owned parameter changed: $($p.name)" }
         }
     }
@@ -144,11 +153,23 @@ function Read-ForceProfile([scriptblock]$Exchange) {
         $value=[BitConverter]::ToSingle([BitConverter]::GetBytes($bits),0)
         if ([Single]::IsNaN($value) -or [Single]::IsInfinity($value) -or
             (($schema.characterization -and $p.name -in @('continuous_press','peak_press')) -and
-             ($value -lt 0 -or $value -gt $(if ($p.name -eq 'peak_press') {9600} else {2400}) -or [Math]::Floor($value) -ne $value)) -or
+             ($value -lt 0 -or $value -gt $(if ($schema.build_to_target) {0} elseif ($p.name -eq 'peak_press') {9600} else {2400}) -or [Math]::Floor($value) -ne $value)) -or
             (-not ($schema.characterization -and $p.name -in @('continuous_press','peak_press')) -and $value -ne [single]$p.default)) {
             throw "Reviewed operating profile mismatch: $($p.name); no START"
         }
         $values[$p.name]=$value
+    }
+    return [pscustomobject]$values
+}
+function Read-BuildProfile([scriptblock]$Exchange) {
+    if (-not $schema.build_to_target) { return $null }
+    $fields=@($schema.build_profile.PSObject.Properties)
+    $words=@(Read-ForceWords $Exchange 3 0x600 (2*$fields.Count))
+    $values=[ordered]@{}; $i=0
+    foreach ($p in $fields) {
+        [uint32]$value=[uint64]$words[$i]*65536+$words[$i+1]; $i+=2
+        if ($value -ne $p.Value) { throw "Immutable Build profile mismatch: $($p.Name); ZERO START" }
+        $values[$p.Name]=$value
     }
     return [pscustomobject]$values
 }
@@ -239,7 +260,7 @@ function Invoke-ForceCapture {
     }
     $errorText=''; $startAttempts=0
     $startAccepted=$false; $stopReason='OBSERVATION_COMPLETE'
-    $activeConfig=$null; $activeProfile=$null; $activeCandidates=$null; $plannedReference=$null; $enforceDeadline=$false; $superviseActive=$false
+    $activeConfig=$null; $activeProfile=$null; $activeBuildProfile=$null; $activeCandidates=$null; $plannedReference=$null; $enforceDeadline=$false; $superviseActive=$false
     $budgetState=@{phase='PREFLIGHT';snapshot_open=$false;snapshot_start_transaction=0;discarded_snapshots=0;skipped_polls=0;transactions=0;
         stop_sent_ms=$null;errors=(New-Object Collections.ArrayList);last_transaction=$null}
     try {
@@ -268,6 +289,7 @@ function Invoke-ForceCapture {
         $activeConfig=Read-ForceConfig $exchange
         $activeProfile=Read-ForceProfile $exchange
         $activeCandidates=@(Read-ForceCandidates $exchange)
+        $activeBuildProfile=Read-BuildProfile $exchange
         $configDigest=Get-ForceDigest $activeConfig $schema.parameters
         $profileDigest=Get-ForceDigest $activeProfile $schema.profile
         if (([uint64]$info[6]*65536+$info[7]) -ne $configDigest) { throw 'Active configuration digest mismatch' }
@@ -297,7 +319,7 @@ function Invoke-ForceCapture {
             if ($schema.characterization) {
                 if (-not $CharacterizationPlan -or -not $ConfirmStart) { throw 'Use run_force_characterization.ps1: atomic plan and operator confirmation required' }
                 $verifiedPlan=Submit-CharacterizationPlan $exchange $CharacterizationPlan
-                $Target=[int]$verifiedPlan.target_N; $TargetN=$true; $ProfileId=5
+                $Target=[int]$verifiedPlan.target_N; $TargetN=$true; $ProfileId=[int]$activeProfile.id
                 $activeConfig=Read-ForceConfig $exchange; $activeProfile=Read-ForceProfile $exchange
                 $configDigest=Get-ForceDigest $activeConfig $schema.parameters
                 $profileDigest=Get-ForceDigest $activeProfile $schema.profile
@@ -319,7 +341,7 @@ function Invoke-ForceCapture {
             & $saveRow $ready
             if ($ready.profile_digest -ne $profileDigest -or $ready.config_digest -ne $configDigest -or $ready.unit -ne $activeProfile.unit -or $ready.target -ne $Target -or $ready.state -ne 1 -or $ready.fault -ne 0 -or $ready.output_off -ne 1) { throw 'Target/state readback mismatch' }
             if ($schema.characterization) {
-                if ($ready.plan_version -ne $verifiedPlan.version -or $ready.plan_digest -ne $verifiedPlan.digest -or $ready.cooling_active) { throw 'Plan identity or inter-run lockout prevents START' }
+                if ($ready.plan_version -ne $verifiedPlan.version -or $ready.plan_digest -ne $verifiedPlan.digest -or $ready.cooling_active -or ($schema.build_to_target -and ($ready.exposure_inhibited -or $ready.post_pulse_pending -or $ready.build_no_response_ms -ge $schema.build_profile.no_response_ms))) { throw 'Plan identity or inter-run lockout prevents START' }
                 if (-not (& $ConfirmStart $verifiedPlan)) { throw 'Operator cancelled; ZERO START' }
                 # Echo exactly the version/digest read back; firmware additionally requires full plan read coverage.
                 Write-ForceWord $exchange 0x520 ($verifiedPlan.version -shr 16)
@@ -375,7 +397,8 @@ function Invoke-ForceCapture {
     @{mode=$Mode;start_attempts=$startAttempts;start_accepted=$startAccepted;stop_reason=$stopReason;error=$errorText;config=$activeConfig;
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
-        commissioning=$(if ($schema.characterization) {'StaticForceRuntimeCharacterization2'} else {'StaticForceAuthority2_ReviewFix'});runtime_plan=$verifiedPlan;repository_commit=$RepositoryCommit;sensor_unit_source=$(if ($schema.characterization) {'USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT'} else {'LEGACY_COUNTS'});profile=$activeProfile;candidate_catalog=$activeCandidates;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        build_profile=$activeBuildProfile;build_config_digest=$schema.build_digest;
+        commissioning=$(if ($schema.build_to_target) {'BuildToTarget1'} elseif ($schema.characterization) {'StaticForceRuntimeCharacterization2'} else {'StaticForceAuthority2_ReviewFix'});runtime_plan=$verifiedPlan;repository_commit=$RepositoryCommit;sensor_unit_source=$(if ($schema.characterization) {'USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT'} else {'LEGACY_COUNTS'});profile=$activeProfile;candidate_catalog=$activeCandidates;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
         pwm_counts='tim2/tim3 are PLANNED; no external electrical measurement';
         maximum_observation_seconds=$(if ($MaximumSeconds -gt 0) {$MaximumSeconds} else {$null});capture_end_policy=$(if ($MaximumSeconds -eq 0) {'OPERATOR_STOP_OR_DEVICE_TERMINAL_OR_FAULT'} else {'FINITE_OBSERVATION'});capture_wall_ms=$watch.ElapsedMilliseconds;
         stop_reserve_ms=$forceStopReserveMs;transaction_timeout_ms=$forceTransactionMs;
@@ -463,7 +486,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/StaticForceRuntimeCharacterization2/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization2_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/BuildToTarget1/firmware/SD700_ForceServo1_BuildToTarget1_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'

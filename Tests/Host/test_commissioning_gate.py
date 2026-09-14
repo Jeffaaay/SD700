@@ -27,6 +27,12 @@ def main():
         ('characterization_bad_flag', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_CHARACTERIZATION':2}, 'selection must be 0 or 1'),
         ('characterization_no_arm', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_CHARACTERIZATION':1,'SD700_REAL_OUTPUT_ARMING_ENABLED':0}, 'requires commissioning'),
         ('characterization_override', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_CHARACTERIZATION':1,'FS_PRESS_PROFILE_CEILING':10000}, 'outside the selected experimental build')]
+    build={'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_CHARACTERIZATION':1,'SD700_BUILD_TO_TARGET':1}
+    cases += [('build_to_target',build,''),
+        ('build_without_atomic',{'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_BUILD_TO_TARGET':1},'requires the atomic characterization base'),
+        ('build_bad_flag',{**build,'SD700_BUILD_TO_TARGET':2},'selection must be 0 or 1'),
+        ('build_no_arm',{**build,'SD700_REAL_OUTPUT_ARMING_ENABLED':0},'requires commissioning'),
+        ('build_ceiling_override',{**build,'FS_PRESS_PROFILE_CEILING':9600},'outside the selected experimental build')]
     results = []
     for name, changes, error in cases:
         definitions = {**common, **changes}
@@ -48,7 +54,7 @@ def main():
                             compile_exit_code=result.returncode, result='PASS'))
         print(name+': PASS')
     (out/'results.json').write_text(json.dumps(results, indent=2)+'\n', encoding='utf-8')
-    print('COMMISSIONING_GATE_TESTS=14 PASS; NO_HARDWARE')
+    print('COMMISSIONING_GATE_TESTS=19 PASS; NO_HARDWARE')
 
 
 if __name__ == '__main__':
