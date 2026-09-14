@@ -127,6 +127,21 @@ class Target250DataTests(unittest.TestCase):
         self.assertTrue(m['hold_entered'] and m['hold_active_at_last_control'] and m['StopVerified'])
         self.assertEqual(m['motion_start'],'NOT_MEASURED')
 
+    def test_post_assist_window_and_unchecked_late_observation(self):
+        r=sample(1,37,boost_active=0,boost_duration_ms=12,boost_end_reason=2,
+                 boost_pressure_before=27,boost_pressure_after=37,boost_after_valid=1,
+                 boost_after_received_ms=201,boost_after_sample_hi=1,boost_after_sample_lo=2,
+                 assist_pressure_peak=27,assist_response_peak=37,assist_after_result=2,
+                 assist_response_pending=0,boost_handoff_command=89)
+        b=metrics([r])['boost_event']
+        self.assertEqual((b['peak_pressure'],b['response_pressure_peak'],b['pressure_after']),(27,37,37))
+        self.assertIn('NOT_PWM_MEASUREMENT',b['peak_pressure_scope'])
+        self.assertEqual((b['after_check_result'],b['response_pending'],b['after_sample_hi'],b['after_sample_lo']),(2,0,1,2))
+        # STOP before response: late after data is observational, never a checked response.
+        r.update(phase='STOP_READBACK',assist_after_result=0,assist_response_pending=1,assist_response_peak=27)
+        b=metrics([r])['boost_event']
+        self.assertEqual((b['after_check_result'],b['response_pending'],b['response_pressure_peak'],b['pressure_after']),(0,1,27,37))
+
     def test_not_reached_saturated_vs_unsaturated(self):
         for flag,assessment in [(1,'SATURATION_OBSERVED_NO_PHYSICAL_CAUSE_ESTABLISHED'),(0,'TARGET_NOT_REACHED_NO_PHYSICAL_CAUSE_ESTABLISHED')]:
             m=metrics([sample(1,30,limits=flag),sample(2,59,limits=flag)])

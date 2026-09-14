@@ -21,7 +21,7 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current candidate is StaticForceAuthority2. Requested20/30/40% assist and
+The current candidate is StaticForceAuthority2 ReviewFix. Requested20/30/40% assist and
 10% normal profiles are represented and synthetic-tested, but disabled pending
 reviewed output/on-time/cumulative/OFF-cooling limits. The only enabled live
 profile4 is inherited short PRESS720/RELEASE100, no assist, absolute5 s. Do not
@@ -31,5 +31,7 @@ Preserve STOP, freshness, receive-anchored lease, independent peak/session
 cutoffs, overpressure, direction interlock, hardware guard and fault latch.
 Assist reservation and cooling survive STOP/fault/reset/config/new START within
 a boot; reboot is not permission for more exposure. No auto-retrigger/restart.
+Post-assist pending response checks must precede normal output updates, without
+lease extension; keep logical active peaks distinct from post-assist samples.
 No Codex serial connection, flashing or motion. Preserve original field evidence;
 software PASS is not physical validation. Use current README/verifier hashes.

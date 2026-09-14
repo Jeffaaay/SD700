@@ -5,8 +5,8 @@
 #include "Application/motion_build_policy.h"
 #include "Application/force_servo_output_profile.h"
 
-#define FORCE_SERVO_SCHEMA 0xF106U
-#define FORCE_SERVO_BUILD_ID 0x46530108U
+#define FORCE_SERVO_SCHEMA 0xF107U
+#define FORCE_SERVO_BUILD_ID 0x46530109U
 #define FORCE_SERVO_REPRESENTABLE 100000.0f
 #define FORCE_SERVO_DEFAULT_TARGET 250U
 #define FORCE_SERVO_COMMISSIONING_LEASE_MS 130U

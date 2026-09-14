@@ -141,3 +141,10 @@ output/StaticForceAuthority2/*
 !output/StaticForceAuthority2/firmware/
 !output/StaticForceAuthority2/firmware/*.hex
 !output/StaticForceAuthority2/firmware/*.elf
+
+# Current focused ReviewFix firmware.
+!output/StaticForceAuthority2_ReviewFix/
+output/StaticForceAuthority2_ReviewFix/*
+!output/StaticForceAuthority2_ReviewFix/firmware/
+!output/StaticForceAuthority2_ReviewFix/firmware/*.hex
+!output/StaticForceAuthority2_ReviewFix/firmware/*.elf

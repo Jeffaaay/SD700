@@ -178,8 +178,12 @@ def metrics(rows):
         admission_reason=event.get('assist_admission'), exit_reason=event.get('assist_exit'),
         requested_peak=event.get('assist_requested_peak'), maximum_committed_ccr=event.get('assist_peak_ccr'),
         rise_ms=event.get('assist_rise_ms'), planned_end_ms=event.get('assist_normal_end_ms'),
-        peak_pressure=event.get('assist_pressure_peak'),
-        measurement_limit='MCU command/register event, not measured waveform. After pressure is the next fresh in-range frame after the event; absent until valid. Abort elapsed is a capped service-time bound, not actual PWM duration.')
+        peak_pressure=event.get('assist_pressure_peak'), peak_pressure_scope='SAMPLES_WHILE_LOGICALLY_BOOST_ACTIVE_NOT_PWM_MEASUREMENT',
+        response_pressure_peak=event.get('assist_response_peak'), response_pending=event.get('assist_response_pending'),
+        after_check_result=event.get('assist_after_result'),
+        after_sample_hi=event.get('boost_after_sample_hi') if event.get('boost_after_valid') else None,
+        after_sample_lo=event.get('boost_after_sample_lo') if event.get('boost_after_valid') else None,
+        measurement_limit='MCU command/register event, not measured waveform. After pressure is a fresh ordered in-range frame at/after event end with a later sequence; absent until valid. The response peak adds only the first evaluated post-handoff frame while the session remains active. Late STOP/fault telemetry does not evaluate or revive output. Abort elapsed is a capped service-time bound, not actual PWM duration.')
     result['progress_limit']='Bounded net-change diagnostic, not a stall or physical-root-cause diagnosis.'
     # tim2/tim3 are planned counts; output_off includes the hardware guard's register checks.
     # Neither is an externally measured waveform or physical-stop certificate.
@@ -228,7 +232,7 @@ def decode_csv_row(row):
 
 
 def self_test():
-    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==77 and len(s['floats'])==26 and len(s['profile'])==33 and len(s['candidates'])==3
+    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==81 and len(s['floats'])==27 and len(s['profile'])==33 and len(s['candidates'])==3
     c={p['name']:p['default'] for p in s['parameters']}; validate(c)
     bad=dict(c,lease_ms=10)
     try: validate(bad)

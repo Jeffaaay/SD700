@@ -50,7 +50,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     $caseDir=Join-Path $testOutput $Name
     Check (-not (Test-Path -LiteralPath $caseDir)) "Do not overwrite existing test evidence: $caseDir"
     New-Item -ItemType Directory -Path $caseDir -Force | Out-Null
-    $defaults=Get-Content -Raw "$root/Docs/StaticForceAuthority2/default_parameters.json" | ConvertFrom-Json
+    $defaults=Get-Content -Raw "$root/Docs/StaticForceAuthority2_ReviewFix/default_parameters.json" | ConvertFrom-Json
     if ($Failure -eq 'ConservativeTuning') { $defaults.press_cap=100; $defaults.kp=2 }
     $configWords=@()
     foreach ($parameter in $schema.parameters) {
@@ -108,12 +108,20 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
             if ($sim.Starts -eq 1 -and -not $sim.Stopped) { $values.state=13;$values.start_pending=0 }
             if ($Failure -eq 'DeviceFault' -and $sim.Latches -ge 2) { $values.state=9;$values.fault=2;$values.detail=2 }
             if ($Failure -eq 'RunningFault' -and $sim.Starts -eq 1) { $values.state=9;$values.fault=2;$values.detail=2 }
-            if ($Failure -eq 'BoostEvent' -and $sim.Starts -eq 1) {
+            if ($Failure -in @('BoostEvent','PostAssistEvent') -and $sim.Starts -eq 1) {
                 $values.boost_active=0; $values.boost_peak_command=6000; $values.boost_duration_ms=10
                 $values.boost_spent_ms=10; $values.boost_started_ms=100; $values.boost_end_ms=108
                 $values.boost_elapsed_ms=8; $values.boost_end_reason=2; $values.boost_before_received_ms=100
                 $values.boost_after_valid=1; $values.boost_after_received_ms=201
                 $values.boost_handoff_command=720; $values.boost_pressure_before=27; $values.boost_pressure_after=28
+                if ($Failure -eq 'PostAssistEvent') {
+                    $values.boost_peak_command=4800; $values.boost_duration_ms=12; $values.boost_spent_ms=12
+                    $values.boost_end_ms=109; $values.boost_elapsed_ms=9; $values.boost_handoff_command=89
+                    $values.assist_pressure_peak=27; $values.assist_response_peak=37; $values.boost_pressure_after=37
+                    $values.assist_response_pending=0; $values.assist_after_result=2
+                    $values.boost_after_sample_hi=1; $values.boost_after_sample_lo=2
+                    $values.state=9; $values.fault=5; $values.detail=19
+                }
             }
             $sim.Frozen=@()
             foreach ($name in $schema.u32) {
@@ -204,6 +212,12 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
         Check ($metadata.profile.boost_ms -eq 0 -and $metadata.profile.experiment_enabled -eq 1 -and $metadata.candidate_catalog.Count -eq 3) 'Actual enabled/catalog metadata missing'
     }
     if ($Failure -eq 'StartEchoTimeout') { Check ($null -eq $metadata.start_accepted) 'Lost echo must be unknown, never retried or called rejected' }
+    if ($Failure -eq 'PostAssistEvent') {
+        $event=$report.boost_event
+        Check ($event.peak_pressure -eq 27 -and $event.response_pressure_peak -eq 37 -and $event.pressure_after -eq 37) 'Active and post-assist sampled pressure peaks were conflated'
+        Check ($event.after_check_result -eq 2 -and $event.response_pending -eq 0 -and $event.after_sample_hi -eq 1 -and $event.after_sample_lo -eq 2) 'Post-assist evaluation/sequence fields lost'
+        Check ($event.handoff_command -eq 89 -and $metadata.stop_reason -eq 'DEVICE_FAULT_5_DETAIL_19') 'Post-assist fault or original handoff lost'
+    }
     if ($Failure -eq 'OperatorStop') {
         Check ($metadata.stop_reason -eq 'OPERATOR_STOP') 'Operator STOP reason lost'
         Check (@($rows | Where-Object phase -eq RUN).Count -eq 0 -and $metadata.discarded_snapshots -eq 1) 'Operator STOP must discard the interrupted first RUN snapshot'
@@ -276,6 +290,7 @@ Invoke-ObserveCase CommissioningRunningFault RunningFault SingleStart $true
 Invoke-ObserveCase Target250OperatorStop OperatorStop SingleStart $true
 Invoke-ObserveCase Authority2TailCommunicationTimeout TailCommunicationTimeout SingleStart $true
 Invoke-ObserveCase Boost1PersistentEvent 'BoostEvent' SingleStart $true
+Invoke-ObserveCase ReviewFixPostAssistEvent 'PostAssistEvent' SingleStart $true
 Invoke-ObserveCase StaticAcceptLowTarget '' SingleStart $true 60
 Invoke-ObserveCase Target250ZeroInitial '' SingleStart $true 250 0
 Invoke-ObserveCase Target250InitialOutsideOldGate '' SingleStart $true 250 31
@@ -298,7 +313,7 @@ for ($i=1;$i -lt $commandAst.CommandElements.Count;$i++) {
 }
 Check ($doc.Mode -eq 'SingleStart' -and $doc.Port -eq 'COM5' -and $doc.ProfileId -eq 4 -and $doc.Target -eq 250 -and $doc.MaximumSeconds -eq 5 -and $doc.ConfirmSupervisedMotion) 'Documented live profile/budget mismatch'
 Check ($doc.CurrentLimitSetting -like '0.5 A*' -and $doc.InitialGap -eq '$gap') 'Documented current/gap evidence missing'
-$firmware="$root/output/StaticForceAuthority2/firmware/SD700_ForceServo1_StaticForceAuthority2_RealBench_Release.hex"
+$firmware="$root/output/StaticForceAuthority2_ReviewFix/firmware/SD700_ForceServo1_StaticForceAuthority2_ReviewFix_RealBench_Release.hex"
 Check ($doc.ConfirmedFirmwareSha256 -eq (Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash) 'Documented HEX attestation hash mismatch'
 Invoke-ObserveCase Authority2ExactDocumentedCommand '' SingleStart $true 250 27 $doc
 Write-Output "CAPTUREFIX1_TEST_CASES=$script:caseCount PASS; physical test NOT RUN"

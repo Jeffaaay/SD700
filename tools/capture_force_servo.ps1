@@ -314,7 +314,7 @@ function Invoke-ForceCapture {
     @{mode=$Mode;start_attempts=$startAttempts;start_accepted=$startAccepted;stop_reason=$stopReason;error=$errorText;config=$activeConfig;
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
-        commissioning='StaticForceAuthority2';profile=$activeProfile;candidate_catalog=$activeCandidates;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        commissioning='StaticForceAuthority2_ReviewFix';profile=$activeProfile;candidate_catalog=$activeCandidates;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
         pwm_counts='tim2/tim3 are PLANNED; no external electrical measurement';
         maximum_observation_seconds=$MaximumSeconds;capture_wall_ms=$watch.ElapsedMilliseconds;
         stop_reserve_ms=$forceStopReserveMs;transaction_timeout_ms=$forceTransactionMs;
@@ -401,7 +401,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/StaticForceAuthority2/firmware/SD700_ForceServo1_StaticForceAuthority2_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/StaticForceAuthority2_ReviewFix/firmware/SD700_ForceServo1_StaticForceAuthority2_ReviewFix_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'

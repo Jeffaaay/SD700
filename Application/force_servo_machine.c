@@ -45,14 +45,19 @@ static void publish(MachineContext *m,uint32_t now)
 }
 /* Event fields survive STOP/fault and slow PC polling. Elapsed is MCU ms,
  * capped by the reserved budget; aborted events are not measured PWM on-time. */
-static void finish_boost(ForceServoMachine *s,uint32_t now,uint32_t reason,int32_t command)
+static void finish_boost(MachineContext *m,uint32_t now,uint32_t reason,int32_t command)
 {
+ ForceServoMachine *s=&m->servo;
  ForceServoDiagnostic *d=&s->diagnostic;
  if (!d->boost_active) return;
  d->boost_active=0; d->boost_end_ms=now; d->boost_end_reason=reason;
  uint32_t elapsed=now-d->boost_started_ms;
  d->boost_elapsed_ms=elapsed<d->boost_duration_ms ? elapsed : d->boost_duration_ms;
- if (reason==2) d->boost_handoff_command=(float)command;
+ s->assist_end_sequence=m->pressure.sequence;
+ if (reason==2) {
+     d->boost_handoff_command=(float)command;
+     d->assist_response_pending=1; /* Output has ended; no extra output/lease budget. */
+ }
 }
 static void begin_cooling(ForceServoMachine *s,uint32_t now)
 {
@@ -72,7 +77,7 @@ static void fault(MachineContext *m,MachineFault f,FaultDetail detail,uint32_t n
  (void)MotorExecutor_Disable();
  if (m->servo.diagnostic.boost_active && !m->servo.diagnostic.assist_exit)
      m->servo.diagnostic.assist_exit=detail==FAULT_DETAIL_LEASE_EXPIRED ? 7U : 6U;
- finish_boost(&m->servo,now,3,0); begin_cooling(&m->servo,now);
+ finish_boost(m,now,3,0); begin_cooling(&m->servo,now);
  m->servo.start_pending=false;
  m->servo.active=false; m->servo.diagnostic.boost_active=0; m->servo.controller.initialized=false; m->servo.controller.integral=0;
  if (m->state!=FAULT) { m->fault=f; m->fault_detail=detail; }
@@ -181,7 +186,7 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
  if (c->type==CMD_STOP || c->type==CMD_JOG_STOP) {
      s->start_pending=false;
      if (s->diagnostic.boost_active) s->diagnostic.assist_exit=5;
-     finish_boost(s,now,3,0); begin_cooling(s,now);
+     finish_boost(m,now,3,0); begin_cooling(s,now);
      s->active=false; s->diagnostic.boost_active=0; s->controller.initialized=false; s->controller.integral=0;
      s->staging_open=false;
      if (MotorExecutor_Disable()!=MOTOR_RESULT_OK) {
@@ -265,7 +270,7 @@ static void service_assist(MachineContext *m,uint32_t now)
      s->diagnostic.assist_exit=8; fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_LEASE_EXPIRED,now);
  } else {
      record_assist_output(s,actual); s->controller.previous_committed=(float)actual;
-     if (ended) { s->diagnostic.assist_exit=1; finish_boost(s,now,2,actual); }
+     if (ended) { s->diagnostic.assist_exit=1; finish_boost(m,now,2,actual); }
  }
 }
 void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample *p,uint32_t now)
@@ -313,10 +318,13 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
      return;
  }
  if (s->diagnostic.boost_end_reason>=2 && !s->diagnostic.boost_after_valid &&
-     Machine_IsPressureFresh(m,now) && (int32_t)(p->received_at_ms-s->diagnostic.boost_end_ms)>=0) {
+     Machine_IsPressureFresh(m,now) && ForceServo_SequenceAfter(p->sequence,s->assist_end_sequence) &&
+     (int32_t)(p->received_at_ms-s->diagnostic.boost_end_ms)>=0) {
      s->diagnostic.boost_pressure_after=measured;
      s->diagnostic.boost_after_received_ms=p->received_at_ms;
      s->diagnostic.boost_after_valid=1;
+     s->diagnostic.boost_after_sample_hi=(uint32_t)(p->sequence>>32);
+     s->diagnostic.boost_after_sample_lo=(uint32_t)p->sequence;
  }
  if (s->active && Machine_IsPressureFresh(m,now) && measured>s->diagnostic.session_peak_measured)
      s->diagnostic.session_peak_measured=measured;
@@ -349,10 +357,27 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  if (s->contacted && !s->diagnostic.contact_count && measured>=s->profile.contact) {
      s->diagnostic.contact_count=1; s->diagnostic.contact_raw=p->raw_pressure_counts;
  }
+ /* One response check after a verified normal handoff, before the control grid
+  * or any possible output increase. A same-frame early handoff is already checked
+  * below while active; its sequence cannot also count as the after frame.
+  * Pre-end receive timestamps leave the check pending and do not renew the lease.
+  * STOP/fault leave pending as unevaluated evidence; inactive sessions never act. */
+ if (s->diagnostic.assist_response_pending) {
+     ForceServoDiagnostic *d=&s->diagnostic;
+     if (!ForceServo_SequenceAfter(p->sequence,s->assist_end_sequence) ||
+         (int32_t)(p->received_at_ms-d->boost_end_ms)<0) { publish(m,now); return; }
+     if (measured>d->assist_response_peak) d->assist_response_peak=measured;
+     d->assist_response_pending=0;
+     d->assist_after_result=measured-d->boost_pressure_before>=s->profile.excessive_rise_units ? 2U : 1U;
+     if (d->assist_after_result==2) {
+         fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_ASSIST_EXCESSIVE_RISE,now); return;
+     }
+ }
  if (s->diagnostic.boost_active) {
      ForceServoDiagnostic *d=&s->diagnostic;
      float rise=measured-d->boost_pressure_before;
      if (measured>d->assist_pressure_peak) d->assist_pressure_peak=measured;
+     if (measured>d->assist_response_peak) d->assist_response_peak=measured;
      if (rise>=s->profile.excessive_rise_units) {
          d->assist_exit=4; fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_ASSIST_EXCESSIVE_RISE,now); return;
      }
@@ -368,7 +393,7 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
          if (MotorExecutor_HandoffContinuousBoost(s->token,now,lower)!=MOTOR_RESULT_OK) {
              d->assist_exit=8; fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_LEASE_EXPIRED,now); return;
          }
-         finish_boost(s,now,2,lower); s->controller.previous_committed=(float)lower;
+         finish_boost(m,now,2,lower); s->controller.previous_committed=(float)lower;
      }
  }
  /* Never advance assist output before validating the newly delivered pressure
@@ -423,7 +448,7 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
          d->boost_active=1; d->boost_deadline_ms=armed->boost_deadline_ms;
          d->boost_started_ms=armed->boost_started_ms; d->boost_duration_ms=(uint32_t)s->profile.boost_ms;
          d->boost_end_reason=1; d->boost_pressure_before=measured;
-         d->assist_pressure_peak=measured; d->boost_before_received_ms=p->received_at_ms;
+         d->assist_pressure_peak=measured; d->assist_response_peak=measured; d->boost_before_received_ms=p->received_at_ms;
          d->assist_requested_peak=(uint32_t)s->profile.peak_press;
          d->assist_rise_ms=(uint32_t)s->profile.assist_rise_ms;
          d->assist_normal_end_ms=armed->boost_planned_end_ms;
@@ -451,7 +476,7 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
      fault(m,FAULT_INTERNAL_FAULT,FAULT_DETAIL_NUMERIC,now); return;
  }
  if (d->boost_active) record_assist_output(s,committed);
- if (demand_exit) finish_boost(s,now,2,committed);
+ if (demand_exit) finish_boost(m,now,2,committed);
  s->last_control_rx_ms=p->received_at_ms; s->last_control_sequence=p->sequence;
  d->control_sequence++; d->control_at_ms=now;
  d->dt_s=dt; d->filtered=step.filtered; d->reference=step.reference;

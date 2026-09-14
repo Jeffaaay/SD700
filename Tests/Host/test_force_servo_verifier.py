@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 39968)
+        self.assertEqual(len(image.load_bytes), 41152)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -179,6 +179,10 @@ class VerifierTests(unittest.TestCase):
 
     def test_boost1_is_not_current_candidate(self):
         old=ROOT/'output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(),'identity/configuration')
+
+    def test_authority2_before_reviewfix_is_not_current_candidate(self):
+        old=ROOT/'output/StaticForceAuthority2/firmware/SD700_ForceServo1_StaticForceAuthority2_RealBench_Release.elf'
         self.reject_elf(old.read_bytes(),'identity/configuration')
 
     def test_static3000_1_is_not_current_candidate(self):

@@ -513,6 +513,7 @@ static void TestCommissioningReverseOff(void)
 #include "Tests/Host/test_authority1_cases.h"
 #include "Tests/Host/test_static_force_cases.h"
 #include "Tests/Host/test_boost1_cases.h"
+#include "Tests/Host/test_post_assist_cases.h"
 #endif
 int main(void)
 {
@@ -537,6 +538,8 @@ int main(void)
 #if FS_SYNTHETIC_BOOST
  RUN(TestBoost1PeakHandoff) RUN(TestBoost1Safety) RUN(TestBoost1AdmissionAndBudget)
  RUN(TestAuthority2PIAndExit) RUN(TestAuthority2WrapAndCooling)
+ RUN(TestPostAssistExcessive) RUN(TestPostAssistNormalOnce) RUN(TestPostAssistRejectedFrames)
+ RUN(TestPostAssistFrameBoundaries) RUN(TestPostAssistStopAndDeadlines) RUN(TestPostAssistWrap)
 #endif
  RUN(TestStaticProgressNoiseAndCreep) RUN(TestStaticStopStagesAndReadback)
 #if FS_SYNTHETIC_BOOST
