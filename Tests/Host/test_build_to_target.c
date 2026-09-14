@@ -64,8 +64,8 @@ static void TestBuildApproachAndLowTargets(void)
  assert(MotorExecutor_GetSnapshot()->command_mv==3000);
  const int low[]={1,3,5,10,20};
  for (unsigned i=0;i<5;i++) {
-     build_start(low[i],0); assert(machine.state==FORCE_TAPER);
-     assert(MotorExecutor_GetSnapshot()->command_mv<=3000);
+     build_start(low[i],0); assert(machine.state==(low[i]<=3 ? FORCE_TAPER : FORCE_APPROACH));
+     assert(MotorExecutor_GetSnapshot()->command_mv==(low[i]==1 ? 400U : low[i]==3 ? 1000U : 5000U));
      build_sample(low[i],1); off(); assert(machine.state==FORCE_TARGET_REACHED_OFF);
  }
  build_start(100,100); off(); assert(machine.state==FORCE_TARGET_REACHED_OFF);
@@ -141,13 +141,13 @@ static void executor_wait(uint32_t ms)
 }
 static void TestBuildContractAndPostFeedback(void)
 {
- uint32_t token=build_owner(); ForceBuildRequest r={BUILD_PHASE_BUILD,3000,10};
+ uint32_t token=build_owner(); ForceBuildRequest r={BUILD_PHASE_BUILD,3000,11,3000,BUILD_MODE_MICRO};
  assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)==MOTOR_RESULT_OK);
  uint32_t request=MotorExecutor_GetBuildSnapshot(now).request;
  uint32_t deadline=MotorExecutor_GetBuildSnapshot(now).deadline_ms;
  assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)!=MOTOR_RESULT_OK);
  assert(MotorExecutor_GetBuildSnapshot(now).deadline_ms==deadline);
- uint32_t during=now+5; executor_wait(9); off();
+ uint32_t during=now+5; executor_wait(10); off();
  assert(MotorExecutor_GetBuildSnapshot(now).end_reason==BUILD_END_NORMAL);
  assert(!MotorExecutor_AcceptBuildPost(token,request,seq,during,now));
  executor_wait(30);
@@ -158,12 +158,14 @@ static void TestBuildContractAndPostFeedback(void)
  assert(MotorExecutor_AcceptBuildPost(token,request,seq,now,now));
  assert(!MotorExecutor_AcceptBuildPost(token,request,seq,now,now));
  assert(MotorExecutor_StartBuildSegment(token,&r,seq,now,now)==MOTOR_RESULT_OK);
- assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms==20);
+ assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms==22);
  assert(MotorExecutor_Disable()==MOTOR_RESULT_OK); off();
  assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)!=MOTOR_RESULT_OK);
  token=build_owner(); assert(MotorExecutor_BeginContinuous(&request)==MOTOR_RESULT_INVALID);
- const ForceBuildRequest invalid[]={ {1,5001,100},{1,5000,101},{2,7001,4},{2,7000,10},
-     {2,2999,10},{2,3000,11},{2,3000,1},{3,3001,5},{3,399,5},{3,1000,11},{0,1000,5} };
+ const ForceBuildRequest invalid[]={ {1,5001,100,5000,1},{1,8501,100,5000,1},{1,8500,101,5000,1},
+     {2,7001,5,3000,2},{2,7000,11,3000,2},{2,2999,11,3000,2},{2,3000,12,3000,2},
+     {2,3000,2,3000,2},{3,2001,5,1000,3},{3,399,11,400,3},{3,1000,12,1000,3},
+     {0,1000,5,1000,3},{3,7000,5,1000,3},{1,8500,100,8500,1},{2,7000,5,3001,2} };
  for (unsigned i=0;i<sizeof(invalid)/sizeof(invalid[0]);i++) {
      token=build_owner(); assert(MotorExecutor_StartBuildSegment(token,&invalid[i],++seq,now,now)!=MOTOR_RESULT_OK); off();
  }
@@ -173,16 +175,16 @@ static void build_pending_when_armed(void)
 { if (MotorStopTimer_IsArmed()) pending_expiry(); else dsb_hook=build_pending_when_armed; }
 static void TestBuildCutoffsAndStopRaces(void)
 {
- ForceBuildRequest r={BUILD_PHASE_APPROACH,5000,100}; uint32_t token=build_owner();
+ ForceBuildRequest r={BUILD_PHASE_APPROACH,5000,100,5000,BUILD_MODE_COARSE}; uint32_t token=build_owner();
  assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now-20,now)==MOTOR_RESULT_OK);
  assert(MotorExecutor_GetBuildSnapshot(now).deadline_ms<MotorExecutor_GetBuildSnapshot(now).receive_deadline_ms);
  /* No machine tick/service required for normal independent OFF. */
  for (unsigned i=0;i<99;i++) advance(1);
  off(); assert(MotorExecutor_GetBuildSnapshot(now).end_reason==BUILD_END_NORMAL);
  assert(MotorExecutor_Service(now)==MOTOR_RESULT_OK);
- token=build_owner(); r=(ForceBuildRequest){BUILD_PHASE_BUILD,3000,10};
+ token=build_owner(); r=(ForceBuildRequest){BUILD_PHASE_BUILD,3000,11,3000,BUILD_MODE_MICRO};
  assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)==MOTOR_RESULT_OK);
- now+=10; TIM5->SR=TIM_SR_UIF; MotorStopTimer_IrqHandler(); off();
+ now+=11; TIM5->SR=TIM_SR_UIF; MotorStopTimer_IrqHandler(); off();
  assert(MotorExecutor_GetBuildSnapshot(now).end_reason==BUILD_END_DEADLINE);
  assert(!MotorExecutor_BuildOwnerValid(token));
  assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)!=MOTOR_RESULT_OK); off();
@@ -197,7 +199,7 @@ static void TestBuildCutoffsAndStopRaces(void)
  assert(MotorExecutor_GetBuildSnapshot(now).end_reason==BUILD_END_DEADLINE);
  assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)!=MOTOR_RESULT_OK);
  token=build_owner(); assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)==MOTOR_RESULT_OK);
- uint32_t stale_now=now; now+=10; /* Main clock advanced, caller timestamp old; no serviced IRQ. */
+ uint32_t stale_now=now; now+=11; /* Main clock advanced, caller timestamp old; no serviced IRQ. */
  assert(MotorExecutor_EndBuildSegment(token,stale_now)!=MOTOR_RESULT_OK); off();
  assert(MotorExecutor_GetBuildSnapshot(now).end_reason==BUILD_END_DEADLINE);
  build_start(250,0); assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
@@ -230,27 +232,40 @@ static void TestBuildBoostAndTaperEnergy(void)
  for (unsigned i=0;i<30;i++) { build_sample(10,50); assert(machine.state!=FAULT); }
  assert(machine.servo.build.boost==4000);
  MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
- assert(e.command==7000 && e.hard_ms==4 && TIM3->CCR3==1400);
- build_sample(12,50); assert(machine.servo.build.boost==4000 && machine.servo.build.low_count==0);
+ assert(e.command==7000 && e.hard_ms==5 && TIM3->CCR3==1400);
+ build_sample(12,50); assert(machine.servo.build.boost==0 && machine.servo.build.low_count==0);
  assert(machine.servo.diagnostic.post_pulse_valid && machine.servo.build.post_pending);
  assert(machine.servo.diagnostic.post_pulse_request+1==MotorExecutor_GetBuildSnapshot(now).request);
  assert(machine.servo.diagnostic.pulse_force_before==10 && machine.servo.diagnostic.pulse_force_after==12);
- ForceBuildRequest r; uint32_t previous_energy=30000;
- for (int error=50;error>0;error--) {
-     assert(ForceBuild_Select(250-error,250,true,4000,&r));
-     assert(r.phase==BUILD_PHASE_TAPER && r.command<=3000 && r.command*r.hard_ms<=previous_energy);
-     previous_energy=r.command*r.hard_ms;
+ /* Values independently calculated from actual old source formulas.
+  * MICRO/FINE switch is discontinuous in the source: error4 base846,
+  * error3 base1000. Do not falsely assert strict monotonicity at that boundary. */
+ const struct { int error; unsigned boost,base,command,normal,mode; } cases[]={
+     {240,0,3000,3000,10,2},{240,300,3000,3300,9,2},{240,4000,3000,7000,4,2},
+     {50,4000,3000,7000,4,2},{26,300,1876,2176,8,2},
+     {5,0,893,893,10,2},{4,4000,846,4846,2,2},{3,4000,1000,2000,5,3},
+     {2,300,700,1000,7,3},{1,1000,400,1400,2,3}};
+ ForceBuildRequest r;
+ for (unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+     assert(ForceBuild_Select(250-cases[i].error,250,true,cases[i].boost,0,&r));
+     assert(r.base_command==cases[i].base && r.command==cases[i].command &&
+            r.hard_ms==cases[i].normal+1 && r.mode==cases[i].mode);
  }
- assert(ForceBuild_Select(251,250,true,4000,&r) && r.command==0 && r.hard_ms==0);
- assert(!ForceBuild_Select(NAN,250,true,0,&r));
+ /* Representative decreasing-error MICRO -> FINE: less nominal command-time. */
+ ForceBuildRequest micro,fine;
+ assert(ForceBuild_Select(245,250,true,300,0,&micro));
+ assert(ForceBuild_Select(248,250,true,300,0,&fine));
+ assert(fine.command*(fine.hard_ms-1)<micro.command*(micro.hard_ms-1));
+ assert(ForceBuild_Select(251,250,true,4000,0,&r) && r.command==0 && r.hard_ms==0);
+ assert(!ForceBuild_Select(NAN,250,true,0,0,&r));
  build_start(250,190); build_sample(201,1); off(); assert(machine.servo.build.boost==0);
  build_sample(201,30); assert(MotorExecutor_GetBuildSnapshot(now).command<3000);
 }
 static void TestBuildExposureAndUninterruptedCooling(void)
 {
  /* Exercise the production executor ledger without a simulated plant timeout. */
- uint32_t token=build_owner(); ForceBuildRequest approach={BUILD_PHASE_APPROACH,5000,100};
- ForceBuildRequest pulse={BUILD_PHASE_BUILD,3000,10};
+ uint32_t token=build_owner(); ForceBuildRequest approach={BUILD_PHASE_APPROACH,5000,100,5000,BUILD_MODE_COARSE};
+ ForceBuildRequest pulse={BUILD_PHASE_BUILD,3300,10,3000,BUILD_MODE_MICRO};
  for (unsigned i=0;i<80;i++) {
      assert(MotorExecutor_StartBuildSegment(token,&approach,++seq,now,now)==MOTOR_RESULT_OK);
      executor_wait(129); uint32_t req=MotorExecutor_GetBuildSnapshot(now).request;
@@ -284,7 +299,72 @@ static void TestBuildExposureAndUninterruptedCooling(void)
  build_start(250,0);
  for (unsigned i=0;i<170 && machine.state!=FAULT;i++) build_sample(0,100);
  off(); assert(machine.fault_detail==FAULT_DETAIL_BUILD_EXPOSURE);
- assert(MotorExecutor_GetBuildSnapshot(now).approach_reserved_ms==8000);
+ assert(MotorExecutor_GetBuildSnapshot(now).approach_reserved_ms<8000);
+ assert(MotorExecutor_GetBuildSnapshot(now).approach_command_ms<=40000000);
+ assert(MotorExecutor_GetBuildSnapshot(now).approach_command_ms+850000>40000000);
+}
+static void TestOldPulseBoostResetAndFreshGate(void)
+{
+ build_start(250,10); build_sample(10,50);
+ assert(machine.servo.build.low_count==1 && machine.servo.build.boost==0);
+ build_sample(10,50); assert(machine.servo.build.low_count==0 && machine.servo.build.boost==300);
+ build_sample(10,50); assert(machine.servo.build.low_count==1 && machine.servo.build.boost==300);
+ uint64_t duplicate=seq; build_advance(40); sample_at(12,duplicate,now,true);
+ assert(machine.servo.build.low_count==1 && machine.servo.build.boost==300); off();
+ sample_at(12,++seq,now-21,true);
+ assert(machine.servo.build.low_count==1 && machine.servo.build.boost==300); off();
+ assert(machine.state==FAULT); sample_at(12,++seq,now,true); off();
+ assert(machine.servo.build.boost==300); /* invalid feedback fault cannot earn/reset compensation */
+ build_start(250,10); build_sample(10,50); build_sample(10,50); build_sample(10,50);
+ build_sample(12,50);
+ assert(machine.servo.build.low_count==0 && machine.servo.build.boost==0);
+ build_sample(12,50); build_sample(12,50); assert(machine.servo.build.boost==300);
+ build_sample(11,50); assert(machine.servo.build.boost==0); /* absolute movement, not net progress */
+ assert(machine.servo.build.progress_anchor==12);
+ build_start(250,248);
+ for (unsigned i=0;i<8;i++) build_sample(248,50);
+ assert(machine.servo.build.boost==1000 && MotorExecutor_GetBuildSnapshot(now).command==1700);
+ build_sample(249,50); assert(machine.servo.build.boost==0 && MotorExecutor_GetBuildSnapshot(now).command==400);
+ build_sample(250,1); off(); assert(machine.state==FORCE_TARGET_REACHED_OFF);
+ ForceBuildState b={0};
+ for (unsigned i=0;i<40;i++) ForceBuild_PulseBoost(&b,0,1000);
+ assert(b.boost==1000 && b.low_count==0);
+ ForceBuild_PulseBoost(&b,-1,1000); assert(b.boost==0 && b.low_count==0);
+}
+static void TestOldCoarseTimingCeilingAndContactLatch(void)
+{
+ ForceBuildState b={0};
+ ForceBuild_CoarseBoost(&b,0,199); assert(b.coarse_boost==0);
+ ForceBuild_CoarseBoost(&b,0,200); assert(b.coarse_boost==500);
+ ForceBuild_CoarseBoost(&b,0,399); assert(b.coarse_boost==500);
+ for (unsigned ms=400;ms<=2000;ms+=200) ForceBuild_CoarseBoost(&b,0,ms);
+ assert(b.coarse_boost==3500);
+ ForceBuild_CoarseBoost(&b,1,2200); assert(b.coarse_boost==0);
+ build_start(250,0);
+ for (unsigned i=0;i<20;i++) build_sample(0,100);
+ MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
+ assert(e.command==8500 && e.hard_ms==100 && e.base_command==5000);
+ assert(TIM3->CCR3==1700 && machine.servo.diagnostic.requested_equivalent_V==8.5f);
+ uint32_t reserved=e.approach_command_ms;
+ build_sample(10,1); off(); assert(machine.state==FORCE_BUILD);
+ build_sample(10,30); assert(MotorExecutor_GetSnapshot()->command_mv==3000);
+ build_sample(0,50); assert(machine.state==FORCE_BUILD); /* contact never returns to COARSE */
+ assert(MotorExecutor_GetBuildSnapshot(now).approach_command_ms==reserved);
+}
+static void TestBuildStopAllStagesAndNoRestart(void)
+{
+ const int initial[]={0,10,220,248};
+ for (unsigned i=0;i<4;i++) {
+     build_start(250,initial[i]); assert(!MotorExecutor_OutputIsDisabled());
+     assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+     uint32_t req=MotorExecutor_GetBuildSnapshot(now).request;
+     uint32_t budget=machine.servo.build.no_response_ms;
+     float anchor=machine.servo.build.progress_anchor;
+     for (unsigned j=0;j<10;j++) { build_sample(initial[i]+2,100); off(); }
+     assert(machine.servo.build.no_response_ms==budget && machine.servo.build.progress_anchor==anchor);
+     assert(MotorExecutor_GetBuildSnapshot(now).request==req && !machine.servo.active);
+     assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
+ }
 }
 static void TestBuildPlanAndReadbackContract(void)
 {
@@ -309,6 +389,8 @@ int main(void)
  RUN(TestBuildContractAndPostFeedback); RUN(TestBuildCutoffsAndStopRaces);
  RUN(TestBuildMissingBadFeedbackAndTargetPriority); RUN(TestBuildBoostAndTaperEnergy);
  RUN(TestBuildExposureAndUninterruptedCooling); RUN(TestBuildPlanAndReadbackContract);
+ RUN(TestOldPulseBoostResetAndFreshGate); RUN(TestOldCoarseTimingCeilingAndContactLatch);
+ RUN(TestBuildStopAllStagesAndNoRestart);
  RUN(TestTrajectory); RUN(TestNumericAndD); RUN(TestAntiWindup);
- puts("BUILD_TO_TARGET_GROUPS=13 PASS; SYNTHETIC_ONLY; PHYSICAL_NOT_RUN"); return 0;
+ puts("BUILD_TO_TARGET_GROUPS=16 PASS; SYNTHETIC_ONLY; PHYSICAL_NOT_RUN"); return 0;
 }

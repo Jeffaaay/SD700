@@ -1,4 +1,4 @@
-"""BuildToTarget1 software evidence runner. Never connects a serial port."""
+"""BuildToTarget2 software evidence runner. Never connects a serial port."""
 import argparse, json, subprocess, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,7 +36,7 @@ def main():
         ('strict_verifier_rejections',py+['Tests/Host/test_force_servo_verifier.py']),
         ('offline_firmware',py+['tools/verify_force_servo_firmware.py']),
         ('historical_auto_firmware',py+['tools/verify_current_auto_target_firmware.py']),
-        ('arm_release',ps+['tools/build_gcc.ps1','-ForceServo','-BuildToTarget1','-MotorMode','RealBench','-Configuration','Release',
+        ('arm_release',ps+['tools/build_gcc.ps1','-ForceServo','-BuildToTarget2','-MotorMode','RealBench','-Configuration','Release',
                           '-RealBenchAck','I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION','-BuildDir',str((out/'arm').relative_to(ROOT))]),
         ('rebuild_identity',py+['-c',
             "import sys;sys.path.insert(0,'tools');from pathlib import Path;from verify_force_servo_firmware import sha,PINNED_HASHES;from firmware_image import require;"+

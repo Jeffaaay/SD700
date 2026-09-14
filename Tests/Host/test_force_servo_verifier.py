@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 47168)
+        self.assertEqual(len(image.load_bytes), 47648)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -170,7 +170,7 @@ class VerifierTests(unittest.TestCase):
                     self.reject_elf(bad,'configuration|parameter group')
 
     def test_all_build_configuration_words_rejected(self):
-        for index in range(26):
+        for index in range(33):
             with self.subTest(index=index):
                 bad=bytearray(self.elf); offset=self.image.symbol_offsets['g_force_build_config']+index*4
                 old=struct.unpack_from('<I',bad,offset)[0]
@@ -182,9 +182,13 @@ class VerifierTests(unittest.TestCase):
         self.reject_elf(bad,'Continuous owner admission')
 
     def test_build_implementation_presence_required(self):
-        for name in ('MotorExecutor_StartBuildSegment','MotorExecutor_AcceptBuildPost','ForceBuildMachine_Safety','MotorStopTimer_Arm'):
+        for name in ('MotorExecutor_StartBuildSegment','MotorExecutor_AcceptBuildPost','ForceBuildMachine_Safety','ForceBuild_PulseBoost','ForceBuild_CoarseBoost','MotorStopTimer_Arm'):
             sym=dict(self.image.symbols); del sym[name]
             with self.assertRaisesRegex(ValueError,'Missing active implementation'): verifier.verify_contract(sym)
+
+    def test_build1_predecessor_rejected(self):
+        old=ROOT/'output/BuildToTarget1/firmware/SD700_ForceServo1_BuildToTarget1_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(),'identity/configuration')
 
     def test_runtime2_predecessor_rejected(self):
         old=ROOT/'output/StaticForceRuntimeCharacterization2/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization2_RealBench_Release.elf'

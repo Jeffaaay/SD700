@@ -59,7 +59,7 @@ static void MotorExecutor_BuildRefreshRest(uint32_t now)
      (s_build_rest_required || s_build.reserved_ms)) {
      uint32_t off=now-s_build_off_at;
      if (off>=g_force_build_config.full_rest_ms) {
-         s_build.reserved_ms=0; s_build.approach_reserved_ms=0; s_build.energized_upper_ms=0;
+         s_build.reserved_ms=0; s_build.approach_reserved_ms=0; s_build.energized_upper_ms=0; s_build.approach_command_ms=0;
          s_build_rest_required=false; ++s_build.epoch;
      }
      s_build.rest_remaining_ms=off>=g_force_build_config.full_rest_ms ? 0 : g_force_build_config.full_rest_ms-off;
@@ -1156,27 +1156,43 @@ MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildReque
  if (s_build_rest_required || now-received>FORCE_SERVO_COMMISSIONING_AGE_MS ||
      !MotorHwReal_IsDisabled() || MotorStopTimer_IsArmed() || !MotorExecutor_IsHealthy()) goto fail;
  if (r->phase==BUILD_PHASE_APPROACH) {
-     if (r->command!=c->approach_command || r->hard_ms<2 || r->hard_ms>c->approach_hard_ms) goto fail;
- } else if (r->phase==BUILD_PHASE_BUILD) {
-     if (r->command<c->micro_max_command || r->command>c->build_ceiling ||
-         r->hard_ms<c->pulse_hard_min_ms || r->hard_ms>c->pulse_hard_max_ms ||
-         r->command*r->hard_ms>c->micro_max_command*c->pulse_base_ms) goto fail;
- } else if (r->phase==BUILD_PHASE_TAPER) {
-     if (r->command<c->fine_min_command || r->command>c->micro_max_command ||
-         r->hard_ms<c->pulse_hard_min_ms || r->hard_ms>c->pulse_hard_max_ms) goto fail;
+     if (r->mode!=BUILD_MODE_COARSE || r->base_command!=c->approach_command ||
+         r->command<c->approach_command || r->command>c->approach_ceiling ||
+         (r->command-c->approach_command)%c->coarse_step_command || r->hard_ms!=c->approach_hard_ms) goto fail;
+ } else if (r->phase==BUILD_PHASE_BUILD || r->phase==BUILD_PHASE_TAPER) {
+     uint32_t maximum;
+     if (r->mode==BUILD_MODE_MICRO) {
+         if (r->base_command<c->micro_min_command || r->base_command>c->micro_max_command ||
+             (r->phase==BUILD_PHASE_BUILD && r->base_command!=c->micro_max_command)) goto fail;
+         maximum=c->boost_max_command;
+     } else if (r->mode==BUILD_MODE_FINE && r->phase==BUILD_PHASE_TAPER) {
+         if (r->base_command<c->fine_min_command || r->base_command>c->fine_max_command) goto fail;
+         maximum=c->fine_boost_max_command;
+     } else goto fail;
+     if (r->command<r->base_command || r->command-r->base_command>maximum ||
+         r->command>c->build_ceiling || r->hard_ms<c->pulse_hard_min_ms || r->hard_ms>c->pulse_hard_max_ms) goto fail;
+     uint32_t normal=c->pulse_base_ms*r->base_command/r->command;
+     if (normal<c->pulse_min_ms) normal=c->pulse_min_ms;
+     if (r->hard_ms!=normal+c->hard_guard_ms) goto fail;
  } else goto fail;
  if (r->hard_ms>=FORCE_SERVO_COMMISSIONING_LEASE_MS-(now-received) ||
      (s_build_have_sequence && now-s_build_off_at<c->off_settle_ms)) goto fail;
  if (s_build.reserved_ms+r->hard_ms>c->total_on_ms ||
-     (r->phase==BUILD_PHASE_APPROACH && s_build.approach_reserved_ms+r->hard_ms>c->approach_total_ms)) {
+     (r->phase==BUILD_PHASE_APPROACH &&
+         (s_build.approach_reserved_ms+r->hard_ms>c->approach_total_ms ||
+          s_build.approach_command_ms+r->command*r->hard_ms>c->approach_command_ms_budget))) {
      s_build_rest_required=true; goto fail;
  }
  /* Reserve before arming. Neither STOP nor a failed start refunds exposure. */
  s_build.reserved_ms+=r->hard_ms;
- if (r->phase==BUILD_PHASE_APPROACH) s_build.approach_reserved_ms+=r->hard_ms;
+ if (r->phase==BUILD_PHASE_APPROACH) {
+     s_build.approach_reserved_ms+=r->hard_ms;
+     s_build.approach_command_ms+=r->command*r->hard_ms;
+ }
  s_build.started_ms=now; s_build.deadline_ms=now+r->hard_ms;
  s_build.receive_deadline_ms=received+FORCE_SERVO_COMMISSIONING_LEASE_MS;
  s_build.phase=r->phase; s_build.command=r->command; s_build.hard_ms=r->hard_ms;
+ s_build.base_command=r->base_command; s_build.mode=r->mode;
  s_build.end_reason=BUILD_END_NONE; ++s_build.request;
  s_build_used_sequence=sequence; s_build_have_sequence=true;
  if (MotorExecutor_PlanCommand(MOTOR_DIRECTION_PRESS,r->command,&t2,&t3)!=MOTOR_RESULT_OK) goto fail;

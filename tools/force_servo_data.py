@@ -322,11 +322,17 @@ def build_to_target_metrics(rows, metadata):
         off_monitor_drop_N=forces[0]-forces[-1] if forces else None,
         off_monitor_observed_ms=delta(off[-1]['latest_received_ms'],off[0]['latest_received_ms']) if off else None,
         maximum_segment_command=max((r.get('segment_command',0) for r in rows),default=0),
+        maximum_requested_equivalent_V=max((r.get('requested_equivalent_V',0) for r in rows),default=0),
+        maximum_mapped_pwm_percent=max((r.get('mapped_pwm_percent',0) for r in rows),default=0),
+        maximum_committed_command=max((r.get('current_committed',0) for r in rows),default=0),
+        maximum_planned_press_ccr=max((r.get('tim3',0) for r in rows),default=0),
+        maximum_coarse_boost_command=max((r.get('coarse_boost_command',0) for r in rows),default=0),
+        maximum_approach_command_ms=max((r.get('approach_command_ms',0) for r in rows),default=0),
         maximum_reserved_on_ms=max((r.get('energized_reserved_ms',0) for r in rows),default=0),
         maximum_energized_upper_ms=max((r.get('energized_upper_ms',0) for r in rows),default=0),
         last_post_pulse=None if post is None else dict(before_N=post['pulse_force_before'],after_N=post['pulse_force_after'],
             received_ms=post['post_pulse_received_ms'],request=post['post_pulse_request']),
-        runtime_measurement_limit='OFF force decay is sampled, not a holding qualification. Segment command/CCR is not measured current. Energized upper bound is bridge-enabled wall time, not measured winding current or thermal energy.')
+        runtime_measurement_limit='OFF force decay is sampled, not a holding qualification. Equivalent voltage, PWM, command and planned CCR are software requests, not measured motor voltage/current. Energized upper bound is bridge-enabled wall time, not measured winding current or thermal energy.')
 
 
 def decode_csv_row(row):

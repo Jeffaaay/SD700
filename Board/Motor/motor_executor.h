@@ -116,6 +116,7 @@ typedef struct {
  uint32_t epoch, reserved_ms, approach_reserved_ms, energized_upper_ms;
  uint32_t rest_remaining_ms, inhibited, request, phase, command, hard_ms;
  uint32_t started_ms, ended_ms, deadline_ms, receive_deadline_ms, end_reason;
+ uint32_t base_command, mode, approach_command_ms;
  bool segment_active, post_pending;
 } MotorBuildSnapshot;
 MotorResult MotorExecutor_BeginBuild(uint32_t now_ms,uint32_t *token);

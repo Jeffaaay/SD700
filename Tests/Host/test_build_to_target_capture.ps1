@@ -1,4 +1,4 @@
-param([string]$OutputDirectory='output/BuildToTarget1/capture-tests')
+param([string]$OutputDirectory='output/BuildToTarget2/capture-tests')
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
 . "$root/tools/capture_force_servo.ps1" -LibraryOnly -BuildToTarget
@@ -66,15 +66,25 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
             } elseif ($a -eq 0x102) {
                 Check ($n -eq 0xD101) 'Frozen latch magic'
                 $values=@{schema=$schema.schema;build_id=$schema.build_id;config_version=($sim.Version+1);config_digest=$configDigest;
-                    profile_id=6;profile_digest=$profileDigest;unit=2;measured_valid=1;state=1;output_off=1;
+                    profile_id=7;profile_digest=$profileDigest;unit=2;measured_valid=1;state=1;output_off=1;
                     now_ms=$clock.ElapsedMilliseconds;latest_received_ms=$clock.ElapsedMilliseconds;received_ms=$clock.ElapsedMilliseconds;
                     latest_raw=0;raw=0;measured=0;force_N=0;target=$sim.Plan.target_N;plan_version=$sim.Version;plan_digest=$sim.Digest;
                     session=$sim.Starts;session_peak_raw=32;session_peak_measured=32;control_sequence=$sim.Starts;
                     build_mode=1;build_config_digest=$(if ($Failure -eq 'BuildDigest') {0} else {$schema.build_digest});
                     exposure_inhibited=[int]($Failure -eq 'Exposure');build_no_response_ms=$(if ($Failure -eq 'NoResponseBudget') {5000} else {0});
-                    segment_request=$sim.Starts;segment_phase=2;segment_command=3000;segment_hard_ms=10;energized_reserved_ms=100;energized_upper_ms=100;
+                    segment_request=$sim.Starts;segment_phase=2;segment_mode=2;segment_base_command=3000;segment_normal_ms=10;segment_command=3000;segment_hard_ms=11;energized_reserved_ms=100;energized_upper_ms=100;
                     cooling_active=[int]($Failure -eq 'Lockout');target_reached=0;run_reason=0}
-                if ($sim.Running) { $values.state=13;$values.lease_active=1;$values.output_off=0;$values.current_committed=3000;$values.tim3=600 }
+                if ($sim.Running) {
+                    $values.state=13;$values.lease_active=1;$values.output_off=0;$values.current_committed=3000;$values.tim3=600
+                    $values.requested_equivalent_V=3;$values.mapped_pwm_percent=12.5
+                    # Transport/schema fixture, not a physical plant simulation.
+                    if ($clock.ElapsedMilliseconds-$sim.StartedAt -lt 3000) {
+                        $values.state=12;$values.segment_phase=1;$values.segment_mode=1;$values.segment_base_command=5000
+                        $values.segment_command=8500;$values.segment_normal_ms=99;$values.segment_hard_ms=100
+                        $values.coarse_boost_command=3500;$values.approach_command_ms=850000
+                        $values.current_committed=8500;$values.tim3=1700;$values.requested_equivalent_V=8.5;$values.mapped_pwm_percent=8500/240
+                    }
+                }
                 if ($sim.Starts -and $clock.ElapsedMilliseconds-$sim.StartedAt -ge 6000) {
                     $values.state=$(if ($sim.Running) {16} else {1});$values.target_reached=1;$values.target_reached_ms=$sim.StartedAt+6000
                     $values.run_reason=$(if ($Target -eq 3000) {5} else {6}); $values.build_phase=4
@@ -137,7 +147,7 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
     }.GetNewClosure()
     try {
         Invoke-ForceCapture -TransportExchange $transport -Watch $clock -SleepMilliseconds $sleep -Mode $Mode `
-            -OutputCsv $csv -ActualHash 'SYNTHETIC_NO_HARDWARE' -MaximumSeconds $(if ($Mode -eq 'SingleStart') {0} else {5}) -StopRequested $manualStop -Target ([int]$Target) -TargetN -ProfileId 6 `
+            -OutputCsv $csv -ActualHash 'SYNTHETIC_NO_HARDWARE' -MaximumSeconds $(if ($Mode -eq 'SingleStart') {0} else {5}) -StopRequested $manualStop -Target ([int]$Target) -TargetN -ProfileId 7 `
             -CharacterizationPlan (New-CharacterizationPlan $Target $Assist $Continuous) -ConfirmStart $confirm `
             -CurrentLimitSetting 'SYNTHETIC 0.5 A PSU label ONLY' -InitialGap 'SYNTHETIC' -RepositoryCommit 'SYNTHETIC' | Out-Null
     } catch { $errorText=$_.Exception.Message }
@@ -164,7 +174,9 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
         Check ($saved[0].measured -eq 0 -and $saved[-1].phase -eq 'STOP_READBACK') 'Zero-start or complete streamed capture lost'
     }
     if ($expected -and -not $Failure) {
-        Check ($meta.build_profile.build_ceiling -eq 7000 -and $meta.build_config_digest -eq $schema.build_digest) 'Build contract metadata missing'
+        Check ($meta.build_profile.build_ceiling -eq 7000 -and $meta.build_profile.approach_ceiling -eq 8500 -and $meta.build_profile.fine_boost_max_command -eq 1000 -and $meta.build_profile.pulse_hard_max_ms -eq 11 -and $meta.build_config_digest -eq $schema.build_digest) 'Build contract metadata missing'
+        Check ($report.maximum_requested_equivalent_V -eq 8.5 -and $report.maximum_committed_command -eq 8500 -and $report.maximum_planned_press_ccr -eq 1700) 'Command/voltage-equivalent/CCR evidence missing'
+        Check ($report.maximum_coarse_boost_command -eq 3500 -and $report.maximum_approach_command_ms -eq 850000) 'Coarse boost/time telemetry missing'
         Check ($report.target_reached -and $report.off_monitor_samples -gt 1 -and $report.off_monitor_observed_ms -gt 3000) 'OFF monitor event/coverage missing'
         Check ($report.off_monitor_drop_N -eq 1 -and $report.stable_hold -like 'NOT_ESTABLISHED*') 'Target reach falsely labeled stable HOLD'
         Check (@(Import-Csv -LiteralPath $csv | Where-Object { $_.state -eq 14 }).Count -eq 0) 'BuildToTarget entered HOLD'

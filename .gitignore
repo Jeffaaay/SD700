@@ -168,3 +168,10 @@ output/BuildToTarget1/*
 !output/BuildToTarget1/firmware/
 !output/BuildToTarget1/firmware/*.hex
 !output/BuildToTarget1/firmware/*.elf
+
+# Current BuildToTarget2 field pair; preserve the preceding field artifacts.
+!output/BuildToTarget2/
+output/BuildToTarget2/*
+!output/BuildToTarget2/firmware/
+!output/BuildToTarget2/firmware/*.hex
+!output/BuildToTarget2/firmware/*.elf

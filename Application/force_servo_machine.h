@@ -8,8 +8,9 @@
  X(segment_command) X(segment_hard_ms) X(segment_started_ms) X(segment_deadline_ms) X(segment_end_ms) X(segment_end_reason) \
  X(post_pulse_pending) X(post_pulse_valid) X(post_pulse_request) X(post_pulse_received_ms) X(post_pulse_sample_hi) X(post_pulse_sample_lo) \
  X(exposure_epoch) X(energized_reserved_ms) X(approach_reserved_ms) X(energized_upper_ms) X(full_rest_remaining_ms) X(exposure_inhibited) \
- X(build_boost_command) X(build_low_response_count) X(build_no_response_ms)
-#define FORCE_BUILD_DIAG_FLOAT(X) X(pulse_force_before) X(pulse_force_after) X(build_progress_anchor)
+ X(build_boost_command) X(build_low_response_count) X(build_no_response_ms) \
+ X(segment_base_command) X(segment_mode) X(segment_normal_ms) X(coarse_boost_command) X(coarse_check_ms) X(approach_command_ms)
+#define FORCE_BUILD_DIAG_FLOAT(X) X(pulse_force_before) X(pulse_force_after) X(build_progress_anchor) X(requested_equivalent_V) X(mapped_pwm_percent)
 #else
 #define FORCE_BUILD_DIAG_U32(X)
 #define FORCE_BUILD_DIAG_FLOAT(X)
