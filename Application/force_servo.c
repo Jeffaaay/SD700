@@ -38,12 +38,42 @@ const ForceServoProfile *ForceServo_FindProfile(uint16_t id)
      if (id==(uint16_t)g_force_servo_candidates[i].id) return &g_force_servo_candidates[i];
  return NULL;
 }
+const uint32_t g_force_characterization_contract[16]={
+ SD700_FORCE_CHARACTERIZATION,1,3000,40,10,240,1,2,4,4,5000,5000,30,2,25,2
+};
+int32_t ForceServo_PercentCommand(float percent) { return (int32_t)floorf(percent*240.0f+0.5f); }
+bool ForceServo_CharacterizationPlanValid(const ForceCharacterizationPlan *p)
+{
+ return p && isfinite(p->target_N) && p->target_N>=1 && p->target_N<=3000 &&
+     floorf(p->target_N)==p->target_N && isfinite(p->assist_percent) &&
+     p->assist_percent>=0 && p->assist_percent<=40 && isfinite(p->continuous_percent) &&
+     p->continuous_percent>=0 && p->continuous_percent<=10;
+}
+uint32_t ForceServo_CharacterizationDigest(const ForceCharacterizationPlan *p)
+{
+ uint32_t h=2166136261U,u;
+ const float values[]={p->target_N,p->assist_percent,p->continuous_percent};
+ for (unsigned i=0;i<3;i++) { memcpy(&u,&values[i],4);
+     for (unsigned j=0;j<4;j++) { h^=(u>>(j*8))&255U; h*=16777619U; } }
+ return h;
+}
 bool ForceServo_ProfileValid(const ForceServoProfile *p)
 {
  if (!p) return false;
 #define FS_PROFILE_FINITE(n,d) if (!isfinite(p->n)) return false;
  FORCE_SERVO_PROFILE_FIELDS(FS_PROFILE_FINITE)
 #undef FS_PROFILE_FINITE
+#if SD700_FORCE_CHARACTERIZATION
+ if (p->unit==2) {
+     ForceServoProfile fixed=*p;
+     fixed.peak_press=g_force_servo_profile.peak_press;
+     fixed.continuous_press=g_force_servo_profile.continuous_press;
+     return memcmp(&fixed,&g_force_servo_profile,sizeof(fixed))==0 &&
+         p->continuous_press>=0 && p->continuous_press<=2400 &&
+         floorf(p->continuous_press)==p->continuous_press && p->peak_press>=0 &&
+         p->peak_press<=9600 && floorf(p->peak_press)==p->peak_press;
+ }
+#endif
  if (p->id<1 || p->id>65535 || floorf(p->id)!=p->id ||
      (p->unit!=0 && p->unit!=1) || p->qualifications<0 || p->qualifications>15 ||
      floorf(p->qualifications)!=p->qualifications || p->raw_min<0 ||
@@ -92,6 +122,13 @@ bool ForceServo_ProfileValid(const ForceServoProfile *p)
 ForceServoRejection ForceServo_TargetAllowed(const ForceServoProfile *p,float t,bool newtons)
 {
  if (!p || !isfinite(p->qualifications) || p->qualifications<0 || p->qualifications>15) return FS_PROFILE_INVALID;
+#if SD700_FORCE_CHARACTERIZATION
+ if (p->unit==2) {
+     if (!ForceServo_ProfileValid(p)) return FS_PROFILE_INVALID;
+     if (!newtons) return FS_WRONG_TARGET_UNIT;
+     return isfinite(t) && t>=1 && t<=3000 && floorf(t)==t ? FS_PROFILE_OK : FS_TARGET_OUTSIDE_OPERATING_RANGE;
+ }
+#endif
  /* Asking for N on the legacy profile reports the actual missing prerequisite. */
  if (newtons || p->unit==1) {
      unsigned q=(unsigned)p->qualifications;
@@ -108,6 +145,12 @@ ForceServoRejection ForceServo_TargetAllowed(const ForceServoProfile *p,float t,
 }
 bool ForceServo_Measure(const ForceServoProfile *p,uint32_t raw,int32_t control,float *m)
 {
+#if SD700_FORCE_CHARACTERIZATION
+ if (p && p->unit==2) {
+     if (!m || !ForceServo_ProfileValid(p) || raw>3000 || control!=(int32_t)raw) return false;
+     *m=(float)raw; return true; /* Boundary3000 is consumed by machine OFF path. */
+ }
+#endif
  if (!m || !ForceServo_ProfileValid(p) || raw<p->raw_min || raw>=p->raw_trip) return false;
  *m=p->unit==1 ? raw*p->scale+p->offset : (float)control;
  return isfinite(*m) && *m>=0 && *m<p->force_trip &&
@@ -115,6 +158,9 @@ bool ForceServo_Measure(const ForceServoProfile *p,uint32_t raw,int32_t control,
 }
 bool ForceServo_BoostQualified(const ForceServoProfile *p)
 {
+#if SD700_FORCE_CHARACTERIZATION
+ if (p && p->unit==2) return ForceServo_ProfileValid(p) && p->peak_press>0;
+#endif
  return ForceServo_ProfileValid(p) && p->experiment_enabled && (p->unit==0 || p->qualifications==15) &&
      p->peak_press>p->continuous_press && p->peak_press<=FS_PRESS_PROFILE_CEILING &&
      p->boost_ms>0 && p->boost_total_ms>=p->boost_ms && p->taper_margin>0;
@@ -126,6 +172,13 @@ float ForceServo_TrajectorySeconds(const ForceServoConfig *c,float m,float t)
 }
 bool ForceServo_ProfileConfigValid(const ForceServoProfile *p,const ForceServoConfig *c)
 {
+#if SD700_FORCE_CHARACTERIZATION
+ if (p && c && p->unit==2) {
+     ForceServoConfig fixed=*c; fixed.press_cap=g_force_servo_default_config.press_cap;
+     return ForceServo_ProfileValid(p) && ForceServo_ConfigValid(c) &&
+         memcmp(&fixed,&g_force_servo_default_config,sizeof(fixed))==0 && c->press_cap==p->continuous_press;
+ }
+#endif
  return ForceServo_ProfileValid(p) && ForceServo_ConfigValid(c) &&
      c->press_cap<=p->continuous_press && c->release_cap<=p->release;
 }
@@ -135,9 +188,12 @@ ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const Forc
  if (p && !p->experiment_enabled) return FS_EXPERIMENT_LIMITS_UNREVIEWED;
  if (!seconds || !ForceServo_ProfileConfigValid(p,c) || !isfinite(m) || m<0 || m>=p->force_trip)
      return FS_PROFILE_INVALID;
- ForceServoRejection r=ForceServo_TargetAllowed(p,t,p->unit==1);
+ ForceServoRejection r=ForceServo_TargetAllowed(p,t,p->unit!=0);
  if (r!=FS_PROFILE_OK) return r;
  *seconds=ForceServo_TrajectorySeconds(c,m,t);
+#if SD700_FORCE_CHARACTERIZATION
+ if (p->unit==2) return FS_PROFILE_OK; /* Bounded attempt, not a promise of reaching target. */
+#endif
  float budget=fminf(p->energized_ms,fminf(p->session_ms,c->session_ms));
  if (*seconds*1000+c->hold_dwell_ms>budget || *seconds*1000>p->build_ms)
      return FS_TRAJECTORY_EXCEEDS_BUDGET;

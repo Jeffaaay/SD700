@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 41152)
+        self.assertEqual(len(image.load_bytes), 41796)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -141,8 +141,8 @@ class VerifierTests(unittest.TestCase):
                                     ('g_force_servo_contract', 52, 101),
                                     ('g_force_servo_contract', 56, 0),
                                     ('g_force_servo_contract', 60, 0),
-                                    ('g_force_servo_contract', 64, 9600),
-                                    ('g_force_servo_contract', 68, 2400),
+                                    ('g_force_servo_contract', 64, 9601),
+                                    ('g_force_servo_contract', 68, 2401),
                                     ('g_force_servo_contract', 72, 12),
                                     ('g_force_servo_contract', 76, 0),
                                     ('g_force_servo_default_config', 0, 0x3F800000),
@@ -158,6 +158,20 @@ class VerifierTests(unittest.TestCase):
             bad = bytearray(self.elf)
             struct.pack_into('<I', bad, self.image.symbol_offsets[name]+offset, value)
             self.reject_elf(bad, 'configuration|configuration assertion|parameter group')
+
+    def test_all_characterization_contract_and_gain_fields_rejected(self):
+        for name, count in (('g_force_characterization_contract',16),('g_force_servo_default_config',25)):
+            for index in range(count):
+                with self.subTest(name=name,index=index):
+                    bad=bytearray(self.elf)
+                    offset=self.image.symbol_offsets[name]+index*4
+                    old=struct.unpack_from('<I',bad,offset)[0]
+                    struct.pack_into('<I',bad,offset,old ^ 1)
+                    self.reject_elf(bad,'configuration|parameter group')
+
+    def test_reviewfix_predecessor_rejected(self):
+        old=ROOT/'output/StaticForceAuthority2_ReviewFix/firmware/SD700_ForceServo1_StaticForceAuthority2_ReviewFix_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(),'identity/configuration')
 
     def test_profile_mutations_rejected(self):
         # Every field is pinned independently of hash: unlocking/calibration,

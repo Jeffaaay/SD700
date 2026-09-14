@@ -25,9 +25,10 @@ static void publish(MachineContext *m,uint32_t now)
  d->target=(float)m->target_pressure_units; d->contact_threshold=(uint32_t)s->profile.contact;
  d->profile_id=(uint32_t)s->profile.id; d->profile_digest=profile_digest;
  d->unit=(uint32_t)s->profile.unit;
+ d->plan_version=s->plan_version; d->plan_digest=s->plan_digest;
  d->measured_valid=measured_valid && s->have_sample;
  if (d->measured_valid) {
-     d->measured=measured; d->force_N=s->profile.unit==1 ? measured : 0;
+     d->measured=measured; d->force_N=s->profile.unit!=0 ? measured : 0;
  } else { d->measured=0; d->force_N=0; } /* Invalid numeric sentinel; use measured_valid. */
  if (s->active) d->energized_elapsed_ms=now-s->session_started_ms;
  d->lease_deadline=e->logical_deadline_ms;
@@ -75,6 +76,9 @@ static void record_assist_output(ForceServoMachine *s,int32_t committed)
 static void fault(MachineContext *m,MachineFault f,FaultDetail detail,uint32_t now)
 {
  (void)MotorExecutor_Disable();
+ m->servo.plan_armed=false; m->servo.plan_available=false;
+ if (!m->servo.diagnostic.run_reason) m->servo.diagnostic.run_reason=
+     detail==FAULT_DETAIL_SESSION_TIMEOUT ? (m->servo.diagnostic.target_reached ? FS_RUN_SESSION_COMPLETE : FS_RUN_TARGET_NOT_REACHED_WITHIN_SESSION) : FS_RUN_FAULT;
  if (m->servo.diagnostic.boost_active && !m->servo.diagnostic.assist_exit)
      m->servo.diagnostic.assist_exit=detail==FAULT_DETAIL_LEASE_EXPIRED ? 7U : 6U;
  finish_boost(m,now,3,0); begin_cooling(&m->servo,now);
@@ -92,11 +96,12 @@ void Machine_Initialize(MachineContext *m,const MachineConfig *cfg,uint32_t now)
  if (cfg) m->config=*cfg;
  /* The immutable approach and raw protection contract is inherited, not tunable. */
  m->config_valid=cfg && memcmp(cfg,&g_sd700_auto_target_machine_config,sizeof(*cfg))==0;
+ m->config_valid=m->config_valid && g_force_characterization_contract[0]==SD700_FORCE_CHARACTERIZATION;
  m->servo.config=g_force_servo_default_config;
  m->servo.profile=g_force_servo_profile;
  m->servo.config_version=1;
  m->servo.config_digest=ForceServo_ConfigDigest(&m->servo.config);
-#if SD700_FORCE_SERVO_COMMISSIONING
+#if SD700_FORCE_SERVO_COMMISSIONING && !SD700_FORCE_CHARACTERIZATION
  m->target_pressure_units=FORCE_SERVO_DEFAULT_TARGET; m->target_valid=true;
 #endif
  (void)MotorExecutor_Disable(); publish(m,now);
@@ -155,10 +160,18 @@ static MachineCommandResult begin_session(MachineContext *m,uint32_t now)
  s->required_off_ms=(uint32_t)s->profile.off_ms;
  if (++s->session==0) ++s->session;
  uint32_t spent=s->diagnostic.boost_spent_ms;
+#if SD700_FORCE_CHARACTERIZATION
+ /* Only a fresh committed/acknowledged deliberate START can reach here, after
+  * the inter-run lockout. STOP/fault/config never refund the old reservation. */
+ spent=0;
+#endif
  float planned=s->diagnostic.planned_reference_s;
  memset(&s->diagnostic,0,sizeof(s->diagnostic));
  s->diagnostic.boost_spent_ms=spent; s->diagnostic.planned_reference_s=planned;
  s->diagnostic.session_peak_measured=measured;
+ if (measured>=(float)m->target_pressure_units) {
+     s->diagnostic.target_reached=1; s->diagnostic.target_reached_ms=now;
+ }
  s->diagnostic.raw=m->pressure.raw_pressure_counts;
  s->diagnostic.session_peak_raw=m->pressure.raw_pressure_counts;
  s->diagnostic.session_peak_received_ms=m->pressure.received_at_ms;
@@ -184,7 +197,8 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
  MachineCommandResult r=COMMAND_UNSUPPORTED;
  ForceServoMachine *s=&m->servo;
  if (c->type==CMD_STOP || c->type==CMD_JOG_STOP) {
-     s->start_pending=false;
+     s->start_pending=false; s->plan_armed=false; s->plan_available=false;
+     if (!s->diagnostic.run_reason) s->diagnostic.run_reason=FS_RUN_OPERATOR_STOP;
      if (s->diagnostic.boost_active) s->diagnostic.assist_exit=5;
      finish_boost(m,now,3,0); begin_cooling(s,now);
      s->active=false; s->diagnostic.boost_active=0; s->controller.initialized=false; s->controller.integral=0;
@@ -197,18 +211,26 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
          m->state=IDLE; m->fault=FAULT_NONE; m->fault_detail=FAULT_DETAIL_NONE; r=COMMAND_ACCEPTED;
      } else r=COMMAND_NOT_ALLOWED;
  } else if (c->type==CMD_SET_TARGET) {
+#if SD700_FORCE_CHARACTERIZATION
+     s->plan_armed=false; s->plan_available=false; m->target_valid=false;
+     r=COMMAND_NOT_ALLOWED;
+#else
      if (m->state!=IDLE || s->start_pending || !MotorExecutor_OutputIsDisabled()) r=COMMAND_BUSY;
      else {
-         s->diagnostic.rejection=ForceServo_TargetAllowed(&s->profile,(float)c->target_pressure_units,s->profile.unit==1);
+         s->diagnostic.rejection=ForceServo_TargetAllowed(&s->profile,(float)c->target_pressure_units,s->profile.unit!=0);
          if (s->diagnostic.rejection!=FS_PROFILE_OK) { m->target_valid=false; r=COMMAND_INVALID_VALUE; }
          else { m->target_pressure_units=c->target_pressure_units; m->target_valid=true; r=COMMAND_ACCEPTED; }
      }
+#endif
  } else if (c->type==CMD_FORCE_START) {
      if (m->state!=IDLE || s->active || s->start_pending) r=COMMAND_BUSY;
      else if (s->cooling_active && (int32_t)(now-s->cooling_until_ms)<0) {
          s->diagnostic.rejection=FS_COOLING_REQUIRED; r=COMMAND_NOT_READY;
      }
      else if (!m->target_valid ||
+#if SD700_FORCE_CHARACTERIZATION
+              !s->plan_armed || !s->plan_available ||
+#endif
 #if !SD700_FORCE_SERVO_COMMISSIONING
               !Machine_IsPressureFresh(m,now) ||
 #endif
@@ -224,6 +246,7 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
              (float)m->target_pressure_units,&s->diagnostic.planned_reference_s);
          if (s->diagnostic.rejection!=FS_PROFILE_OK) r=COMMAND_NOT_READY;
          else { /* One request; the next fresh frame rechecks plan before any output. */
+             s->plan_armed=false; s->plan_available=false;
              s->start_pending=true; s->start_requested_ms=now; s->staging_open=false;
              r=COMMAND_ACCEPTED;
          }
@@ -250,7 +273,14 @@ void Machine_CheckPressureSafety(MachineContext *m,uint32_t now)
      return;
  }
  if (!s->active) return;
- if (now-s->session_started_ms>=(uint32_t)fminf(s->config.session_ms,fminf(s->profile.session_ms,s->profile.energized_ms)))
+ uint32_t session_limit=(uint32_t)fminf(s->config.session_ms,fminf(s->profile.session_ms,s->profile.energized_ms));
+ /* Runtime checks pressure safety BEFORE consuming the TIM5 completion. Classify
+  * its existing one-ms conservative session compare here too; never delay OFF
+  * or disguise an earlier receive/assist expiry as an ordinary session ending. */
+ if (now-s->session_started_ms>=session_limit ||
+     (SD700_FORCE_CHARACTERIZATION && !s->diagnostic.boost_active &&
+      now-s->session_started_ms==session_limit-1U && MotorExecutor_ContinuousExpired() &&
+      now-m->pressure.received_at_ms<=(uint32_t)s->config.feedback_gap_ms))
      fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_SESSION_TIMEOUT,now);
  else if (s->contacted && !s->ever_held && now-s->contact_at_ms>=(uint32_t)s->profile.build_ms)
      fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_CYCLE_TIMEOUT,now);
@@ -277,7 +307,11 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
 {
  if (!m || !p) return;
  ForceServoMachine *s=&m->servo;
- if (!p->frame_valid || !p->control_units_valid || p->control_pressure_units<0) {
+ if (!p->frame_valid || !p->control_units_valid || p->control_pressure_units<0
+#if SD700_FORCE_CHARACTERIZATION
+     || p->raw_pressure_counts>65535 || p->control_pressure_units!=(int32_t)p->raw_pressure_counts
+#endif
+     ) {
      if (s->active || s->start_pending) fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_INVALID,now);
      return;
  }
@@ -309,6 +343,26 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
      s->diagnostic.session_peak_received_ms=p->received_at_ms;
  }
  float measured=0;
+#if SD700_FORCE_CHARACTERIZATION
+ if ((s->active || s->start_pending) && Machine_IsPressureFresh(m,now) &&
+     (!s->start_pending || (int32_t)(p->received_at_ms-s->start_requested_ms)>=0) &&
+     m->target_pressure_units==3000 && p->raw_pressure_counts>=3000) {
+     if (s->start_pending) {
+         /* The first post-START frame can already be at the boundary. Record a
+          * terminal attempt without ever opening an executor/output owner. */
+         if (++s->session==0) ++s->session;
+         s->session_started_ms=s->start_requested_ms;
+         memset(&s->diagnostic,0,sizeof(s->diagnostic));
+         s->diagnostic.session_peak_raw=p->raw_pressure_counts;
+         s->diagnostic.session_peak_received_ms=p->received_at_ms;
+         s->cooling_until_ms=now+5000U; s->cooling_active=true;
+     }
+     s->diagnostic.target_reached=1; s->diagnostic.target_reached_ms=p->received_at_ms;
+     s->diagnostic.session_peak_measured=(float)p->raw_pressure_counts;
+     s->diagnostic.run_reason=FS_RUN_BOUNDARY_TARGET_REACHED;
+     MachineCommand stop={CMD_STOP,0}; (void)Machine_HandleCommand(m,&stop,now); return;
+ }
+#endif
  if (p->raw_pressure_counts>=s->profile.raw_trip ||
      (s->profile.unit==1 && p->raw_pressure_counts*s->profile.scale+s->profile.offset>=s->profile.force_trip)) {
      fault(m,FAULT_OVERPRESSURE,FAULT_DETAIL_NONE,now); return;
@@ -326,6 +380,9 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
      s->diagnostic.boost_after_sample_hi=(uint32_t)(p->sequence>>32);
      s->diagnostic.boost_after_sample_lo=(uint32_t)p->sequence;
  }
+ if (s->active && Machine_IsPressureFresh(m,now) && !s->diagnostic.target_reached && measured>=(float)m->target_pressure_units) {
+     s->diagnostic.target_reached=1; s->diagnostic.target_reached_ms=p->received_at_ms;
+ }
  if (s->active && Machine_IsPressureFresh(m,now) && measured>s->diagnostic.session_peak_measured)
      s->diagnostic.session_peak_measured=measured;
  if (s->start_pending) {
@@ -333,7 +390,7 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
       * delivered within the unchanged 20 ms age budget. Stale frames stay OFF. */
      if (Machine_IsPressureFresh(m,now) && (int32_t)(p->received_at_ms-s->start_requested_ms)>=0) {
          if (m->state!=IDLE || !m->target_valid || m->target_pressure_units<=0 ||
-             ForceServo_TargetAllowed(&s->profile,(float)m->target_pressure_units,s->profile.unit==1)!=FS_PROFILE_OK ||
+             ForceServo_TargetAllowed(&s->profile,(float)m->target_pressure_units,s->profile.unit!=0)!=FS_PROFILE_OK ||
              !ForceServo_ProfileConfigValid(&s->profile,&s->config) || !MotorExecutor_IsHealthy() ||
              !MotorExecutor_OutputIsDisabled() || MotorExecutor_GetSnapshot()->physical_output_locked)
              fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_REQUEST_REJECTED,now);
@@ -370,7 +427,13 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
      d->assist_response_pending=0;
      d->assist_after_result=measured-d->boost_pressure_before>=s->profile.excessive_rise_units ? 2U : 1U;
      if (d->assist_after_result==2) {
-         fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_ASSIST_EXCESSIVE_RISE,now); return;
+         fault(m,FAULT_MOTION_TIMEOUT,
+#if SD700_FORCE_CHARACTERIZATION
+             FAULT_DETAIL_POST_ASSIST_EXCESSIVE_RISE,
+#else
+             FAULT_DETAIL_ASSIST_EXCESSIVE_RISE,
+#endif
+             now); return;
      }
  }
  if (s->diagnostic.boost_active) {
@@ -423,7 +486,12 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  }
  int32_t committed; bool interlocked;
  int32_t requested=(int32_t)step.limited_output;
- bool demand_exit=d->boost_active && requested<=0;
+ bool demand_exit=d->boost_active &&
+#if SD700_FORCE_CHARACTERIZATION
+     step.error<=0;
+#else
+     requested<=0;
+#endif
  if (demand_exit) {
      d->assist_exit=3;
      if (!MotorExecutor_EndContinuousBoost(s->token)) { fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now); return; }
@@ -432,7 +500,11 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
      d->assist_admission=!ForceServo_BoostQualified(&s->profile) ? 2U :
          !s->assist_initial_contact || !d->contact_count ? 3U :
          margin<=s->profile.taper_margin ? 4U : s->ever_held ? 8U :
+#if SD700_FORCE_CHARACTERIZATION
+         step.error<=0 || s->controller.previous_committed<0 ? 5U :
+#else
          requested<=0 || step.error<=0 || s->controller.previous_committed<=0 ? 5U :
+#endif
          d->boost_spent_ms+(uint32_t)s->profile.boost_ms>(uint32_t)s->profile.boost_total_ms ? 6U : 1U;
      if (d->assist_admission==1 && now-s->session_started_ms+(uint32_t)s->profile.boost_ms<
          (uint32_t)fminf(s->config.session_ms,fminf(s->profile.session_ms,s->profile.energized_ms))) {
@@ -456,7 +528,7 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  }
  if (d->boost_active && !demand_exit) {
      int32_t planned=MotorExecutor_ContinuousBoostCommand(s->token,now);
-     if (planned<=0) { fault(m,FAULT_INTERNAL_FAULT,FAULT_DETAIL_NUMERIC,now); return; }
+     if (planned<0 || (!SD700_FORCE_CHARACTERIZATION && planned==0)) { fault(m,FAULT_INTERNAL_FAULT,FAULT_DETAIL_NUMERIC,now); return; }
      /* Known assist contribution is separate from normal P/PI. Tracking still
       * uses the actual committed total, so the assist cannot charge I toward
       * its peak: actual-(normal_raw + assist_bias) tracks the normal limiter. */
@@ -528,7 +600,10 @@ void Machine_HandleMotorService(MachineContext *m,uint32_t now)
  if (!m || !m->servo.active) return;
  const MotorExecutorSnapshot *e=MotorExecutor_GetSnapshot();
  if (m->servo.contacted) {
-     if (e->last_completion==MOTOR_COMPLETION_LEASE)
+     if (SD700_FORCE_CHARACTERIZATION && e->last_completion==MOTOR_COMPLETION_LEASE &&
+         now-m->servo.session_started_ms>=4999U && now-m->pressure.received_at_ms<=125U)
+         fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_SESSION_TIMEOUT,now);
+     else if (e->last_completion==MOTOR_COMPLETION_LEASE)
          fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_LEASE_EXPIRED,now);
      else if (e->last_completion!=MOTOR_COMPLETION_NONE)
          fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now);

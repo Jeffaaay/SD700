@@ -5,8 +5,19 @@
 #include "Application/motion_build_policy.h"
 #include "Application/force_servo_output_profile.h"
 
+#if SD700_FORCE_CHARACTERIZATION
+#define FORCE_SERVO_SCHEMA 0xF108U
+#define FORCE_SERVO_BUILD_ID 0x4653010AU
+#define FS_CONFIG_PRESS_MIN 0
+#define FS_CONFIG_SESSION_MS 5000
+#define FS_CONFIG_TRACKING_MS 5000
+#else
 #define FORCE_SERVO_SCHEMA 0xF107U
 #define FORCE_SERVO_BUILD_ID 0x46530109U
+#define FS_CONFIG_PRESS_MIN 1
+#define FS_CONFIG_SESSION_MS 45000
+#define FS_CONFIG_TRACKING_MS 10000
+#endif
 #define FORCE_SERVO_REPRESENTABLE 100000.0f
 #define FORCE_SERVO_DEFAULT_TARGET 250U
 #define FORCE_SERVO_COMMISSIONING_LEASE_MS 130U
@@ -32,14 +43,14 @@
  X(kp,FS_INITIAL_KP,0,1000) X(ki,0,0,1000) X(kd,0,0,100) \
  X(d_filter_s,0.02f,0.001f,1) X(reference_rate,FS_REFERENCE_RATE,0.1f,200) \
  X(reference_acceleration,FS_REFERENCE_ACCEL,0.1f,1000) X(output_rate,1000,1,100000) \
- X(press_cap,FS_PRESS_OPERATING_CAP,1,FS_PRESS_PROFILE_CEILING) X(release_cap,FS_RELEASE_OPERATING_CAP,1,FS_RELEASE_PROFILE_CEILING) \
+ X(press_cap,FS_PRESS_OPERATING_CAP,FS_CONFIG_PRESS_MIN,FS_PRESS_PROFILE_CEILING) X(release_cap,FS_RELEASE_OPERATING_CAP,1,FS_RELEASE_PROFILE_CEILING) \
  X(integral_min,-1000,-5000,0) X(integral_max,1000,0,5000) \
  X(tracking_gain,5,0.01f,100) X(measurement_filter_s,0,0,1) \
  X(control_min_ms,5,1,50) X(feedback_gap_ms,FS_FEEDBACK_GAP,2,FS_FEEDBACK_GAP) \
  X(sample_age_ms,20,1,20) X(lease_ms,FS_LEASE,3,FS_LEASE) \
  X(hold_enter,5,0.1f,20) X(hold_exit,10,0.2f,40) \
- X(session_ms,45000,1000,60000) X(saturation_ms,5000,100,30000) \
- X(tracking_error,50,1,275) X(tracking_ms,10000,100,30000) \
+ X(session_ms,FS_CONFIG_SESSION_MS,1000,60000) X(saturation_ms,5000,100,30000) \
+ X(tracking_error,50,1,275) X(tracking_ms,FS_CONFIG_TRACKING_MS,100,30000) \
  X(reverse_deadtime_ms,2,2,100) X(hold_dwell_ms,500,0,30000)
 
 typedef struct {
@@ -56,6 +67,17 @@ float ForceServo_TrajectorySeconds(const ForceServoConfig *c,float measured,floa
 ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const ForceServoConfig *c,
     float measured,float target,float *seconds);
 bool ForceServo_ProfileConfigValid(const ForceServoProfile *p,const ForceServoConfig *c);
+
+/* Canonical request: IEEE754 float32, high Modbus word first; FNV1a LE bytes.
+ * Unit2 is user-confirmed installed sensor N, NOT qualified/calibrated unit1. */
+typedef struct { float target_N, assist_percent, continuous_percent; } ForceCharacterizationPlan;
+bool ForceServo_CharacterizationPlanValid(const ForceCharacterizationPlan *p);
+uint32_t ForceServo_CharacterizationDigest(const ForceCharacterizationPlan *p);
+int32_t ForceServo_PercentCommand(float percent);
+extern const uint32_t g_force_characterization_contract[16];
+enum { FS_RUN_NONE=0, FS_RUN_OPERATOR_STOP=1, FS_RUN_FAULT=2,
+ FS_RUN_TARGET_NOT_REACHED_WITHIN_SESSION=3, FS_RUN_SESSION_COMPLETE=4,
+ FS_RUN_BOUNDARY_TARGET_REACHED=5 };
 
 typedef struct {
  float reference, reference_rate, filtered, derivative, integral;

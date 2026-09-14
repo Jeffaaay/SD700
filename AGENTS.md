@@ -21,17 +21,17 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current candidate is StaticForceAuthority2 ReviewFix. Requested20/30/40% assist and
-10% normal profiles are represented and synthetic-tested, but disabled pending
-reviewed output/on-time/cumulative/OFF-cooling limits. The only enabled live
-profile4 is inherited short PRESS720/RELEASE100, no assist, absolute5 s. Do not
-advertise new high-output availability or invent time/current ratings. Plain
-ForceServo remains LOCKED with no runtime unlock. Keep0.5 A unchanged.
-Preserve STOP, freshness, receive-anchored lease, independent peak/session
-cutoffs, overpressure, direction interlock, hardware guard and fault latch.
-Assist reservation and cooling survive STOP/fault/reset/config/new START within
-a boot; reboot is not permission for more exposure. No auto-retrigger/restart.
-Post-assist pending response checks must precede normal output updates, without
-lease extension; keep logical active peaks distinct from post-assist samples.
+The current candidate is StaticForceRuntimeCharacterization1. The user explicitly
+provided the supervised1/2/4 ms assist envelope (4 ms reserved per deliberate
+session),5000 ms session and administrative inter-run lockout,30/2/25 N guards,
+and USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT (scale1 offset0, unit2).
+Only TargetForceN1..3000, AssistPercent0..40 and ContinuousPercent0..10 are runtime
+field inputs. All gains, timing, RELEASE100, reference/slew and protection remain
+firmware-owned. The lockout is NOT validated thermal cooling time. No motor,
+thermal, continuous output or3000 N qualification is claimed.
+Preserve atomic plan/readback/version/digest and single-consumption START authority,
+post-assist pending checks, STOP, freshness, receive-anchored lease, independent
+cutoffs, direction interlock, hardware guard and fault latch. No auto-retrigger,
+escalation, restart or field PI tuning. Plain ForceServo remains locked.
 No Codex serial connection, flashing or motion. Preserve original field evidence;
 software PASS is not physical validation. Use current README/verifier hashes.

@@ -76,7 +76,7 @@ MachineCommandResult ModbusSemantic_ApplyWrite(MachineContext *context,
     return COMMAND_UNSUPPORTED;
 }
 
-bool ModbusSemantic_ReadHolding(const MachineContext *context,
+bool ModbusSemantic_ReadHolding(MachineContext *context,
                                 uint16_t address,
                                 uint16_t *value)
 {
@@ -94,7 +94,7 @@ bool ModbusSemantic_ReadHolding(const MachineContext *context,
     return true;
 }
 
-bool ModbusSemantic_ReadInput(const MachineContext *context,
+bool ModbusSemantic_ReadInput(MachineContext *context,
                               uint16_t address,
                               uint32_t now_ms,
                               uint16_t *value)

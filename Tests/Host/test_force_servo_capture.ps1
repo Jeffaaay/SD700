@@ -295,7 +295,7 @@ Invoke-ObserveCase StaticAcceptLowTarget '' SingleStart $true 60
 Invoke-ObserveCase Target250ZeroInitial '' SingleStart $true 250 0
 Invoke-ObserveCase Target250InitialOutsideOldGate '' SingleStart $true 250 31
 # Parse the real documented command; never invoke its serial port or Read-Host.
-$readme=Get-Content -Raw -LiteralPath "$root/README.md"
+$readme=Get-Content -Raw -LiteralPath "$root/Docs/StaticForceAuthority2_ReviewFix/README_at_80fe576.md"
 $snippet=[regex]::Match($readme,'(?m)^\.\\tools\\capture_force_servo\.ps1[\s\S]*?-OutputCsv[^\r\n]+').Value
 $tokens=$null; $parseErrors=$null
 $ast=[Management.Automation.Language.Parser]::ParseInput($snippet,[ref]$tokens,[ref]$parseErrors)

@@ -148,3 +148,10 @@ output/StaticForceAuthority2_ReviewFix/*
 !output/StaticForceAuthority2_ReviewFix/firmware/
 !output/StaticForceAuthority2_ReviewFix/firmware/*.hex
 !output/StaticForceAuthority2_ReviewFix/firmware/*.elf
+
+# One runtime characterization field pair.
+!output/StaticForceRuntimeCharacterization1/
+output/StaticForceRuntimeCharacterization1/*
+!output/StaticForceRuntimeCharacterization1/firmware/
+!output/StaticForceRuntimeCharacterization1/firmware/*.hex
+!output/StaticForceRuntimeCharacterization1/firmware/*.elf

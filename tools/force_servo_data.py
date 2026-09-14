@@ -4,15 +4,25 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
 
-def schema():
+def schema(characterization=False):
     header=(ROOT/'Application/force_servo.h').read_text(encoding='utf-8')
-    # Current field profile only. The locked C profile retains its old defaults.
-    profile=header.split('#if SD700_FORCE_SERVO_COMMISSIONING',1)[1].split('#else',1)[0]
     output_profile=(ROOT/'Application/force_servo_output_profile.h').read_text(encoding='utf-8')
-    before, rest=output_profile.split('#if SD700_FORCE_SERVO_COMMISSIONING',1)
-    current, rest=rest.split('#else',1)
-    _, after=rest.split('#endif',1)
-    constants=dict(re.findall(r'#define (FS_\w+) ([\w.]+)',before+current+after+'\n'+profile))
+    profile_header=(ROOT/'Application/force_servo_profile.h').read_text(encoding='utf-8')
+    # Deliberately select the named C branches; no external compiler in the field.
+    def defines(text): return dict(re.findall(r'#define (FS_\w+|FORCE_SERVO_SCHEMA|FORCE_SERVO_BUILD_ID) ([\w.]+)',text))
+    constants=defines(header+'\n'+output_profile+'\n'+profile_header)
+    identity=header.split('#if SD700_FORCE_CHARACTERIZATION',1)[1].split('#endif',1)[0].split('#else')
+    constants.update(defines(identity[0 if characterization else 1]))
+    constants.update(defines(header.split('#if SD700_FORCE_SERVO_COMMISSIONING',1)[1].split('#else',1)[0]))
+    branches=output_profile.split('#if SD700_FORCE_CHARACTERIZATION',1)[1].split('#endif',1)[0]
+    char,legacy=branches.split('#elif SD700_FORCE_SERVO_COMMISSIONING')
+    constants.update(defines(char if characterization else legacy.split('#else',1)[0]))
+    boost=output_profile.split('#define FS_PEAK_PRESS 0',1)[1].split('#endif',1)[0].split('#else')
+    constants.update(defines(boost[0 if characterization else 1]))
+    executor=output_profile.split('#if SD700_FORCE_CHARACTERIZATION')[-1]
+    constants.update(defines(executor.split('#elif',1)[0] if characterization else executor.split('#else',1)[1].split('#endif',1)[0]))
+    units=profile_header.split('#if SD700_FORCE_CHARACTERIZATION',1)[1].split('#endif',1)[0].split('#else')
+    constants.update(defines(units[0 if characterization else 1]))
     def number(value):
         seen=set()
         while value in constants:
@@ -24,19 +34,20 @@ def schema():
         params.append(dict(name=n,default=number(d),minimum=number(lo),maximum=number(hi)))
     diag=(ROOT/'Application/force_servo_machine.h').read_text()
     u,f=diag.split('#define FORCE_SERVO_DIAG_FLOAT(X)',1)
-    build_id=int(re.search(r'#define FORCE_SERVO_BUILD_ID (0x[0-9A-Fa-f]+)U',header)[1],16)
-    schema_id=int(re.search(r'#define FORCE_SERVO_SCHEMA (0x[0-9A-Fa-f]+)U',header)[1],16)
+    build_id=int(constants['FORCE_SERVO_BUILD_ID'].rstrip('U'),16)
+    schema_id=int(constants['FORCE_SERVO_SCHEMA'].rstrip('U'),16)
     profile_header=(ROOT/'Application/force_servo_profile.h').read_text(encoding='utf-8')
-    constants.update(dict(re.findall(r'#define (FS_\w+) ([\w.]+)',profile_header)))
     profile_fields=[dict(name=n,default=number(d)) for n,d in re.findall(r'X\((\w+),([^,)]+)\)',profile_header.split('#define FORCE_SERVO_PROFILE_FIELDS(X)',1)[1].split('typedef struct',1)[0])]
     defaults={p['name']:p['default'] for p in profile_fields}
     candidate_line=profile_header.split('#define FORCE_SERVO_CANDIDATES(X)',1)[1].splitlines()[0]
     candidates=[]
     for identity,peak in re.findall(r'X\((\d+),(\d+)\)',candidate_line):
-        candidate=dict(defaults,id=int(identity),continuous_press=2400,peak_press=int(peak),
+        candidate=dict(defaults,id=int(identity),unit=0,raw_trip=325,operating_max=275,force_trip=325,
+            boost_ms=0,boost_total_ms=0,taper_margin=0,assist_rise_ms=0,assist_end_ms=0,off_ms=0,response_units=0,excessive_rise_units=0,
+            continuous_press=2400,peak_press=int(peak),
             energized_ms=0,session_ms=0,capture_ms=0,build_ms=0,experiment_enabled=0,limits_source=0)
         candidates.append(candidate)
-    return dict(profile=profile_fields,candidates=candidates,schema=schema_id,build_id=build_id,parameters=params,
+    return dict(characterization=characterization,profile=profile_fields,candidates=candidates,schema=schema_id,build_id=build_id,parameters=params,
                 powered_test_ready=bool(number('FS_POWERED_TEST_READY')),
                 press_profile_ceiling=number('FS_PRESS_PROFILE_CEILING'),
                 live_executor_press_ceiling=number('FS_EXECUTOR_PRESS_CEILING'),
@@ -100,7 +111,7 @@ def target_summary(rows, valid):
         if previously_saturated and not saturated and left is None: left=elapsed(r,'control_at_ms')
         previously_saturated |= saturated
     initial=pressure(pre[-1]) if pre else None
-    return dict(target_units=target,unit='N' if unit==1 else 'LEGACY_CONTROL_UNITS',initial_pressure_units=pressure(pre[-1]) if pre else None,
+    return dict(target_units=target,unit='N' if unit in (1,2) else 'LEGACY_CONTROL_UNITS',initial_pressure_units=pressure(pre[-1]) if pre else None,
         initial_pressure_source=pre[-1]['phase'] if pre else 'UNAVAILABLE',
         time_to_control_start_ms=elapsed(control,'session_started_ms'),
         time_to_first_nonzero_command_ms=elapsed(commanded,'control_at_ms'),motion_start='NOT_MEASURED',
@@ -160,7 +171,7 @@ def metrics(rows):
     result.update(target_summary(rows,valid))
     statuses={0:'NO_BUILD_COMMAND',1:'SATURATING_WITH_PROGRESS',2:'COMMAND_WITHOUT_MEASURED_FORCE_RESPONSE',3:'COMMAND_WITH_PROGRESS'}
     result['observed_progress_statuses']={name:sum(r.get('progress_status')==code for r in valid) for code,name in statuses.items()}
-    result['force_N_status']='CALIBRATED_PROFILE' if result['unit']=='N' else 'NOT_CALIBRATED_NO_N_MEASUREMENT'
+    result['force_N_status']='USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT' if any(r.get('unit')==2 for r in rows) else 'CALIBRATED_PROFILE' if result['unit']=='N' else 'NOT_CALIBRATED_NO_N_MEASUREMENT'
     # A short event can fall entirely between PC polls. Use the persistent MCU
     # event fields, including STOP/fault rows; never interpolate pressure at its end.
     event=next((r for r in reversed(rows) if r.get('boost_duration_ms',0)>0),None)
@@ -223,6 +234,39 @@ def metrics(rows):
     result['coverage_limit']='Snapshot polling can miss peaks. Gaps excluded; no full-bandwidth stability or settling claim.'
     return result
 
+def characterization_metrics(rows, metadata):
+    plan=metadata.get('runtime_plan')
+    if not plan: return {}
+    selected=[r for r in rows if r.get('plan_version')==plan['version'] and r.get('plan_digest')==plan['digest']]
+    runs=[r for r in selected if r.get('phase') in ('RUN','STOP_READBACK') and r.get('session') and not r.get('start_pending')]
+    final=runs[-1] if runs else {}
+    holds=[r for r in runs if r.get('state')==14 and r.get('lease_active') and r.get('measured_valid') and not r.get('fault')]
+    forces=[r['measured'] for r in holds]
+    before=next((r for r in reversed(selected) if r.get('phase')=='TARGET_READBACK' and r.get('measured_valid')),None)
+    response=next((r for r in runs if r.get('measured_valid') and before and r['measured']>=before['measured']+2),None)
+    event=next((r for r in reversed(runs) if r.get('boost_duration_ms')),None)
+    reason=int(final.get('run_reason',0))
+    reasons={0:'NO_MCU_TERMINATION_RECORDED',1:'OPERATOR_STOP',2:'FAULT',3:'TARGET_NOT_REACHED_WITHIN_SESSION',
+             4:'SESSION_COMPLETE',5:'BOUNDARY_TARGET_REACHED'}
+    return dict(TargetForceN=plan['target_N'],AssistPercentRequested=plan['assist_percent'],
+        AssistCommandRequested=plan['assist_command'],AssistCommandCommitted=event.get('boost_peak_command') if event else None,
+        AssistPeakCCR=event.get('assist_peak_ccr') if event else None,
+        ContinuousPercentRequested=plan['continuous_percent'],ContinuousCapCommand=plan['continuous_cap'],
+        force_before_assist_N=event.get('boost_pressure_before') if event else None,
+        first_fresh_force_after_assist_N=event.get('boost_pressure_after') if event and event.get('boost_after_valid') else None,
+        assist_delta_N=event['boost_pressure_after']-event['boost_pressure_before'] if event and event.get('boost_after_valid') else None,
+        target_reached=bool(final.get('target_reached')),
+        time_to_target_ms=delta(final['target_reached_ms'],final['session_started_ms']) if final.get('target_reached') else None,
+        time_to_observed_force_response_ms=delta(response['latest_received_ms'],response['session_started_ms']) if response else None,
+        motion_start='NOT_MEASURED',session_timeout=reason in (3,4),mcu_stop_reason=reasons.get(reason,'UNKNOWN'),
+        hold_sample_min_N=min(forces) if forces else None,hold_sample_max_N=max(forces) if forces else None,
+        hold_sample_mean_N=statistics.mean(forces) if forces else None,
+        hold_duration_mcu_ms=max((r.get('hold_ms',0) for r in runs),default=0),
+        runtime_measurement_limit='Sampled HOLD statistics; polling gaps remain unknown. MCU command/CCR is not a measured waveform. PSU setting is not winding current.',
+        fixed_envelope='SHORTEST_SOFTWARE_VALID_SUPERVISED_CHARACTERIZATION_ENVELOPE',
+        ratings='NOT_A_MOTOR_RATING; NOT_A_THERMAL_RATING; NOT_A_CONTINUOUS_RATING')
+
+
 def decode_csv_row(row):
     # Config readback can fail before STOP diagnostics are collected. Preserve
     # the unavailable feedback budget as unknown; never invent a numeric value.
@@ -232,7 +276,7 @@ def decode_csv_row(row):
 
 
 def self_test():
-    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==81 and len(s['floats'])==27 and len(s['profile'])==33 and len(s['candidates'])==3
+    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==86 and len(s['floats'])==27 and len(s['profile'])==33 and len(s['candidates'])==3
     c={p['name']:p['default'] for p in s['parameters']}; validate(c)
     bad=dict(c,lease_ms=10)
     try: validate(bad)
@@ -260,10 +304,12 @@ def self_test():
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--self-test',action='store_true')
+    ap.add_argument('--characterization-schema',action='store_true')
     ap.add_argument('--schema',action='store_true'); ap.add_argument('--defaults',action='store_true')
     ap.add_argument('--validate'); ap.add_argument('--report'); ap.add_argument('--metadata')
     a=ap.parse_args()
     if a.self_test: self_test()
+    elif a.characterization_schema: print(json.dumps(schema(True)))
     elif a.schema: print(json.dumps(schema()))
     elif a.defaults: print(json.dumps({p['name']:p['default'] for p in schema()['parameters']},indent=2))
     elif a.validate: print(validate(json.loads(Path(a.validate).read_text(encoding='utf-8-sig'))))
@@ -273,6 +319,7 @@ def main():
             rows.append(decode_csv_row(r))
         result=metrics(rows); metadata=json.loads(Path(a.metadata).read_text(encoding='utf-8-sig'))
         result.update(metadata)
+        result.update(characterization_metrics(rows,metadata))
         result['binary_verification']='OPERATOR_ATTESTATION_ONLY_NOT_MCU_BINARY_VERIFICATION'
         text=json.dumps(result,indent=2,ensure_ascii=False)
         report=Path(a.report).with_suffix('.report.txt')

@@ -62,10 +62,12 @@ static void fixture(void)
  /* Historical controller/long synthetic regressions use an explicit count
   * fixture envelope, NOT the live five-second profile. New Static tests below
   * restore g_force_servo_profile for all production-envelope checks. */
+#if !SD700_FORCE_CHARACTERIZATION
  machine.servo.profile.id=1; machine.servo.profile.peak_press=0;
  machine.servo.profile.boost_ms=0; machine.servo.profile.boost_total_ms=0; machine.servo.profile.taper_margin=0;
  machine.servo.profile.energized_ms=60000; machine.servo.profile.session_ms=60000;
  machine.servo.profile.build_ms=30000; machine.servo.profile.capture_ms=60000;
+#endif
  Machine_CompleteBoot(&machine,true,now); assert(machine.state==IDLE);
  sample_at(30,seq,now,true);
 }

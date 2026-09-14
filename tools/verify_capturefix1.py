@@ -17,6 +17,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', default='output/ForceServo1_CaptureFix1/final')
     parser.add_argument('--objcopy-cross-check', action='store_true')
+    parser.add_argument('--characterization', action='store_true')
     parser.add_argument('--commissioning', action='store_true')
     args = parser.parse_args()
     out = ROOT/args.output
@@ -40,6 +41,17 @@ def main():
     if args.commissioning:
         commands.append(('continuous2_range_fixture', py+['tools/run_force_servo_tests.py','--commissioning','--range-fixture','--output',str(out/'range_fixture')]))
         commands.append(('commissioning_gate', py+['Tests/Host/test_commissioning_gate.py', '--output', str(out/'gate')]))
+    if args.characterization:
+        require(args.commissioning, 'Characterization verification includes commissioning regressions')
+        commands += [
+            ('characterization_host', py+['tools/run_force_servo_tests.py','--commissioning','--characterization','--output',str(out/'characterization_host')]),
+            ('characterization_capture', ps+['Tests/Host/test_force_characterization_capture.ps1','-OutputDirectory',str(out/'characterization_capture')]),
+            ('characterization_data', py+['Tests/Host/test_force_characterization_data.py']),
+            ('characterization_arm_release', ps+['tools/build_gcc.ps1','-ForceServo','-StaticForceRuntimeCharacterization1','-MotorMode','RealBench','-Configuration','Release','-RealBenchAck','I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION','-BuildDir',str((out/'arm-build').relative_to(ROOT))]),
+            ('characterization_rebuild_identity', py+['-c',
+                "import sys;sys.path.insert(0,'tools');from pathlib import Path;from verify_force_servo_firmware import sha,PINNED_HASHES;from firmware_image import require;"+
+                "b=Path("+repr(str(out/'arm-build/RealBench_ForceServo/Release'))+");"+
+                "[require(sha(b/('press_control_f411.'+e))==h,'Rebuilt '+e+' differs from field pair') for e,h in PINNED_HASHES.items()];print('REBUILD_EXACT_HEX_ELF=PASS')"])]
     if args.objcopy_cross_check:
         commands.append(('developer_objcopy', py+['tools/verify_force_servo_firmware.py', '--objcopy-cross-check']))
     records = []

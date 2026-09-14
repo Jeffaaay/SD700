@@ -25,8 +25,68 @@ bool ForceServoProtocol_WriteAddress(uint8_t f,uint16_t a)
 {
  return (f==5 && (a==FS_COIL_START || a==FS_COIL_RESET)) ||
         (f==6 && ((a>=FS_REG_BEGIN && a<=FS_REG_PROFILE_SELECT) ||
-         (a>=FS_REG_CONFIG && a<FS_REG_CONFIG+FORCE_SERVO_CONFIG_WORDS)));
+         (a>=FS_REG_CONFIG && a<FS_REG_CONFIG+FORCE_SERVO_CONFIG_WORDS)
+#if SD700_FORCE_CHARACTERIZATION
+         || a==FS_REG_PLAN_BEGIN || a==FS_REG_PLAN_COMMIT || a==FS_REG_PLAN_ARM ||
+         (a>=FS_REG_PLAN_STAGE && a<FS_REG_PLAN_STAGE+10) || (a>=FS_REG_PLAN_ACK && a<FS_REG_PLAN_ACK+4)
+#endif
+         ));
 }
+#if SD700_FORCE_CHARACTERIZATION
+static MachineCommandResult plan_write(MachineContext *m,uint16_t a,uint16_t v,uint32_t now)
+{
+ ForceServoMachine *s=&m->servo;
+ /* Any editing/error revokes START authority; never falls back to a previous plan. */
+ s->plan_armed=false;
+ if (a==FS_REG_PLAN_BEGIN && v==0xB501) {
+     s->plan_staging_open=true; s->plan_mask=0; s->plan_read_mask=0; s->plan_ack_mask=0;
+     s->plan_available=false; m->target_valid=false; return COMMAND_ACCEPTED;
+ }
+ if (a>=FS_REG_PLAN_STAGE && a<FS_REG_PLAN_STAGE+10 && s->plan_staging_open) {
+     unsigned i=a-FS_REG_PLAN_STAGE; s->plan_staging[i]=v; s->plan_mask|=(uint16_t)(1U<<i);
+     return COMMAND_ACCEPTED;
+ }
+ if (a==FS_REG_PLAN_COMMIT && v==0xC501 && s->plan_staging_open) {
+     s->plan_staging_open=false;
+     if (s->plan_mask!=0x3FF || s->plan_version==UINT32_MAX) goto invalid;
+     ForceCharacterizationPlan p; uint32_t u;
+     for (unsigned i=0;i<3;i++) { u=((uint32_t)s->plan_staging[2*i]<<16)|s->plan_staging[2*i+1];
+         memcpy((unsigned char*)&p+4*i,&u,4); }
+     uint32_t version=((uint32_t)s->plan_staging[6]<<16)|s->plan_staging[7];
+     uint32_t digest=((uint32_t)s->plan_staging[8]<<16)|s->plan_staging[9];
+     if (version!=s->plan_version || !ForceServo_CharacterizationPlanValid(&p) ||
+         digest!=ForceServo_CharacterizationDigest(&p)) goto invalid;
+     ForceServoProfile profile=g_force_servo_profile;
+     ForceServoConfig config=g_force_servo_default_config;
+     profile.peak_press=(float)ForceServo_PercentCommand(p.assist_percent);
+     profile.continuous_press=(float)ForceServo_PercentCommand(p.continuous_percent);
+     config.press_cap=profile.continuous_press;
+     if (!ForceServo_ProfileConfigValid(&profile,&config)) goto invalid;
+     uint32_t key=MotorAtomic_Enter();
+     if (m->state!=IDLE || s->active || s->start_pending || !MotorExecutor_OutputIsDisabled() ||
+         MotorExecutor_GetSnapshot()->logical_active) { MotorAtomic_Leave(key); goto invalid; }
+     s->plan=p; s->plan_digest=digest; ++s->plan_version;
+     s->profile=profile; s->config=config; s->config_digest=ForceServo_ConfigDigest(&config);
+     s->config_version=s->plan_version+1; m->target_pressure_units=(int32_t)p.target_N; m->target_valid=true;
+     s->plan_read_mask=0; s->plan_ack_mask=0; s->plan_available=true;
+     memset(&s->controller,0,sizeof(s->controller));
+     MotorAtomic_Leave(key); Machine_Tick(m,now); return COMMAND_ACCEPTED;
+ }
+ if (a>=FS_REG_PLAN_ACK && a<FS_REG_PLAN_ACK+4 && s->plan_available) {
+     unsigned i=a-FS_REG_PLAN_ACK; s->plan_ack[i]=v; s->plan_ack_mask|=(uint16_t)(1U<<i);
+     return COMMAND_ACCEPTED;
+ }
+ if (a==FS_REG_PLAN_ARM && v==0xA501 && s->plan_available &&
+     s->plan_read_mask==0xFFF && s->plan_ack_mask==15 &&
+     (((uint32_t)s->plan_ack[0]<<16)|s->plan_ack[1])==s->plan_version &&
+     (((uint32_t)s->plan_ack[2]<<16)|s->plan_ack[3])==s->plan_digest) {
+     s->plan_armed=true; return COMMAND_ACCEPTED;
+ }
+invalid:
+ s->plan_available=false; s->plan_staging_open=false; m->target_valid=false;
+ return COMMAND_INVALID_VALUE;
+}
+#endif
 MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16_t a,uint16_t v,uint32_t now)
 {
  if (!m || !ForceServoProtocol_WriteAddress(f,a)) return COMMAND_UNSUPPORTED;
@@ -42,6 +102,9 @@ MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16
  }
  if (m->state!=IDLE || s->active || s->start_pending || !MotorExecutor_OutputIsDisabled() ||
      MotorExecutor_GetSnapshot()->logical_active) return COMMAND_BUSY;
+#if SD700_FORCE_CHARACTERIZATION
+ return plan_write(m,a,v,now); /* Generic parameter/profile/target writes cannot unlock PI. */
+#endif
  if (a==FS_REG_PROFILE_SELECT) {
      if (v==(uint16_t)s->profile.id && s->profile.experiment_enabled) return COMMAND_ACCEPTED;
      const ForceServoProfile *selected=ForceServo_FindProfile(v);
@@ -90,10 +153,20 @@ MachineCommandResult ForceServoProtocol_Write(MachineContext *m,uint8_t f,uint16
  }
  return COMMAND_UNSUPPORTED;
 }
-bool ForceServoProtocol_Read(const MachineContext *m,bool holding,uint16_t a,uint16_t *v)
+bool ForceServoProtocol_Read(MachineContext *m,bool holding,uint16_t a,uint16_t *v)
 {
  if (!m || !v) return false;
- const ForceServoMachine *s=&m->servo;
+ ForceServoMachine *s=&m->servo;
+#if SD700_FORCE_CHARACTERIZATION
+ if (holding && a>=FS_REG_PLAN_ACTIVE && a<FS_REG_PLAN_ACTIVE+FS_PLAN_READ_WORDS) {
+     unsigned i=a-FS_REG_PLAN_ACTIVE; uint32_t u;
+     if (i<6) { memcpy(&u,(const unsigned char*)&s->plan+(i/2)*4,4); *v=(uint16_t)(i%2 ? u : u>>16); }
+     else if (i==6) *v=(uint16_t)ForceServo_PercentCommand(s->plan.assist_percent);
+     else if (i==7) *v=(uint16_t)ForceServo_PercentCommand(s->plan.continuous_percent);
+     else { u=i<10 ? s->plan_version : s->plan_digest; *v=(uint16_t)(i%2 ? u : u>>16); }
+     s->plan_read_mask|=(uint16_t)(1U<<i); return true;
+ }
+#endif
  if (holding && a>=0x400 && a<0x400+FORCE_SERVO_CANDIDATE_COUNT*FORCE_SERVO_PROFILE_WORDS) {
      unsigned index=(a-0x400)/2; uint32_t bits;
      memcpy(&bits,(const unsigned char*)g_force_servo_candidates+index*4,4);
@@ -105,7 +178,7 @@ bool ForceServoProtocol_Read(const MachineContext *m,bool holding,uint16_t a,uin
      *v=(uint16_t)((a-FS_REG_PROFILE)%2 ? bits : bits>>16); return true;
  }
  if (holding && a==FS_REG_PROFILE_SELECT) { *v=(uint16_t)s->profile.id; return true; }
- if (holding && a==FS_REG_TARGET_N) { *v=s->profile.unit==1 && m->target_valid ? (uint16_t)m->target_pressure_units : 0; return true; }
+ if (holding && a==FS_REG_TARGET_N) { *v=s->profile.unit!=0 && m->target_valid ? (uint16_t)m->target_pressure_units : 0; return true; }
  if (holding && a>=FS_REG_CONFIG && a<FS_REG_CONFIG+FORCE_SERVO_CONFIG_WORDS) {
      uint32_t bits; unsigned index=(a-FS_REG_CONFIG)/2;
      memcpy(&bits,(const unsigned char*)&s->config+index*4,4);

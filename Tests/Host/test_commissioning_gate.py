@@ -21,6 +21,12 @@ def main():
              ('no_ack', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_REAL_BENCH_ACKNOWLEDGED':0}, 'explicit RealBench acknowledgement'),
              ('no_arm', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_REAL_OUTPUT_ARMING_ENABLED':0}, 'explicitly arm real output'),
              ('wrong_backend', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_MOTOR_MODE_REAL_BENCH':None}, 'requires the RealBench backend')]
+    cases += [
+        ('characterization', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_CHARACTERIZATION':1}, ''),
+        ('characterization_without_commissioning', {'SD700_FORCE_CHARACTERIZATION':1}, 'requires commissioning'),
+        ('characterization_bad_flag', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_CHARACTERIZATION':2}, 'selection must be 0 or 1'),
+        ('characterization_no_arm', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_CHARACTERIZATION':1,'SD700_REAL_OUTPUT_ARMING_ENABLED':0}, 'requires commissioning'),
+        ('characterization_override', {'SD700_FORCE_SERVO_COMMISSIONING':1,'SD700_FORCE_CHARACTERIZATION':1,'FS_PRESS_PROFILE_CEILING':10000}, 'outside the selected experimental build')]
     results = []
     for name, changes, error in cases:
         definitions = {**common, **changes}
@@ -42,7 +48,7 @@ def main():
                             compile_exit_code=result.returncode, result='PASS'))
         print(name+': PASS')
     (out/'results.json').write_text(json.dumps(results, indent=2)+'\n', encoding='utf-8')
-    print('COMMISSIONING_GATE_TESTS=9 PASS; NO_HARDWARE')
+    print('COMMISSIONING_GATE_TESTS=14 PASS; NO_HARDWARE')
 
 
 if __name__ == '__main__':

@@ -1,6 +1,17 @@
 #ifndef APPLICATION_MOTION_BUILD_POLICY_H
 #define APPLICATION_MOTION_BUILD_POLICY_H
 
+#ifndef SD700_FORCE_CHARACTERIZATION
+#define SD700_FORCE_CHARACTERIZATION 0
+#endif
+#if SD700_FORCE_CHARACTERIZATION != 0 && SD700_FORCE_CHARACTERIZATION != 1
+#error "Characterization selection must be 0 or 1"
+#endif
+#if SD700_FORCE_CHARACTERIZATION
+#if !defined(SD700_FORCE_SERVO_COMMISSIONING) || SD700_FORCE_SERVO_COMMISSIONING != 1 || !defined(SD700_REAL_OUTPUT_ARMING_ENABLED) || SD700_REAL_OUTPUT_ARMING_ENABLED != 1
+#error "Characterization requires commissioning and the existing output arming guard"
+#endif
+#endif
 #ifndef SD700_FORCE_SERVO_ENABLED
 #define SD700_FORCE_SERVO_ENABLED 0
 #endif

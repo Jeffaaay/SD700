@@ -1,0 +1,1308 @@
+TEST=capture_length_and_observe
+COMMAND=["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Tests/Host/test_force_servo_capture.ps1", "-OutputDirectory", "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization1\\final-checks\\capture"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-checks/capture_length_and_observe.log
+RAW_LOG_SHA256=30CC3F91D3E4A8AAD339CA9B0F720F4C8197CDFB437813178E947C6B26AFAA2C
+LENGTH_CAPTUREFIX1=FC03_FULL PASS
+LENGTH_CAPTUREFIX1=FC03_FRAGMENTED PASS
+LENGTH_CAPTUREFIX1=FC03_HEADER_TIMEOUT PASS
+LENGTH_CAPTUREFIX1=FC03_PAYLOAD_TIMEOUT PASS
+LENGTH_CAPTUREFIX1=FC03_NO_BYTES PASS
+LENGTH_CAPTUREFIX1=FC03_CRC PASS
+LENGTH_CAPTUREFIX1=FC03_STATION PASS
+LENGTH_CAPTUREFIX1=FC03_FUNCTION PASS
+LENGTH_CAPTUREFIX1=FC03_OVERLONG PASS
+LENGTH_CAPTUREFIX1=FC03_EXCEPTION PASS
+LENGTH_CAPTUREFIX1=FC03_WRONG_EXCEPTION PASS
+LENGTH_CAPTUREFIX1=FC4_REGRESSION PASS
+LENGTH_CAPTUREFIX1=FC4_EXCEPTION PASS
+LENGTH_CAPTUREFIX1=FC5_REGRESSION PASS
+LENGTH_CAPTUREFIX1=FC5_EXCEPTION PASS
+LENGTH_CAPTUREFIX1=FC6_REGRESSION PASS
+LENGTH_CAPTUREFIX1=FC6_EXCEPTION PASS
+CAPTURE_FLOW=CompleteObserve PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=ConfigTimeout PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=DiagnosticTimeout PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=DeviceFault PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=LockedSingleStart PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticConservativeTuning PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2CatalogMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2TailTwoMs PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2TailPartial PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticProfileMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticSelectionMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticNewtonRefusal PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticConfigDigestMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=CommissioningSingleStart PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=CommissioningStartEchoTimeout PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=CommissioningRunningFault PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Target250OperatorStop PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2TailCommunicationTimeout PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Boost1PersistentEvent PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=ReviewFixPostAssistEvent PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticAcceptLowTarget PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Target250ZeroInitial PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Target250InitialOutsideOldGate PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2ExactDocumentedCommand PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTUREFIX1_TEST_CASES=46 PASS; physical test NOT RUN
+
+
+TEST=force_capture_selftest
+COMMAND=["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/capture_force_servo.ps1", "-SelfTest"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-checks/force_capture_selftest.log
+RAW_LOG_SHA256=A156D84F766A04BBF5293578EE8A548DAED0C7A75DDFAFD01DC5E9CB3E0654AA
+FORCE_SERVO_DATA_TESTS=11 PASS SYNTHETIC; no serial I/O
+FORCE_SERVO_CAPTURE_DECODE=PASS SYNTHETIC; NO_SERIAL_PORT
+LENGTH_CAPTUREFIX1=FC03_FULL PASS
+LENGTH_CAPTUREFIX1=FC03_FRAGMENTED PASS
+LENGTH_CAPTUREFIX1=FC03_HEADER_TIMEOUT PASS
+LENGTH_CAPTUREFIX1=FC03_PAYLOAD_TIMEOUT PASS
+LENGTH_CAPTUREFIX1=FC03_NO_BYTES PASS
+LENGTH_CAPTUREFIX1=FC03_CRC PASS
+LENGTH_CAPTUREFIX1=FC03_STATION PASS
+LENGTH_CAPTUREFIX1=FC03_FUNCTION PASS
+LENGTH_CAPTUREFIX1=FC03_OVERLONG PASS
+LENGTH_CAPTUREFIX1=FC03_EXCEPTION PASS
+LENGTH_CAPTUREFIX1=FC03_WRONG_EXCEPTION PASS
+LENGTH_CAPTUREFIX1=FC4_REGRESSION PASS
+LENGTH_CAPTUREFIX1=FC4_EXCEPTION PASS
+LENGTH_CAPTUREFIX1=FC5_REGRESSION PASS
+LENGTH_CAPTUREFIX1=FC5_EXCEPTION PASS
+LENGTH_CAPTUREFIX1=FC6_REGRESSION PASS
+LENGTH_CAPTUREFIX1=FC6_EXCEPTION PASS
+CAPTURE_FLOW=CompleteObserve PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=ConfigTimeout PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=DiagnosticTimeout PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=DeviceFault PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=LockedSingleStart PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticConservativeTuning PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2CatalogMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2TailTwoMs PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2TailPartial PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticProfileMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticSelectionMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticNewtonRefusal PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticConfigDigestMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=CommissioningSingleStart PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=CommissioningStartEchoTimeout PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=CommissioningRunningFault PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Target250OperatorStop PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2TailCommunicationTimeout PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Boost1PersistentEvent PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=ReviewFixPostAssistEvent PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=StaticAcceptLowTarget PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Target250ZeroInitial PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Target250InitialOutsideOldGate PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTURE_FLOW=Authority2ExactDocumentedCommand PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CAPTUREFIX1_TEST_CASES=46 PASS; physical test NOT RUN
+
+
+TEST=pressure_capture_selftest
+COMMAND=["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/capture_pressure_response.ps1", "-SelfTest"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-checks/pressure_capture_selftest.log
+RAW_LOG_SHA256=7C83ECAFDF28C085C781F57A262B13D4DAB2EB54DD755B8A60695B6A847CD2A6
+CAPTURE_PRESSURE_RESPONSE_SELF_TEST=PASS
+
+
+TEST=auto_capture_selftest
+COMMAND=["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/capture_auto_target_static.ps1", "-SelfTest"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-checks/auto_capture_selftest.log
+RAW_LOG_SHA256=BF4AC5C9FA908F35E25666738F8E02CCAE1FA76A3184292D509A05489B2530DE
+LENGTH_AWARE_CASE=FC06_COMPLETE PASS
+LENGTH_AWARE_CASE=FC06_FRAGMENTED PASS
+LENGTH_AWARE_CASE=FC06_CRC PASS
+LENGTH_AWARE_CASE=FC06_ECHO PASS
+LENGTH_AWARE_CASE=FC06_ADDRESS_ECHO PASS
+LENGTH_AWARE_CASE=FC06_TRUNCATED PASS
+LENGTH_AWARE_CASE=FC06_EMPTY_TIMEOUT PASS
+LENGTH_AWARE_CASE=FC06_EXCEPTION PASS
+LENGTH_AWARE_CASE=FC06_WRONG_FUNCTION PASS
+LENGTH_AWARE_CASE=FC06_WRONG_STATION PASS
+LENGTH_AWARE_CASE=FC06_OVERLONG PASS
+LENGTH_AWARE_CASE=FC06_BAD_EXCEPTION PASS
+LENGTH_AWARE_CASE=FC04_FC05_REGRESSION PASS
+APPROACH_MEASURE_REPORT=PASS SYNTHETIC_INPUT; RAM_UNREAD_NOT_INVENTED
+AUTO_FIELD_REPORT_SELF_TEST=PASS SYNTHETIC_INPUT; MAX_BAND_HOLD_FINAL_FAULT_RAM_UNKNOWN
+AUTO_PREFLIGHT_CASE=LOST_START_ECHO_NO_RETRY_STOP PASS
+AUTO_PREFLIGHT_CASE=BASELINE_AND_TARGET_REREAD_ONE_START PASS
+AUTO_PREFLIGHT_CASE=TENTH_ATTEMPT_ONE_TARGET_WRITE_ONE_START PASS
+AUTO_PREFLIGHT_CASE=BASELINE_EXHAUSTED_ZERO_START PASS
+AUTO_PREFLIGHT_CASE=TARGET_READBACK_EXHAUSTED_ZERO_START PASS
+AUTO_PREFLIGHT_CASE=SAFETY_FAULT_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_DETAIL_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_INVALID_PRESSURE_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_INVALID_RAW_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_STALE_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_NOT_IDLE_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_ACTIVE_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_LOCKED_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_OUTPUT_ENABLED_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_BOTH_CCR_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=SAFETY_CAPABILITY_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=TRANSPORT_CRC_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=TRANSPORT_TIMEOUT_BOTH_PHASES_ATTEMPTS_1_TO_10 PASS
+AUTO_PREFLIGHT_CASE=TARGET_VALUE_VALIDITY_ZERO_START PASS
+AUTO_PREFLIGHT_CASE=APPROACH_ONLY_PRECONTACT_ZERO_START PASS
+COARSE_APPROACH_CAPTURE_SELF_TEST=PASS SYNTHETIC_INPUT; NO_SERIAL_PORT
+AUTO_TARGET_CAPTURE_SELF_TEST=PASS SYNTHETIC_INPUT; NO_SERIAL_PORT
+
+
+TEST=data_schema
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "tools/force_servo_data.py", "--self-test"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-checks/data_schema.log
+RAW_LOG_SHA256=45C3AF0B5E32F47C6542069A490530C4AA0115A1DF674E84B93955A1DDBB46D3
+FORCE_SERVO_DATA_TESTS=11 PASS SYNTHETIC; no serial I/O
+
+
+TEST=target250_data
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "Tests/Host/test_target250_data.py"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-checks/target250_data.log
+RAW_LOG_SHA256=052E14F3CE12FC97E5ABE25193DDFEB47A4C94DAA7B784B8359CA3B5ECC17895
+test_boost_event_survives_unsampled_peak_and_stop (__main__.Target250DataTests.test_boost_event_survives_unsampled_peak_and_stop) ... ok
+test_continuous2_peaks_and_exit (__main__.Target250DataTests.test_continuous2_peaks_and_exit) ... ok
+test_direction_limits_from_authoritative_profile (__main__.Target250DataTests.test_direction_limits_from_authoritative_profile) ... ok
+test_disabled_authority_catalog_is_not_live_authorization (__main__.Target250DataTests.test_disabled_authority_catalog_is_not_live_authorization) ... ok
+test_exact_cap_is_visible_even_without_clipping (__main__.Target250DataTests.test_exact_cap_is_visible_even_without_clipping) ... ok
+test_full_curve (__main__.Target250DataTests.test_full_curve) ... ok
+test_gaps_not_interpolated (__main__.Target250DataTests.test_gaps_not_interpolated) ... ok
+test_invalid_calibrated_measurement_is_unknown_not_zero (__main__.Target250DataTests.test_invalid_calibrated_measurement_is_unknown_not_zero) ... ok
+test_lost_echo_no_run_no_motion_claim (__main__.Target250DataTests.test_lost_echo_no_run_no_motion_claim) ... ok
+test_not_reached_saturated_vs_unsaturated (__main__.Target250DataTests.test_not_reached_saturated_vs_unsaturated) ... ok
+test_pending_previous_session_not_counted (__main__.Target250DataTests.test_pending_previous_session_not_counted) ... ok
+test_post_assist_window_and_unchecked_late_observation (__main__.Target250DataTests.test_post_assist_window_and_unchecked_late_observation) ... ok
+test_static_calibrated_metrics_do_not_compare_raw_to_newtons (__main__.Target250DataTests.test_static_calibrated_metrics_do_not_compare_raw_to_newtons) ... ok
+test_static_profile_is_unqualified_and_finitely_bounded (__main__.Target250DataTests.test_static_profile_is_unqualified_and_finitely_bounded) ... ok
+test_static_selected_low_target_and_legacy_unit (__main__.Target250DataTests.test_static_selected_low_target_and_legacy_unit) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.010s
+
+OK
+
+
+TEST=historical_auto_firmware
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "tools/verify_current_auto_target_firmware.py"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-checks/historical_auto_firmware.log
+RAW_LOG_SHA256=0FFB377F77B0FEC8EE0677A4652C9D7AD983266A2328291DFF2C464830CD4E8A
+ELF_SHA256=7E09AB5463A92158459739682B8DE1DE2E257A955347A1EC5DCDC5CEACEC2D2D
+HEX_SHA256=BB5486FB8318045416CE0C65668118CAA556F675AB7C6F403D1ED7F8192B780B
+CURRENT_AUTO_TARGET_FIRMWARE=PASS; ELF_CONVERGENCE_TIMEOUT_MS=30000
+physical test NOT RUN
+
+
+TEST=commissioning_gate
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "Tests/Host/test_commissioning_gate.py", "--output", "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization1\\final-checks\\gate"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-checks/commissioning_gate.log
+RAW_LOG_SHA256=87265323D1F3AD6D64286FEF2130993013DF3F0BE42329A3AEECD6A4DB1B6298
+unsupported_press: PASS
+unsupported_release: PASS
+locked: PASS
+commissioning: PASS
+bad_flag: PASS
+no_force: PASS
+no_ack: PASS
+no_arm: PASS
+wrong_backend: PASS
+characterization: PASS
+characterization_without_commissioning: PASS
+characterization_bad_flag: PASS
+characterization_no_arm: PASS
+characterization_override: PASS
+COMMISSIONING_GATE_TESTS=14 PASS; NO_HARDWARE
+
+
+TEST=characterization_capture
+COMMAND=["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Tests/Host/test_force_characterization_capture.ps1", "-OutputDirectory", "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization1\\final-followup\\capture"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-followup/characterization_capture.log
+RAW_LOG_SHA256=252CE7C5CF86975BFA3E361140BEDFBE5EB3DC7DAD323BA2CE1B6932113A2D1E
+CHARACTERIZATION_CAPTURE=Observe PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Target250 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Target500 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Target1000 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Target650 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Target2999 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Boundary PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Zeros PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=GainChanged PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=PlanMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=DigestMismatch PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=StaleVersion PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Lockout PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Cancel PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=PlanTimeout PASS STARTS=0; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=StartEchoTimeout PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=RunningFault PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Documented250 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Documented500 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Documented1000 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE=Documented3000 PASS STARTS=1; SYNTHETIC_NO_SERIAL
+CHARACTERIZATION_CAPTURE_CASES=21 + INVALID_INPUTS=6 PASS; PHYSICAL_NOT_RUN
+
+
+TEST=plain_host
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "tools/run_force_servo_tests.py", "--output", "output\\StaticForceRuntimeCharacterization1\\final-freeze\\plain"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-freeze/plain_host.log
+RAW_LOG_SHA256=1AD3746965B289B8FA15F135BEC36B7B65BA25E9B886DF7D060974A3AE71D3B1
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.555 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.870 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=2 final=61.110 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=3 final=61.000 hold_updates=1775 (NOT mechanical identification)
+TestSyntheticPlants PASS
+FORCE_SERVO_TEST_GROUPS=15 PASS; physical test NOT RUN
+
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.555 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.870 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=2 final=61.110 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=3 final=61.000 hold_updates=1775 (NOT mechanical identification)
+TestSyntheticPlants PASS
+FORCE_SERVO_TEST_GROUPS=15 PASS; physical test NOT RUN
+
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.555 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.870 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=2 final=61.110 hold_updates=1775 (NOT mechanical identification)
+SYNTHETIC plant=3 final=61.000 hold_updates=1775 (NOT mechanical identification)
+TestSyntheticPlants PASS
+FORCE_SERVO_TEST_GROUPS=15 PASS; physical test NOT RUN
+
+FORCE_SERVO_OPTIMIZATIONS=3 PASS; hardware NOT_RUN
+
+
+TEST=commissioning_host
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "tools/run_force_servo_tests.py", "--commissioning", "--output", "output\\StaticForceRuntimeCharacterization1\\final-freeze\\commissioning"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-freeze/commissioning_host.log
+RAW_LOG_SHA256=D605E190E388468CD6D313DE77C37F77783866F846245CACD9F572D53BD9A6E8
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.490 hold_updates=1902 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.170 hold_updates=1762 (NOT mechanical identification)
+SYNTHETIC plant=2 final=60.470 hold_updates=1934 (NOT mechanical identification)
+SYNTHETIC plant=3 final=59.998 hold_updates=1852 (NOT mechanical identification)
+TestSyntheticPlants PASS
+TestCommissioningEnable PASS
+TestCommissioningSameDirection PASS
+TestCommissioningStopActive PASS
+TestCommissioningFeedbackStop PASS
+TestCommissioningNoRestart PASS
+TestCommissioningReverseOff PASS
+TestTarget250StartFrame PASS
+TestTarget250PendingCancel PASS
+TestTarget250PendingValidation PASS
+TestTarget250BuildHold PASS
+TestTarget250SmallIntegral PASS
+TestTarget250FieldCadence PASS
+TARGET250_SYNTHETIC ki=0.0 final=211.603 hold=0; NOT_PHYSICAL
+TARGET250_SYNTHETIC ki=0.8 final=250.000 hold=841; NOT_PHYSICAL
+TestTarget250SyntheticPI PASS
+TestContinuous2Range PASS
+CONTINUOUS2_CALCULATED_HOST pressure=22 p=912.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=100 p=600.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=180 p=280.0 submitted=280.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=220 p=120.0 submitted=120.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=240 p=40.0 submitted=40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=245 p=20.0 submitted=20.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=249 p=4.0 submitted=4.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=250 p=0.0 submitted=0.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=260 p=-40.0 submitted=-40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=324 p=-296.0 submitted=-100.0; SYNTHETIC
+TestContinuous2Sweep PASS
+TestContinuous2Ramp PASS
+TestContinuous2Pwm PASS
+TestContinuous2Peak PASS
+TestContinuous2OldSaturation PASS
+AUTHORITY1_CALCULATED pressure=22 raw=2280 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=100 raw=1500 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=178 raw=720 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=200 raw=500 committed=500; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=220 raw=300 committed=300; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=240 raw=100 committed=100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=245 raw=50 committed=50; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=249 raw=10 committed=10; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=250 raw=0 committed=0; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=260 raw=-100 committed=-100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=270 raw=-200 committed=-100; SYNTHETIC_NOT_PHYSICAL
+TestAuthority1Sweep PASS
+TestAuthority1Ramp PASS
+TestAuthority1Safety PASS
+TestStaticUnitsAndQualification PASS
+TestStaticPlanAndAbsoluteBudget PASS
+TestAuthority2LiveEnvelope PASS
+TestStaticProgressNoiseAndCreep PASS
+TestStaticStopStagesAndReadback PASS
+FORCE_SERVO_TEST_GROUPS=42 PASS; physical test NOT RUN
+
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.490 hold_updates=1902 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.170 hold_updates=1762 (NOT mechanical identification)
+SYNTHETIC plant=2 final=60.470 hold_updates=1934 (NOT mechanical identification)
+SYNTHETIC plant=3 final=59.998 hold_updates=1852 (NOT mechanical identification)
+TestSyntheticPlants PASS
+TestCommissioningEnable PASS
+TestCommissioningSameDirection PASS
+TestCommissioningStopActive PASS
+TestCommissioningFeedbackStop PASS
+TestCommissioningNoRestart PASS
+TestCommissioningReverseOff PASS
+TestTarget250StartFrame PASS
+TestTarget250PendingCancel PASS
+TestTarget250PendingValidation PASS
+TestTarget250BuildHold PASS
+TestTarget250SmallIntegral PASS
+TestTarget250FieldCadence PASS
+TARGET250_SYNTHETIC ki=0.0 final=211.603 hold=0; NOT_PHYSICAL
+TARGET250_SYNTHETIC ki=0.8 final=250.000 hold=841; NOT_PHYSICAL
+TestTarget250SyntheticPI PASS
+TestContinuous2Range PASS
+CONTINUOUS2_CALCULATED_HOST pressure=22 p=912.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=100 p=600.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=180 p=280.0 submitted=280.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=220 p=120.0 submitted=120.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=240 p=40.0 submitted=40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=245 p=20.0 submitted=20.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=249 p=4.0 submitted=4.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=250 p=0.0 submitted=0.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=260 p=-40.0 submitted=-40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=324 p=-296.0 submitted=-100.0; SYNTHETIC
+TestContinuous2Sweep PASS
+TestContinuous2Ramp PASS
+TestContinuous2Pwm PASS
+TestContinuous2Peak PASS
+TestContinuous2OldSaturation PASS
+AUTHORITY1_CALCULATED pressure=22 raw=2280 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=100 raw=1500 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=178 raw=720 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=200 raw=500 committed=500; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=220 raw=300 committed=300; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=240 raw=100 committed=100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=245 raw=50 committed=50; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=249 raw=10 committed=10; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=250 raw=0 committed=0; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=260 raw=-100 committed=-100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=270 raw=-200 committed=-100; SYNTHETIC_NOT_PHYSICAL
+TestAuthority1Sweep PASS
+TestAuthority1Ramp PASS
+TestAuthority1Safety PASS
+TestStaticUnitsAndQualification PASS
+TestStaticPlanAndAbsoluteBudget PASS
+TestAuthority2LiveEnvelope PASS
+TestStaticProgressNoiseAndCreep PASS
+TestStaticStopStagesAndReadback PASS
+FORCE_SERVO_TEST_GROUPS=42 PASS; physical test NOT RUN
+
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.490 hold_updates=1902 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.170 hold_updates=1762 (NOT mechanical identification)
+SYNTHETIC plant=2 final=60.470 hold_updates=1934 (NOT mechanical identification)
+SYNTHETIC plant=3 final=59.998 hold_updates=1852 (NOT mechanical identification)
+TestSyntheticPlants PASS
+TestCommissioningEnable PASS
+TestCommissioningSameDirection PASS
+TestCommissioningStopActive PASS
+TestCommissioningFeedbackStop PASS
+TestCommissioningNoRestart PASS
+TestCommissioningReverseOff PASS
+TestTarget250StartFrame PASS
+TestTarget250PendingCancel PASS
+TestTarget250PendingValidation PASS
+TestTarget250BuildHold PASS
+TestTarget250SmallIntegral PASS
+TestTarget250FieldCadence PASS
+TARGET250_SYNTHETIC ki=0.0 final=211.603 hold=0; NOT_PHYSICAL
+TARGET250_SYNTHETIC ki=0.8 final=250.000 hold=841; NOT_PHYSICAL
+TestTarget250SyntheticPI PASS
+TestContinuous2Range PASS
+CONTINUOUS2_CALCULATED_HOST pressure=22 p=912.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=100 p=600.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=180 p=280.0 submitted=280.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=220 p=120.0 submitted=120.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=240 p=40.0 submitted=40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=245 p=20.0 submitted=20.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=249 p=4.0 submitted=4.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=250 p=0.0 submitted=0.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=260 p=-40.0 submitted=-40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=324 p=-296.0 submitted=-100.0; SYNTHETIC
+TestContinuous2Sweep PASS
+TestContinuous2Ramp PASS
+TestContinuous2Pwm PASS
+TestContinuous2Peak PASS
+TestContinuous2OldSaturation PASS
+AUTHORITY1_CALCULATED pressure=22 raw=2280 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=100 raw=1500 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=178 raw=720 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=200 raw=500 committed=500; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=220 raw=300 committed=300; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=240 raw=100 committed=100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=245 raw=50 committed=50; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=249 raw=10 committed=10; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=250 raw=0 committed=0; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=260 raw=-100 committed=-100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=270 raw=-200 committed=-100; SYNTHETIC_NOT_PHYSICAL
+TestAuthority1Sweep PASS
+TestAuthority1Ramp PASS
+TestAuthority1Safety PASS
+TestStaticUnitsAndQualification PASS
+TestStaticPlanAndAbsoluteBudget PASS
+TestAuthority2LiveEnvelope PASS
+TestStaticProgressNoiseAndCreep PASS
+TestStaticStopStagesAndReadback PASS
+FORCE_SERVO_TEST_GROUPS=42 PASS; physical test NOT RUN
+
+FORCE_SERVO_OPTIMIZATIONS=3 PASS; hardware NOT_RUN
+
+
+TEST=range_host
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "tools/run_force_servo_tests.py", "--commissioning", "--range-fixture", "--output", "output\\StaticForceRuntimeCharacterization1\\final-freeze\\range"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-freeze/range_host.log
+RAW_LOG_SHA256=EAFC3EC153C25FD053B56F13EACF1A0D5D582909126438D6319B76FEE7C9AD37
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.490 hold_updates=1902 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.170 hold_updates=1762 (NOT mechanical identification)
+SYNTHETIC plant=2 final=60.470 hold_updates=1934 (NOT mechanical identification)
+SYNTHETIC plant=3 final=59.998 hold_updates=1852 (NOT mechanical identification)
+TestSyntheticPlants PASS
+TestCommissioningEnable PASS
+TestCommissioningSameDirection PASS
+TestCommissioningStopActive PASS
+TestCommissioningFeedbackStop PASS
+TestCommissioningNoRestart PASS
+TestCommissioningReverseOff PASS
+TestTarget250StartFrame PASS
+TestTarget250PendingCancel PASS
+TestTarget250PendingValidation PASS
+TestTarget250BuildHold PASS
+TestTarget250SmallIntegral PASS
+TestTarget250FieldCadence PASS
+TARGET250_SYNTHETIC ki=0.0 final=211.603 hold=0; NOT_PHYSICAL
+TARGET250_SYNTHETIC ki=0.8 final=250.000 hold=841; NOT_PHYSICAL
+TestTarget250SyntheticPI PASS
+TestContinuous2Range PASS
+CONTINUOUS2_CALCULATED_HOST pressure=22 p=912.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=100 p=600.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=180 p=280.0 submitted=280.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=220 p=120.0 submitted=120.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=240 p=40.0 submitted=40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=245 p=20.0 submitted=20.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=249 p=4.0 submitted=4.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=250 p=0.0 submitted=0.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=260 p=-40.0 submitted=-40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=324 p=-296.0 submitted=-100.0; SYNTHETIC
+TestContinuous2Sweep PASS
+TestContinuous2Ramp PASS
+TestContinuous2Pwm PASS
+TestContinuous2Peak PASS
+TestContinuous2OldSaturation PASS
+AUTHORITY1_CALCULATED pressure=22 raw=2280 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=100 raw=1500 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=178 raw=720 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=200 raw=500 committed=500; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=220 raw=300 committed=300; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=240 raw=100 committed=100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=245 raw=50 committed=50; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=249 raw=10 committed=10; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=250 raw=0 committed=0; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=260 raw=-100 committed=-100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=270 raw=-200 committed=-100; SYNTHETIC_NOT_PHYSICAL
+TestAuthority1Sweep PASS
+TestAuthority1Ramp PASS
+TestAuthority1Safety PASS
+TestStaticUnitsAndQualification PASS
+TestStaticPlanAndAbsoluteBudget PASS
+TestAuthority2LiveEnvelope PASS
+TestBoost1PeakHandoff PASS
+TestBoost1Safety PASS
+TestBoost1AdmissionAndBudget PASS
+TestAuthority2PIAndExit PASS
+TestAuthority2WrapAndCooling PASS
+TestPostAssistExcessive PASS
+TestPostAssistNormalOnce PASS
+TestPostAssistRejectedFrames PASS
+TestPostAssistFrameBoundaries PASS
+TestPostAssistStopAndDeadlines PASS
+TestPostAssistWrap PASS
+TestStaticProgressNoiseAndCreep PASS
+TestStaticStopStagesAndReadback PASS
+TestStaticBoostDeadlineAndTransfer PASS
+TestStaticBoostBudgetAndStop PASS
+FORCE_SERVO_TEST_GROUPS=55 PASS; physical test NOT RUN
+
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.490 hold_updates=1902 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.170 hold_updates=1762 (NOT mechanical identification)
+SYNTHETIC plant=2 final=60.470 hold_updates=1934 (NOT mechanical identification)
+SYNTHETIC plant=3 final=59.998 hold_updates=1852 (NOT mechanical identification)
+TestSyntheticPlants PASS
+TestCommissioningEnable PASS
+TestCommissioningSameDirection PASS
+TestCommissioningStopActive PASS
+TestCommissioningFeedbackStop PASS
+TestCommissioningNoRestart PASS
+TestCommissioningReverseOff PASS
+TestTarget250StartFrame PASS
+TestTarget250PendingCancel PASS
+TestTarget250PendingValidation PASS
+TestTarget250BuildHold PASS
+TestTarget250SmallIntegral PASS
+TestTarget250FieldCadence PASS
+TARGET250_SYNTHETIC ki=0.0 final=211.603 hold=0; NOT_PHYSICAL
+TARGET250_SYNTHETIC ki=0.8 final=250.000 hold=841; NOT_PHYSICAL
+TestTarget250SyntheticPI PASS
+TestContinuous2Range PASS
+CONTINUOUS2_CALCULATED_HOST pressure=22 p=912.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=100 p=600.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=180 p=280.0 submitted=280.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=220 p=120.0 submitted=120.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=240 p=40.0 submitted=40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=245 p=20.0 submitted=20.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=249 p=4.0 submitted=4.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=250 p=0.0 submitted=0.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=260 p=-40.0 submitted=-40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=324 p=-296.0 submitted=-100.0; SYNTHETIC
+TestContinuous2Sweep PASS
+TestContinuous2Ramp PASS
+TestContinuous2Pwm PASS
+TestContinuous2Peak PASS
+TestContinuous2OldSaturation PASS
+AUTHORITY1_CALCULATED pressure=22 raw=2280 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=100 raw=1500 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=178 raw=720 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=200 raw=500 committed=500; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=220 raw=300 committed=300; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=240 raw=100 committed=100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=245 raw=50 committed=50; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=249 raw=10 committed=10; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=250 raw=0 committed=0; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=260 raw=-100 committed=-100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=270 raw=-200 committed=-100; SYNTHETIC_NOT_PHYSICAL
+TestAuthority1Sweep PASS
+TestAuthority1Ramp PASS
+TestAuthority1Safety PASS
+TestStaticUnitsAndQualification PASS
+TestStaticPlanAndAbsoluteBudget PASS
+TestAuthority2LiveEnvelope PASS
+TestBoost1PeakHandoff PASS
+TestBoost1Safety PASS
+TestBoost1AdmissionAndBudget PASS
+TestAuthority2PIAndExit PASS
+TestAuthority2WrapAndCooling PASS
+TestPostAssistExcessive PASS
+TestPostAssistNormalOnce PASS
+TestPostAssistRejectedFrames PASS
+TestPostAssistFrameBoundaries PASS
+TestPostAssistStopAndDeadlines PASS
+TestPostAssistWrap PASS
+TestStaticProgressNoiseAndCreep PASS
+TestStaticStopStagesAndReadback PASS
+TestStaticBoostDeadlineAndTransfer PASS
+TestStaticBoostBudgetAndStop PASS
+FORCE_SERVO_TEST_GROUPS=55 PASS; physical test NOT RUN
+
+TestTrajectory PASS
+TestNumericAndD PASS
+TestFinalPwmGains PASS
+TestAntiWindup PASS
+TestHoldAndContactLost PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestSampleAgeAndWrap PASS
+TestFeedbackFaults PASS
+TestDeadlinesAndApproach PASS
+TestBoundedTracking PASS
+TestConfigAndSnapshot PASS
+TestModbusAndCongestion PASS
+TestRuntimeDeliveryAndLock PASS
+SYNTHETIC plant=0 final=60.490 hold_updates=1902 (NOT mechanical identification)
+SYNTHETIC plant=1 final=60.170 hold_updates=1762 (NOT mechanical identification)
+SYNTHETIC plant=2 final=60.470 hold_updates=1934 (NOT mechanical identification)
+SYNTHETIC plant=3 final=59.998 hold_updates=1852 (NOT mechanical identification)
+TestSyntheticPlants PASS
+TestCommissioningEnable PASS
+TestCommissioningSameDirection PASS
+TestCommissioningStopActive PASS
+TestCommissioningFeedbackStop PASS
+TestCommissioningNoRestart PASS
+TestCommissioningReverseOff PASS
+TestTarget250StartFrame PASS
+TestTarget250PendingCancel PASS
+TestTarget250PendingValidation PASS
+TestTarget250BuildHold PASS
+TestTarget250SmallIntegral PASS
+TestTarget250FieldCadence PASS
+TARGET250_SYNTHETIC ki=0.0 final=211.603 hold=0; NOT_PHYSICAL
+TARGET250_SYNTHETIC ki=0.8 final=250.000 hold=841; NOT_PHYSICAL
+TestTarget250SyntheticPI PASS
+TestContinuous2Range PASS
+CONTINUOUS2_CALCULATED_HOST pressure=22 p=912.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=100 p=600.0 submitted=400.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=180 p=280.0 submitted=280.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=220 p=120.0 submitted=120.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=240 p=40.0 submitted=40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=245 p=20.0 submitted=20.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=249 p=4.0 submitted=4.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=250 p=0.0 submitted=0.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=260 p=-40.0 submitted=-40.0; SYNTHETIC
+CONTINUOUS2_CALCULATED_HOST pressure=324 p=-296.0 submitted=-100.0; SYNTHETIC
+TestContinuous2Sweep PASS
+TestContinuous2Ramp PASS
+TestContinuous2Pwm PASS
+TestContinuous2Peak PASS
+TestContinuous2OldSaturation PASS
+AUTHORITY1_CALCULATED pressure=22 raw=2280 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=100 raw=1500 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=178 raw=720 committed=720; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=200 raw=500 committed=500; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=220 raw=300 committed=300; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=240 raw=100 committed=100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=245 raw=50 committed=50; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=249 raw=10 committed=10; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=250 raw=0 committed=0; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=260 raw=-100 committed=-100; SYNTHETIC_NOT_PHYSICAL
+AUTHORITY1_CALCULATED pressure=270 raw=-200 committed=-100; SYNTHETIC_NOT_PHYSICAL
+TestAuthority1Sweep PASS
+TestAuthority1Ramp PASS
+TestAuthority1Safety PASS
+TestStaticUnitsAndQualification PASS
+TestStaticPlanAndAbsoluteBudget PASS
+TestAuthority2LiveEnvelope PASS
+TestBoost1PeakHandoff PASS
+TestBoost1Safety PASS
+TestBoost1AdmissionAndBudget PASS
+TestAuthority2PIAndExit PASS
+TestAuthority2WrapAndCooling PASS
+TestPostAssistExcessive PASS
+TestPostAssistNormalOnce PASS
+TestPostAssistRejectedFrames PASS
+TestPostAssistFrameBoundaries PASS
+TestPostAssistStopAndDeadlines PASS
+TestPostAssistWrap PASS
+TestStaticProgressNoiseAndCreep PASS
+TestStaticStopStagesAndReadback PASS
+TestStaticBoostDeadlineAndTransfer PASS
+TestStaticBoostBudgetAndStop PASS
+FORCE_SERVO_TEST_GROUPS=55 PASS; physical test NOT RUN
+
+FORCE_SERVO_OPTIMIZATIONS=3 PASS; hardware NOT_RUN
+
+
+TEST=characterization_host
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "tools/run_force_servo_tests.py", "--commissioning", "--characterization", "--output", "output\\StaticForceRuntimeCharacterization1\\final-freeze\\characterization"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-freeze/characterization_host.log
+RAW_LOG_SHA256=CFBD93F00B86889D389D8F0DB1C2D7814D3C28DBAE1D44F929D8E133D129949A
+TestRuntimeContinuousCeilings PASS
+TestCharacterizationRtuStopPriority PASS
+TestRuntimeMappings PASS
+TestAtomicPlanAndGains PASS
+TestCharacterizationAssistTiming PASS
+TestCharacterizationResponseAndStops PASS
+TestCharacterizationSessionsAndBoundary PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestCharacterizationWrap PASS
+TestTrajectory PASS
+TestNumericAndD PASS
+TestAntiWindup PASS
+CHARACTERIZATION_PRODUCTION_GROUPS=13 PASS; PHYSICAL_NOT_RUN
+
+TestRuntimeContinuousCeilings PASS
+TestCharacterizationRtuStopPriority PASS
+TestRuntimeMappings PASS
+TestAtomicPlanAndGains PASS
+TestCharacterizationAssistTiming PASS
+TestCharacterizationResponseAndStops PASS
+TestCharacterizationSessionsAndBoundary PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestCharacterizationWrap PASS
+TestTrajectory PASS
+TestNumericAndD PASS
+TestAntiWindup PASS
+CHARACTERIZATION_PRODUCTION_GROUPS=13 PASS; PHYSICAL_NOT_RUN
+
+TestRuntimeContinuousCeilings PASS
+TestCharacterizationRtuStopPriority PASS
+TestRuntimeMappings PASS
+TestAtomicPlanAndGains PASS
+TestCharacterizationAssistTiming PASS
+TestCharacterizationResponseAndStops PASS
+TestCharacterizationSessionsAndBoundary PASS
+TestExecutorUpdates PASS
+TestLeaseRaces PASS
+TestCharacterizationWrap PASS
+TestTrajectory PASS
+TestNumericAndD PASS
+TestAntiWindup PASS
+CHARACTERIZATION_PRODUCTION_GROUPS=13 PASS; PHYSICAL_NOT_RUN
+
+FORCE_SERVO_OPTIMIZATIONS=3 PASS; hardware NOT_RUN
+
+
+TEST=characterization_data
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "Tests/Host/test_force_characterization_data.py"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-freeze/characterization_data.log
+RAW_LOG_SHA256=3B5A4BB4894A2A6055ABFDF722AC23172E9C326BEF26C8BDF725B54AEA95AE80
+test_boundary_between_polls_is_persistent (__main__.CharacterizationData.test_boundary_between_polls_is_persistent) ... ok
+test_fixed_envelope_and_gain_schema (__main__.CharacterizationData.test_fixed_envelope_and_gain_schema) ... ok
+test_hold_sample_statistics_remain_observational (__main__.CharacterizationData.test_hold_sample_statistics_remain_observational) ... ok
+test_session_and_post_assist_measurement_provenance (__main__.CharacterizationData.test_session_and_post_assist_measurement_provenance) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
+
+
+TEST=arm_release
+COMMAND=["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/build_gcc.ps1", "-ForceServo", "-StaticForceRuntimeCharacterization1", "-MotorMode", "RealBench", "-Configuration", "Release", "-RealBenchAck", "I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION", "-BuildDir", "output\\StaticForceRuntimeCharacterization1\\final-freeze\\arm-build"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-freeze/arm_release.log
+RAW_LOG_SHA256=85BDBB81BD85C1983376278595B7DFEA075559CA97C6075A183CFE1AFFB241A3
+STATIC_FORCE_RUNTIME_CHARACTERIZATION1; ONE_RUNTIME_PLAN; USER_CONFIRMED_SENSOR_N; PHYSICAL_NOT_RUN
+RUNTIME_CHARACTERIZATION_GUARDED_OUTPUT; PI_AND_TIMING_LOCKED
+REAL_BENCH_ONLY
+REAL_MOTOR_MAY_MOVE
+LOW_ENERGY_SUPPLY_ESTOP_AND_CLEARANCE_REQUIRED
+RUNTIME_CHARACTERIZATION_GUARDED_OUTPUT; PI_AND_TIMING_LOCKED
+TIM5_SYMBOL=T TIM5_IRQHandler
+   text	   data	    bss	    dec	    hex	filename
+  41696	    100	   4568	  46364	   b51c	C:\Users\jian\Desktop\SD700-GitHub\output\StaticForceRuntimeCharacterization1\final-freeze\arm-build\RealBench_ForceServo\Release\press_control_f411.elf
+Built C:\Users\jian\Desktop\SD700-GitHub\output\StaticForceRuntimeCharacterization1\final-freeze\arm-build\RealBench_ForceServo\Release\press_control_f411.elf
+Built C:\Users\jian\Desktop\SD700-GitHub\output\StaticForceRuntimeCharacterization1\final-freeze\arm-build\RealBench_ForceServo\Release\press_control_f411.hex
+MotorMode=RealBench
+AutoTarget=False
+ELF_SHA256=60f5ab4cff7a8793db8c6c3bc3c7c082565c56d4adc0f2cd7a4ea76b843c8a14
+HEX_SHA256=35a72464f8dbd5e3cfe1c8c72fded97d7771bf8f2bd956603e77fc7ebf21d99e
+
+
+TEST=verifier_rejections
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "Tests/Host/test_force_servo_verifier.py"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-verifier/verifier_rejections.log
+RAW_LOG_SHA256=024D4DC345BE101560404ABCFFDC44467AC853092FCE7CC0F78CEA64295CB0C5
+test_all_candidate_fields_pinned_including_enable_and_cooling (__main__.VerifierTests.test_all_candidate_fields_pinned_including_enable_and_cooling) ... ok
+test_all_characterization_contract_and_gain_fields_rejected (__main__.VerifierTests.test_all_characterization_contract_and_gain_fields_rejected) ... ok
+test_authority1_is_not_current_candidate (__main__.VerifierTests.test_authority1_is_not_current_candidate) ... ok
+test_authority2_before_reviewfix_is_not_current_candidate (__main__.VerifierTests.test_authority2_before_reviewfix_is_not_current_candidate) ... ok
+test_boost1_is_not_current_candidate (__main__.VerifierTests.test_boost1_is_not_current_candidate) ... ok
+test_continuous2_is_not_current_candidate (__main__.VerifierTests.test_continuous2_is_not_current_candidate) ... ok
+test_elf_load_bounds_overlap_and_bss (__main__.VerifierTests.test_elf_load_bounds_overlap_and_bss) ... ok
+test_elf_section_and_symbol_boundaries (__main__.VerifierTests.test_elf_section_and_symbol_boundaries) ... ok
+test_elf_truncated_tables_and_bad_sizes (__main__.VerifierTests.test_elf_truncated_tables_and_bad_sizes) ... ok
+test_elf_type_class_endianness_machine_abi (__main__.VerifierTests.test_elf_type_class_endianness_machine_abi) ... ok
+test_exact_pair_and_ram_initializers (__main__.VerifierTests.test_exact_pair_and_ram_initializers) ... ok
+test_hex_bad_address_entry_missing_and_extra_bytes (__main__.VerifierTests.test_hex_bad_address_entry_missing_and_extra_bytes) ... ok
+test_hex_checksum_truncation_and_length (__main__.VerifierTests.test_hex_checksum_truncation_and_length) ... ok
+test_hex_duplicate_and_trailing_data (__main__.VerifierTests.test_hex_duplicate_and_trailing_data) ... ok
+test_hex_format_independence (__main__.VerifierTests.test_hex_format_independence) ... ok
+test_hex_valid_checksum_changed_byte_rejected (__main__.VerifierTests.test_hex_valid_checksum_changed_byte_rejected) ... ok
+test_locked_predecessor_is_not_current_candidate (__main__.VerifierTests.test_locked_predecessor_is_not_current_candidate) ... ok
+test_mvp1_is_not_current_candidate (__main__.VerifierTests.test_mvp1_is_not_current_candidate) ... ok
+test_offline_cli_with_empty_path (__main__.VerifierTests.test_offline_cli_with_empty_path) ... ok
+test_optimized_python_still_checks (__main__.VerifierTests.test_optimized_python_still_checks) ... ok
+test_previous_commissioning_is_not_current_candidate (__main__.VerifierTests.test_previous_commissioning_is_not_current_candidate) ... ok
+test_profile_mutations_rejected (__main__.VerifierTests.test_profile_mutations_rejected) ... ok
+test_reviewfix_predecessor_rejected (__main__.VerifierTests.test_reviewfix_predecessor_rejected) ... ok
+test_static3000_1_is_not_current_candidate (__main__.VerifierTests.test_static3000_1_is_not_current_candidate) ... ok
+test_true_hash_and_manifest_pins (__main__.VerifierTests.test_true_hash_and_manifest_pins) ... ok
+test_wrong_commissioning_gate_rejected (__main__.VerifierTests.test_wrong_commissioning_gate_rejected) ... ok
+test_wrong_identity_and_protected_config (__main__.VerifierTests.test_wrong_identity_and_protected_config) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 2.478s
+
+OK
+
+
+TEST=offline_firmware
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "tools/verify_force_servo_firmware.py"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-verifier/offline_firmware.log
+RAW_LOG_SHA256=FF9E0336766DBA4F66484A075DB1F377B0E5BA454412EAB62F59F802CB4BB185
+{
+  "configuration": "PASS",
+  "candidate": "StaticForceRuntimeCharacterization1",
+  "schema": "F108",
+  "build_id": "4653010A",
+  "physical_output": "COMMISSIONING_ARMED_WITH_EXISTING_GUARD",
+  "runtime_target_N": [
+    1,
+    3000
+  ],
+  "runtime_assist_percent": [
+    0,
+    40
+  ],
+  "runtime_continuous_percent": [
+    0,
+    10
+  ],
+  "command_per_percent": 240,
+  "maximum_assist_command": 9600,
+  "maximum_continuous_cap": 2400,
+  "release_cap": 100,
+  "boot_press_cap": 0,
+  "boot_assist_command": 0,
+  "boot_target_valid": false,
+  "atomic_plan_required": true,
+  "one_START_per_plan": true,
+  "fixed_kp_ki_kd": [
+    10,
+    0,
+    0
+  ],
+  "measurement_filter_s": 0,
+  "assist_rise_ms": 1,
+  "assist_end_ms": 2,
+  "boost_ms": 4,
+  "boost_total_ms": 4,
+  "inter_run_lockout_ms": 5000,
+  "lockout_rating": "ADMINISTRATIVE_NOT_VALIDATED_THERMAL_COOLING_TIME",
+  "session_ms": 5000,
+  "taper_margin_N": 30,
+  "response_units_N": 2,
+  "excessive_rise_N": 25,
+  "target3000": "BOUNDARY_TARGET_REACHED_OFF_NO_HOLD",
+  "high_target_admission": "BOUNDED_ATTEMPT_NO_TRAJECTORY_FEASIBILITY_REJECTION",
+  "sensor_unit_source": "USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT",
+  "scale": 1,
+  "offset": 0,
+  "raw_trip_N": 3000,
+  "qualification_bits": 0,
+  "feedback_gap_ms": 125,
+  "lease_ms": 130,
+  "sample_age_ms": 20,
+  "release_deadtime_ms": 2,
+  "ratings": "NOT_A_MOTOR_RATING; NOT_A_THERMAL_RATING; NOT_A_CONTINUOUS_RATING",
+  "load_bytes_compared": 41796,
+  "offline_verifier": "PURE_PYTHON",
+  "hex_sha256": "35A72464F8DBD5E3CFE1C8C72FDED97D7771BF8F2BD956603E77FC7EBF21D99E",
+  "elf_sha256": "60F5AB4CFF7A8793DB8C6C3BC3C7C082565C56D4ADC0F2CD7A4EA76B843C8A14",
+  "physical_test": "NOT_RUN"
+}
+
+
+TEST=developer_objcopy
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "tools/verify_force_servo_firmware.py", "--objcopy-cross-check"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/final-verifier/developer_objcopy.log
+RAW_LOG_SHA256=FF9E0336766DBA4F66484A075DB1F377B0E5BA454412EAB62F59F802CB4BB185
+{
+  "configuration": "PASS",
+  "candidate": "StaticForceRuntimeCharacterization1",
+  "schema": "F108",
+  "build_id": "4653010A",
+  "physical_output": "COMMISSIONING_ARMED_WITH_EXISTING_GUARD",
+  "runtime_target_N": [
+    1,
+    3000
+  ],
+  "runtime_assist_percent": [
+    0,
+    40
+  ],
+  "runtime_continuous_percent": [
+    0,
+    10
+  ],
+  "command_per_percent": 240,
+  "maximum_assist_command": 9600,
+  "maximum_continuous_cap": 2400,
+  "release_cap": 100,
+  "boot_press_cap": 0,
+  "boot_assist_command": 0,
+  "boot_target_valid": false,
+  "atomic_plan_required": true,
+  "one_START_per_plan": true,
+  "fixed_kp_ki_kd": [
+    10,
+    0,
+    0
+  ],
+  "measurement_filter_s": 0,
+  "assist_rise_ms": 1,
+  "assist_end_ms": 2,
+  "boost_ms": 4,
+  "boost_total_ms": 4,
+  "inter_run_lockout_ms": 5000,
+  "lockout_rating": "ADMINISTRATIVE_NOT_VALIDATED_THERMAL_COOLING_TIME",
+  "session_ms": 5000,
+  "taper_margin_N": 30,
+  "response_units_N": 2,
+  "excessive_rise_N": 25,
+  "target3000": "BOUNDARY_TARGET_REACHED_OFF_NO_HOLD",
+  "high_target_admission": "BOUNDED_ATTEMPT_NO_TRAJECTORY_FEASIBILITY_REJECTION",
+  "sensor_unit_source": "USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT",
+  "scale": 1,
+  "offset": 0,
+  "raw_trip_N": 3000,
+  "qualification_bits": 0,
+  "feedback_gap_ms": 125,
+  "lease_ms": 130,
+  "sample_age_ms": 20,
+  "release_deadtime_ms": 2,
+  "ratings": "NOT_A_MOTOR_RATING; NOT_A_THERMAL_RATING; NOT_A_CONTINUOUS_RATING",
+  "load_bytes_compared": 41796,
+  "offline_verifier": "PURE_PYTHON",
+  "hex_sha256": "35A72464F8DBD5E3CFE1C8C72FDED97D7771BF8F2BD956603E77FC7EBF21D99E",
+  "elf_sha256": "60F5AB4CFF7A8793DB8C6C3BC3C7C082565C56D4ADC0F2CD7A4EA76B843C8A14",
+  "physical_test": "NOT_RUN"
+}
+
+
+TEST=arm_independent_rebuild
+COMMAND=["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/build_gcc.ps1", "-ForceServo", "-StaticForceRuntimeCharacterization1", "-MotorMode", "RealBench", "-Configuration", "Release", "-RealBenchAck", "I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION", "-BuildDir", "output\\StaticForceRuntimeCharacterization1\\reproduce-final\\arm-build"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/reproduce-final/arm_independent_rebuild.log
+RAW_LOG_SHA256=930B286581700F717F843AC39478AB7AA4706AAB652EAF1C461AF3D6B5E1F72E
+STATIC_FORCE_RUNTIME_CHARACTERIZATION1; ONE_RUNTIME_PLAN; USER_CONFIRMED_SENSOR_N; PHYSICAL_NOT_RUN
+RUNTIME_CHARACTERIZATION_GUARDED_OUTPUT; PI_AND_TIMING_LOCKED
+REAL_BENCH_ONLY
+REAL_MOTOR_MAY_MOVE
+LOW_ENERGY_SUPPLY_ESTOP_AND_CLEARANCE_REQUIRED
+RUNTIME_CHARACTERIZATION_GUARDED_OUTPUT; PI_AND_TIMING_LOCKED
+TIM5_SYMBOL=T TIM5_IRQHandler
+   text	   data	    bss	    dec	    hex	filename
+  41696	    100	   4568	  46364	   b51c	C:\Users\jian\Desktop\SD700-GitHub\output\StaticForceRuntimeCharacterization1\reproduce-final\arm-build\RealBench_ForceServo\Release\press_control_f411.elf
+Built C:\Users\jian\Desktop\SD700-GitHub\output\StaticForceRuntimeCharacterization1\reproduce-final\arm-build\RealBench_ForceServo\Release\press_control_f411.elf
+Built C:\Users\jian\Desktop\SD700-GitHub\output\StaticForceRuntimeCharacterization1\reproduce-final\arm-build\RealBench_ForceServo\Release\press_control_f411.hex
+MotorMode=RealBench
+AutoTarget=False
+ELF_SHA256=60f5ab4cff7a8793db8c6c3bc3c7c082565c56d4adc0f2cd7a4ea76b843c8a14
+HEX_SHA256=35a72464f8dbd5e3cfe1c8c72fded97d7771bf8f2bd956603e77fc7ebf21d99e
+
+
+TEST=rebuild_exact_pair
+COMMAND=["C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe", "-c", "import sys;sys.path.insert(0,'tools');from pathlib import Path;from verify_force_servo_firmware import sha,PINNED_HASHES;from firmware_image import require;b=Path('output/StaticForceRuntimeCharacterization1/reproduce-final/arm-build/RealBench_ForceServo/Release');[require(sha(b/('press_control_f411.'+e))==h,'Rebuild mismatch: '+e) for e,h in PINNED_HASHES.items()];print('INDEPENDENT_REBUILD_EXACT_HEX_ELF=PASS')"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/reproduce-final/rebuild_exact_pair.log
+RAW_LOG_SHA256=6E87B1007F66DEC8E4E46190073C459B8685BB3C947766BBCAABC5FF7D2E9F3C
+INDEPENDENT_REBUILD_EXACT_HEX_ELF=PASS
+
+
+TEST=legacy_host_regression
+COMMAND=["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/run_host_tests.ps1", "-OutputDirectory", "output\\StaticForceRuntimeCharacterization1\\host-regression"]
+RAW_LOG=output/StaticForceRuntimeCharacterization1/host-regression.log
+RAW_LOG_SHA256=B911BC33C56AF0AE732BBA6C9D2F0408AA6E8A7418EC26BF48B0FA415016ECD8
+COMPILE_POLICY_RESULT=scope_missing_c_ack PASS
+COMPILE_POLICY_RESULT=scope_zero_c_ack PASS
+COMPILE_POLICY_RESULT=scope_invalid_c_ack PASS
+COMPILE_POLICY_RESULT=real_bench_missing_c_ack PASS
+COMPILE_POLICY_RESULT=real_bench_zero_c_ack PASS
+COMPILE_POLICY_RESULT=real_bench_invalid_c_ack PASS
+COMPILE_POLICY_RESULT=scope_mismatched_c_ack PASS
+COMPILE_POLICY_RESULT=real_bench_mismatched_c_ack PASS
+COMPILE_POLICY_RESULT=scope_explicit_host PASS
+COMPILE_POLICY_RESULT=real_bench_explicit_host PASS
+COMPILE_POLICY_RESULT=arming_without_mode PASS
+COMPILE_POLICY_RESULT=host_zero_arming_without_mode PASS
+COMPILE_POLICY_RESULT=host_one_arming_without_mode PASS
+COMPILE_POLICY_RESULT=target_rejects_host_exception PASS
+COMPILE_POLICY_RESULT=scope_acknowledged_armed PASS
+COMPILE_POLICY_RESULT=real_bench_acknowledged_armed PASS
+COMPILE_POLICY_RESULT=scope_acknowledged_unarmed PASS
+COMPILE_POLICY_RESULT=real_bench_acknowledged_unarmed PASS
+COMPILE_POLICY_RESULT=real_compile_check_armed PASS
+COMPILE_POLICY_RESULT=real_compile_check_mode_zero PASS
+COMPILE_POLICY_RESULT=scope_mode_zero PASS
+COMPILE_POLICY_RESULT=real_bench_mode_zero PASS
+ACK_POLICY_COMPILE_TESTS=PASS
+HOST_ZERO_ARMING_BYPASS_TEST=PASS
+TARGET_HOST_MACRO_REJECTION=PASS
+HOST_TEST=test_force_pi_O0
+FORCE_PI_CORE=PASS SYNTHETIC_INPUT mathematical tests only
+HOST_TEST_RESULT=test_force_pi_O0 PASS
+HOST_TEST=test_machine_force_pi_locked_O0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,approach_first_observation,2,5,4,250.000,80.000,170.000,0.000000,1700.000,0.000,1700.000,1700.000,0,0,1,0.000,0,1,1
+FORCE_PI_TRACE,SYNTHETIC_INPUT,contact_output_off,3,10,5,250.000,100.000,150.000,0.005000,1500.000,0.000,1500.000,1500.000,0,0,1,0.000,0,1,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,settle_delay,4,15,5,250.000,180.000,70.000,0.005000,700.000,0.000,700.000,700.000,0,0,1,0.000,0,1,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,settled_press,5,35,6,250.000,200.000,50.000,0.020000,500.000,100.000,600.000,600.000,0,1,0,0.000,600,2,1
+FORCE_PI_TRACE,SYNTHETIC_INPUT,pulse_busy,6,40,6,250.000,210.000,40.000,0.005000,400.000,100.000,500.000,500.000,0,0,1,0.000,0,2,1
+FORCE_PI_TRACE,SYNTHETIC_INPUT,after_completion_settle,7,50,5,250.000,240.000,10.000,0.010000,100.000,100.000,200.000,200.000,0,0,1,0.000,0,2,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,synthetic_hold_entry,8,60,7,250.000,250.000,0.000,0.010000,0.000,100.000,100.000,100.000,0,0,1,0.000,0,2,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,hold_inside_exit_band,9,80,7,250.000,245.000,5.000,0.020000,50.000,100.000,150.000,150.000,0,0,1,0.000,0,2,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,hold_press_correction,10,100,6,250.000,230.000,20.000,0.020000,200.000,140.000,340.000,340.000,0,1,0,0.000,340,3,1
+FORCE_PI_TRACE,SYNTHETIC_INPUT,wrong_press_inhibited,11,121,5,250.000,260.000,-10.000,0.021000,-100.000,140.000,40.000,40.000,0,0,3,40.000,0,3,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,hold_wrong_release_inhibited,5,66,5,250.000,230.000,20.000,0.020000,0.000,-100.000,-100.000,-100.000,0,0,3,-100.000,0,1,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,hold_wrong_press_inhibited,5,66,5,250.000,270.000,-20.000,0.020000,-0.000,100.000,100.000,100.000,0,0,3,100.000,0,1,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,release_disabled,3,25,5,250.000,280.000,-30.000,0.020000,-300.000,0.000,-300.000,0.000,1,0,4,-300.000,0,0,0
+MACHINE_FORCE_PI=PASS SYNTHETIC_INPUT Locked/Host pulse strategy only
+HOST_TEST_RESULT=test_machine_force_pi_locked_O0 PASS
+HOST_TEST=test_machine_force_pi_REAL_COMPILE_CHECK_O0
+MACHINE_FORCE_PI_REAL_POLICY=PASS AUTO/PI unsupported; direct profile preserved
+HOST_TEST_RESULT=test_machine_force_pi_REAL_COMPILE_CHECK_O0 PASS
+HOST_TEST=test_machine_force_pi_SCOPE_TEST_O0
+MACHINE_FORCE_PI_REAL_POLICY=PASS AUTO/PI unsupported; direct profile preserved
+HOST_TEST_RESULT=test_machine_force_pi_SCOPE_TEST_O0 PASS
+HOST_TEST=test_machine_force_pi_REAL_BENCH_O0
+MACHINE_FORCE_PI_REAL_POLICY=PASS AUTO/PI unsupported; direct profile preserved
+HOST_TEST_RESULT=test_machine_force_pi_REAL_BENCH_O0 PASS
+HOST_TEST=test_force_pi_O2
+FORCE_PI_CORE=PASS SYNTHETIC_INPUT mathematical tests only
+HOST_TEST_RESULT=test_force_pi_O2 PASS
+HOST_TEST=test_machine_force_pi_locked_O2
+FORCE_PI_TRACE,SYNTHETIC_INPUT,approach_first_observation,2,5,4,250.000,80.000,170.000,0.000000,1700.000,0.000,1700.000,1700.000,0,0,1,0.000,0,1,1
+FORCE_PI_TRACE,SYNTHETIC_INPUT,contact_output_off,3,10,5,250.000,100.000,150.000,0.005000,1500.000,0.000,1500.000,1500.000,0,0,1,0.000,0,1,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,settle_delay,4,15,5,250.000,180.000,70.000,0.005000,700.000,0.000,700.000,700.000,0,0,1,0.000,0,1,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,settled_press,5,35,6,250.000,200.000,50.000,0.020000,500.000,100.000,600.000,600.000,0,1,0,0.000,600,2,1
+FORCE_PI_TRACE,SYNTHETIC_INPUT,pulse_busy,6,40,6,250.000,210.000,40.000,0.005000,400.000,100.000,500.000,500.000,0,0,1,0.000,0,2,1
+FORCE_PI_TRACE,SYNTHETIC_INPUT,after_completion_settle,7,50,5,250.000,240.000,10.000,0.010000,100.000,100.000,200.000,200.000,0,0,1,0.000,0,2,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,synthetic_hold_entry,8,60,7,250.000,250.000,0.000,0.010000,0.000,100.000,100.000,100.000,0,0,1,0.000,0,2,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,hold_inside_exit_band,9,80,7,250.000,245.000,5.000,0.020000,50.000,100.000,150.000,150.000,0,0,1,0.000,0,2,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,hold_press_correction,10,100,6,250.000,230.000,20.000,0.020000,200.000,140.000,340.000,340.000,0,1,0,0.000,340,3,1
+FORCE_PI_TRACE,SYNTHETIC_INPUT,wrong_press_inhibited,11,121,5,250.000,260.000,-10.000,0.021000,-100.000,140.000,40.000,40.000,0,0,3,40.000,0,3,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,hold_wrong_release_inhibited,5,66,5,250.000,230.000,20.000,0.020000,0.000,-100.000,-100.000,-100.000,0,0,3,-100.000,0,1,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,hold_wrong_press_inhibited,5,66,5,250.000,270.000,-20.000,0.020000,-0.000,100.000,100.000,100.000,0,0,3,100.000,0,1,0
+FORCE_PI_TRACE,SYNTHETIC_INPUT,release_disabled,3,25,5,250.000,280.000,-30.000,0.020000,-300.000,0.000,-300.000,0.000,1,0,4,-300.000,0,0,0
+MACHINE_FORCE_PI=PASS SYNTHETIC_INPUT Locked/Host pulse strategy only
+HOST_TEST_RESULT=test_machine_force_pi_locked_O2 PASS
+HOST_TEST=test_machine_force_pi_REAL_COMPILE_CHECK_O2
+MACHINE_FORCE_PI_REAL_POLICY=PASS AUTO/PI unsupported; direct profile preserved
+HOST_TEST_RESULT=test_machine_force_pi_REAL_COMPILE_CHECK_O2 PASS
+HOST_TEST=test_machine_force_pi_SCOPE_TEST_O2
+MACHINE_FORCE_PI_REAL_POLICY=PASS AUTO/PI unsupported; direct profile preserved
+HOST_TEST_RESULT=test_machine_force_pi_SCOPE_TEST_O2 PASS
+HOST_TEST=test_machine_force_pi_REAL_BENCH_O2
+MACHINE_FORCE_PI_REAL_POLICY=PASS AUTO/PI unsupported; direct profile preserved
+HOST_TEST_RESULT=test_machine_force_pi_REAL_BENCH_O2 PASS
+HOST_TEST=test_pressure_sensor_protocol
+HOST_TEST_RESULT=test_pressure_sensor_protocol PASS
+HOST_TEST=test_modbus_crc16
+HOST_TEST_RESULT=test_modbus_crc16 PASS
+HOST_TEST=test_pressure_receiver
+Pressure receiver host tests: PASS
+HOST_TEST_RESULT=test_pressure_receiver PASS
+HOST_TEST=test_motor_executor_locked
+Locked MotorExecutor host tests: PASS
+HOST_TEST_RESULT=test_motor_executor_locked PASS
+HOST_TEST=test_benchmark0
+Benchmark 0 / Machine M01-M20 host tests: PASS
+HOST_TEST_RESULT=test_benchmark0 PASS
+HOST_TEST=test_modbus_rtu
+Modbus RTU host tests: PASS
+HOST_TEST_RESULT=test_modbus_rtu PASS
+HOST_TEST=test_modbus_uart_ingress_concurrency
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+Modbus UART SPSC concurrency stress test: PASS
+HOST_TEST_RESULT=test_modbus_uart_ingress_concurrency PASS
+CONCURRENCY_STRESS_REPEATS=20
+CONCURRENCY_STRESS_RESULT=PASS
+HOST_TEST=test_runtime_integration
+Runtime integration host tests: PASS
+HOST_TEST_RESULT=test_runtime_integration PASS
+HOST_TEST=test_motor_executor_real
+COMPLETION_WINDOW direction=0 event=0 window=0
+COMPLETION_WINDOW direction=0 event=0 window=1
+COMPLETION_WINDOW direction=0 event=0 window=2
+COMPLETION_WINDOW direction=0 event=0 window=3
+COMPLETION_WINDOW direction=0 event=1 window=0
+COMPLETION_WINDOW direction=0 event=1 window=1
+COMPLETION_WINDOW direction=0 event=1 window=2
+COMPLETION_WINDOW direction=0 event=1 window=3
+COMPLETION_WINDOW direction=0 event=2 window=0
+COMPLETION_WINDOW direction=0 event=2 window=1
+COMPLETION_WINDOW direction=0 event=2 window=2
+COMPLETION_WINDOW direction=0 event=2 window=3
+COMPLETION_WINDOW direction=1 event=0 window=0
+COMPLETION_WINDOW direction=1 event=0 window=1
+COMPLETION_WINDOW direction=1 event=0 window=2
+COMPLETION_WINDOW direction=1 event=0 window=3
+COMPLETION_WINDOW direction=1 event=1 window=0
+COMPLETION_WINDOW direction=1 event=1 window=1
+COMPLETION_WINDOW direction=1 event=1 window=2
+COMPLETION_WINDOW direction=1 event=1 window=3
+COMPLETION_WINDOW direction=1 event=2 window=0
+COMPLETION_WINDOW direction=1 event=2 window=1
+COMPLETION_WINDOW direction=1 event=2 window=2
+COMPLETION_WINDOW direction=1 event=2 window=3
+COMPLETION_WINDOW direction=0 event=0 window=4
+COMPLETION_WINDOW direction=0 event=0 window=5
+COMPLETION_WINDOW direction=0 event=0 window=6
+COMPLETION_WINDOW direction=0 event=0 window=7
+COMPLETION_WINDOW direction=0 event=1 window=4
+COMPLETION_WINDOW direction=0 event=1 window=5
+COMPLETION_WINDOW direction=0 event=1 window=6
+COMPLETION_WINDOW direction=0 event=1 window=7
+COMPLETION_WINDOW direction=0 event=2 window=4
+COMPLETION_WINDOW direction=0 event=2 window=5
+COMPLETION_WINDOW direction=0 event=2 window=6
+COMPLETION_WINDOW direction=0 event=2 window=7
+COMPLETION_WINDOW direction=1 event=0 window=4
+COMPLETION_WINDOW direction=1 event=0 window=5
+COMPLETION_WINDOW direction=1 event=0 window=6
+COMPLETION_WINDOW direction=1 event=0 window=7
+COMPLETION_WINDOW direction=1 event=1 window=4
+COMPLETION_WINDOW direction=1 event=1 window=5
+COMPLETION_WINDOW direction=1 event=1 window=6
+COMPLETION_WINDOW direction=1 event=1 window=7
+COMPLETION_WINDOW direction=1 event=2 window=4
+COMPLETION_WINDOW direction=1 event=2 window=5
+COMPLETION_WINDOW direction=1 event=2 window=6
+COMPLETION_WINDOW direction=1 event=2 window=7
+Real MotorExecutor host tests: PASS
+HOST_TEST_RESULT=test_motor_executor_real PASS
+HOST_TEST=test_motor_executor_real_compile_check
+RealCompileCheck fail-safe host test: PASS
+HOST_TEST_RESULT=test_motor_executor_real_compile_check PASS
+HOST_TEST=test_machine_real_integration
+Machine + Real MotorExecutor integration host test: PASS
+HOST_TEST_RESULT=test_machine_real_integration PASS
+HOST_TEST=test_direct_pulse_locked
+Direct pulse Machine policy host tests: PASS
+HOST_TEST_RESULT=test_direct_pulse_locked PASS
+HOST_TEST=test_direct_pulse_real_compile_check
+Direct pulse Machine policy host tests: PASS
+HOST_TEST_RESULT=test_direct_pulse_real_compile_check PASS
+HOST_TEST=test_direct_pulse_scope_test
+Direct pulse Machine policy host tests: PASS
+HOST_TEST_RESULT=test_direct_pulse_scope_test PASS
+HOST_TEST=test_direct_pulse_real_bench
+Direct pulse Machine policy host tests: PASS
+HOST_TEST_RESULT=test_direct_pulse_real_bench PASS
+HOST_TEST=test_modbus_direct_locked
+Modbus direct pulse and STOP priority host tests: PASS
+HOST_TEST_RESULT=test_modbus_direct_locked PASS
+HOST_TEST=test_modbus_direct_real_compile_check
+Modbus direct pulse and STOP priority host tests: PASS
+HOST_TEST_RESULT=test_modbus_direct_real_compile_check PASS
+HOST_TEST=test_modbus_direct_scope_test
+Modbus direct pulse and STOP priority host tests: PASS
+HOST_TEST_RESULT=test_modbus_direct_scope_test PASS
+HOST_TEST=test_modbus_direct_real_bench
+Modbus direct pulse and STOP priority host tests: PASS
+HOST_TEST_RESULT=test_modbus_direct_real_bench PASS
+HOST_TEST=test_direct_pulse_full_chain_scope_test
+Full-chain Service/Guard races (PRESS/RELEASE, all events): PASS
+MACHINE_VALIDATION_RACE coil=3 fault=0 detail=0
+MACHINE_VALIDATION_RACE coil=2 fault=0 detail=0
+Full-chain direct-pulse ScopeTest host test: PASS
+HOST_TEST_RESULT=test_direct_pulse_full_chain_scope_test PASS
+HOST_TEST=test_direct_pulse_full_chain_real_bench
+Full-chain Service/Guard races (PRESS/RELEASE, all events): PASS
+MACHINE_VALIDATION_RACE coil=3 fault=0 detail=0
+MACHINE_VALIDATION_RACE coil=2 fault=0 detail=0
+Full-chain direct-pulse RealBench host test: PASS
+HOST_TEST_RESULT=test_direct_pulse_full_chain_real_bench PASS
+HOST_TEST=test_motor_stop_timer_tim5
+Concrete TIM5 stop timer host tests: PASS
+HOST_TEST_RESULT=test_motor_stop_timer_tim5 PASS
+HOST_TEST=test_motor_hw_real_diagnostics
+Actual real motor HW diagnostic host tests: PASS
+HOST_TEST_RESULT=test_motor_hw_real_diagnostics PASS
+DIRECT_COMMAND_PATH=Modbus->Machine->MotorExecutor_StartPulse
+NO_DIRECT_HW_WRITES=PASS
+CAPTURE_PRESSURE_RESPONSE_SELF_TEST=PASS
+HOST_TEST_SUITE=PASS

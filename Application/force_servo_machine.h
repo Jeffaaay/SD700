@@ -18,7 +18,8 @@
  X(boost_peak_command) X(boost_before_received_ms) X(boost_after_received_ms) X(boost_after_valid) \
  X(assist_admission) X(assist_exit) X(assist_requested_peak) X(assist_peak_ccr) \
  X(assist_rise_ms) X(assist_normal_end_ms) X(cooling_until_ms) X(cooling_active) \
- X(assist_response_pending) X(assist_after_result) X(boost_after_sample_hi) X(boost_after_sample_lo)
+ X(assist_response_pending) X(assist_after_result) X(boost_after_sample_hi) X(boost_after_sample_lo) \
+ X(run_reason) X(target_reached) X(target_reached_ms) X(plan_version) X(plan_digest)
 #define FORCE_SERVO_DIAG_FLOAT(X) \
  X(dt_s) X(filtered) X(target) X(reference) X(reference_rate) X(error) \
  X(p) X(i) X(d) X(ff) X(raw_output) X(control_committed) X(next_integral) X(current_committed) \
@@ -36,6 +37,11 @@ typedef struct {
 } ForceServoDiagnostic;
 #define FORCE_SERVO_DIAG_WORDS (sizeof(ForceServoDiagnostic)/2U)
 typedef struct {
+ ForceCharacterizationPlan plan;
+ uint16_t plan_staging[10], plan_ack[4];
+ uint16_t plan_mask, plan_read_mask, plan_ack_mask;
+ uint32_t plan_version, plan_digest;
+ bool plan_staging_open, plan_available, plan_armed;
  ForceServoConfig config;
  ForceServoProfile profile;
  ForceServo controller;

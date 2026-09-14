@@ -8,16 +8,22 @@ param(
     [string]$RealBenchAck = "",
     [switch]$AutoTarget,
     [switch]$ForceServo,
-    [switch]$StaticForceAuthority2
+    [switch]$StaticForceAuthority2,
+    [switch]$StaticForceRuntimeCharacterization1
 )
 
 $ErrorActionPreference = "Stop"
+if ($StaticForceRuntimeCharacterization1) {
+    if (-not $ForceServo -or $StaticForceAuthority2) { throw 'Characterization requires -ForceServo and excludes old profile selection' }
+    Write-Host 'STATIC_FORCE_RUNTIME_CHARACTERIZATION1; ONE_RUNTIME_PLAN; USER_CONFIRMED_SENSOR_N; PHYSICAL_NOT_RUN'
+}
 if ($StaticForceAuthority2 -and -not $ForceServo) { throw 'StaticForceAuthority2 requires -ForceServo' }
 if ($ForceServo -and ($AutoTarget -or $MotorMode -ne 'RealBench')) {
     throw 'ForceServo requires RealBench and excludes AutoTarget'
 }
 if ($ForceServo) {
-    if ($StaticForceAuthority2) { Write-Host 'STATIC_FORCE_AUTHORITY2_REVIEWFIX; LIVE_PRESS_720_RELEASE_100_NO_ASSIST; CANDIDATES_20_30_40_PERCENT_DISABLED_UNREVIEWED_TIME_COOLING; PHYSICAL_TEST_NOT_RUN' }
+    if ($StaticForceRuntimeCharacterization1) { Write-Host 'RUNTIME_CHARACTERIZATION_GUARDED_OUTPUT; PI_AND_TIMING_LOCKED' }
+    elseif ($StaticForceAuthority2) { Write-Host 'STATIC_FORCE_AUTHORITY2_REVIEWFIX; LIVE_PRESS_720_RELEASE_100_NO_ASSIST; CANDIDATES_20_30_40_PERCENT_DISABLED_UNREVIEWED_TIME_COOLING; PHYSICAL_TEST_NOT_RUN' }
     else { Write-Host 'FORCE_SERVO1_PHYSICAL_OUTPUT_LOCKED; COMMISSIONING_NOT_TUNED' }
 }
 
@@ -44,7 +50,8 @@ if ($MotorMode -eq "RealBench") {
     Write-Host "REAL_MOTOR_MAY_MOVE"
     Write-Host "LOW_ENERGY_SUPPLY_ESTOP_AND_CLEARANCE_REQUIRED"
     if ($ForceServo) {
-        if ($StaticForceAuthority2) { Write-Host 'PROFILE_SELECTED; NEXT_FRESH_SAMPLE_START; CONTINUOUS_ONLY; EXISTING_HW_GUARD_REQUIRED' }
+        if ($StaticForceRuntimeCharacterization1) { Write-Host 'RUNTIME_CHARACTERIZATION_GUARDED_OUTPUT; PI_AND_TIMING_LOCKED' }
+    elseif ($StaticForceAuthority2) { Write-Host 'PROFILE_SELECTED; NEXT_FRESH_SAMPLE_START; CONTINUOUS_ONLY; EXISTING_HW_GUARD_REQUIRED' }
         else { Write-Host 'FORCE_SERVO_CONTROLLER_IMPLEMENTED; ALL_TARGET_OUTPUT_LOCKED' }
     } elseif ($AutoTarget) {
         Write-Host 'AUTO_TARGET_OPERATOR_START_ENABLED; BOOT_SAFE_TO_IDLE'
@@ -123,7 +130,8 @@ if ($MotorMode -eq "RealBench") {
 }
 if ($AutoTarget) { $defines += 'SD700_AUTO_TARGET_ENABLED=1' }
 if ($ForceServo) { $defines += 'SD700_FORCE_SERVO_ENABLED=1' }
-if ($StaticForceAuthority2) { $defines += 'SD700_FORCE_SERVO_COMMISSIONING=1' }
+if ($StaticForceAuthority2 -or $StaticForceRuntimeCharacterization1) { $defines += 'SD700_FORCE_SERVO_COMMISSIONING=1' }
+if ($StaticForceRuntimeCharacterization1) { $defines += 'SD700_FORCE_CHARACTERIZATION=1' }
 
 $includes = @(
     ".",

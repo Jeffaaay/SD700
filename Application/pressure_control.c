@@ -14,7 +14,8 @@ bool PressureControl_ConvertRawCounts(uint16_t raw_pressure_counts,
 
 #if SD700_BENCH_RAW_COUNTS_CONTROL
     /* Existing sensor-count identity conversion; also used by AutoTarget.
-     * No force calibration or Newton conversion is implied. */
+     * The consuming profile owns units: characterization unit2 declares the
+     * user-confirmed installed sensor 1 reported unit = 1 N; no new calibration. */
     *control_pressure_units = (int32_t)raw_pressure_counts;
     return true;
 #else
