@@ -1,4 +1,4 @@
-param([string]$OutputDirectory='output/StaticForceRuntimeCharacterization1/capture-tests')
+param([string]$OutputDirectory='output/StaticForceRuntimeCharacterization2/capture-tests')
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
 . "$root/tools/capture_force_servo.ps1" -LibraryOnly -Characterization
@@ -20,8 +20,10 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
     $clock=[pscustomobject]@{ElapsedMilliseconds=0L}
     $sim=@{Config=(Defaults $schema.parameters);Profile=(Defaults $schema.profile);Plan=(New-CharacterizationPlan 1 0 0);
         Version=0;Digest=0;Stages=@{};Ack=@{};PlanReads=0;Armed=$false;Starts=0;Stops=0;Framed=0;Committed=$false;
-        Running=$false;Frozen=@();Requests=(New-Object Collections.ArrayList);Confirmations=0}
+        StartedAt=0L;Running=$false;Frozen=@();Requests=(New-Object Collections.ArrayList);Confirmations=0}
     if ($Failure -eq 'GainChanged') { $sim.Config.kp=11 }
+    if ($Failure -eq 'SessionChanged') { $sim.Config.session_ms=5000 }
+    if ($Failure -eq 'BuildChanged') { $sim.Profile.build_ms=5000 }
     $transport={param([byte[]]$Request,[int]$TimeoutMs)
         Check (Test-ModbusCrc $Request) 'Bad outbound CRC'
         $f=[int]$Request[1];$a=256*[int]$Request[2]+$Request[3];$n=256*[int]$Request[4]+$Request[5]
@@ -33,7 +35,7 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
             if ($a -eq 1 -and $n -eq 0) { $sim.Stops++;$sim.Running=$false;$sim.Armed=$false }
             else {
                 Check ($a -eq 0x10 -and $n -eq 0xFF00 -and $sim.Armed -and $sim.Starts -eq 0 -and $sim.Confirmations -eq 1) 'START bypassed complete plan/readback/confirmation or retried'
-                $sim.Starts++;$sim.Running=$true;$sim.Armed=$false
+                $sim.Starts++;$sim.Running=$true;$sim.Armed=$false;$sim.StartedAt=$clock.ElapsedMilliseconds
             }
             $response=$Request
         } elseif ($f -eq 6) {
@@ -64,12 +66,17 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
                 $values=@{schema=$schema.schema;build_id=$schema.build_id;config_version=($sim.Version+1);config_digest=$configDigest;
                     profile_id=5;profile_digest=$profileDigest;unit=2;measured_valid=1;state=1;output_off=1;
                     now_ms=$clock.ElapsedMilliseconds;latest_received_ms=$clock.ElapsedMilliseconds;received_ms=$clock.ElapsedMilliseconds;
-                    latest_raw=30;raw=30;measured=30;force_N=30;target=$sim.Plan.target_N;plan_version=$sim.Version;plan_digest=$sim.Digest;
+                    latest_raw=0;raw=0;measured=0;force_N=0;target=$sim.Plan.target_N;plan_version=$sim.Version;plan_digest=$sim.Digest;
                     session=$sim.Starts;session_peak_raw=32;session_peak_measured=32;control_sequence=$sim.Starts;
                     cooling_active=[int]($Failure -eq 'Lockout');target_reached=0;run_reason=0}
                 if ($sim.Running) { $values.state=13;$values.lease_active=1;$values.output_off=0;$values.current_committed=10;$values.tim3=2 }
+                if ($sim.Running -and $clock.ElapsedMilliseconds-$sim.StartedAt -ge 6000) {
+                    $values.state=14;$values.target_reached=1;$values.target_reached_ms=$sim.StartedAt+6000
+                    $values.measured=$sim.Plan.target_N;$values.force_N=$sim.Plan.target_N
+                    $values.latest_raw=$sim.Plan.target_N;$values.raw=$sim.Plan.target_N;$values.hold_ms=$clock.ElapsedMilliseconds-$sim.StartedAt-6000
+                }
                 if ($Failure -eq 'RunningFault' -and $sim.Starts) { $values.state=9;$values.fault=2;$values.detail=2;$values.run_reason=2;$values.output_off=1;$values.lease_active=0;$values.current_committed=0;$values.tim3=0 }
-                if ($Failure -eq 'Boundary' -and $sim.Starts) {
+                if ($sim.Starts -and ($Failure -eq 'Boundary' -or ($Target -eq 3000 -and $clock.ElapsedMilliseconds-$sim.StartedAt -ge 6000))) {
                     $values.state=1;$values.run_reason=5;$values.target_reached=1;$values.target_reached_ms=1000
                     $values.measured=3000;$values.force_N=3000;$values.latest_raw=3000;$values.raw=3000;$values.session_peak_raw=3000;$values.session_peak_measured=3000
                     $values.output_off=1;$values.lease_active=0;$values.current_committed=0;$values.tim3=0
@@ -105,20 +112,30 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
             [byte[]]$payload=@(1,$f,(2*$n));foreach ($w in $words) { $payload+=@([byte]($w -shr 8),[byte]($w -band 255)) };$response=Add-ModbusCrc $payload
         }
         if (($Failure -eq 'StartEchoTimeout' -and $f -eq 5 -and $a -eq 0x10) -or
-            ($Failure -eq 'PlanTimeout' -and $f -eq 3 -and $a -eq 0x540 -and $sim.Committed)) { $response=[byte[]]$response[0..1] }
+            ($Failure -eq 'PlanTimeout' -and $f -eq 3 -and $a -eq 0x540 -and $sim.Committed) -or
+            ($Failure -eq 'RunningTimeout' -and $sim.Running -and $clock.ElapsedMilliseconds-$sim.StartedAt -ge 6500)) { $response=[byte[]]$response[0..1] }
         $sim.Framed++
         Read-TestLengthAwareResponse -Response $response -ChunkSizes @(1,1,1,2,3,4) -TimeoutMs $TimeoutMs
     }.GetNewClosure()
     $sleep={param($ms) $clock.ElapsedMilliseconds+=$ms}.GetNewClosure()
     $confirm={param($p) $sim.Confirmations++; return $Failure -ne 'Cancel'}.GetNewClosure()
     $csv=Join-Path $directory 'SYNTHETIC.csv';$errorText=''
+    $manualStop={
+        if ($sim.Starts -and $clock.ElapsedMilliseconds-$sim.StartedAt -ge 12000) {
+            Check ((Get-Item -LiteralPath $csv).Length -gt 0) 'Capture did not preserve CSV during the run'
+            $saved=@(Import-Csv -LiteralPath $csv)
+            Check (@($saved | Where-Object { $_.phase -eq 'RUN' -and $_.state -eq 14 }).Count -gt 0) 'Capture stopped before target/HOLD after5s'
+            return $true
+        }
+        return $false
+    }.GetNewClosure()
     try {
         Invoke-ForceCapture -TransportExchange $transport -Watch $clock -SleepMilliseconds $sleep -Mode $Mode `
-            -OutputCsv $csv -ActualHash 'SYNTHETIC_NO_HARDWARE' -MaximumSeconds 5 -Target ([int]$Target) -TargetN -ProfileId 5 `
+            -OutputCsv $csv -ActualHash 'SYNTHETIC_NO_HARDWARE' -MaximumSeconds $(if ($Mode -eq 'SingleStart') {0} else {5}) -StopRequested $manualStop -Target ([int]$Target) -TargetN -ProfileId 5 `
             -CharacterizationPlan (New-CharacterizationPlan $Target $Assist $Continuous) -ConfirmStart $confirm `
             -CurrentLimitSetting 'SYNTHETIC 0.5 A PSU label ONLY' -InitialGap 'SYNTHETIC' -RepositoryCommit 'SYNTHETIC' | Out-Null
     } catch { $errorText=$_.Exception.Message }
-    $zero=$Mode -eq 'Observe' -or $Failure -in @('GainChanged','PlanMismatch','DigestMismatch','StaleVersion','Lockout','Cancel','PlanTimeout')
+    $zero=$Mode -eq 'Observe' -or $Failure -in @('GainChanged','SessionChanged','BuildChanged','PlanMismatch','DigestMismatch','StaleVersion','Lockout','Cancel','PlanTimeout')
     $expected=[int](-not $zero)
     Check ($sim.Starts -eq $expected -and $sim.Stops -eq 1) "$Name START/STOP count, error=$errorText"
     Check ($sim.Framed -eq $sim.Requests.Count) "$Name bypassed production framing"
@@ -131,6 +148,23 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
         Check ($meta.runtime_plan.target_N -eq $Target -and $meta.runtime_plan.assist_command -eq (Convert-CharacterizationPercent $Assist) -and
             $meta.runtime_plan.continuous_cap -eq (Convert-CharacterizationPercent $Continuous)) "$Name runtime plan metadata"
         Check ($meta.config.kp -eq 10 -and $meta.config.ki -eq 0 -and $meta.config.kd -eq 0 -and $meta.config.measurement_filter_s -eq 0) 'Field gains/filter changed'
+    }
+    if ($expected -and -not $Failure -and $Target -lt 3000) {
+        Check ($meta.stop_reason -eq 'OPERATOR_STOP' -and $null -eq $meta.maximum_observation_seconds) 'Unexpected automatic capture stop'
+        Check ($meta.stop_sent_pc_ms-$sim.StartedAt -ge 12000) 'Capture still has an overall deadline'
+        Check ($meta.capture_end_policy -eq 'OPERATOR_STOP_OR_DEVICE_TERMINAL_OR_FAULT') 'Missing unlimited capture policy'
+        Check ($meta.config.session_ms -eq 0 -and $meta.profile.build_ms -eq 0 -and $meta.profile.capture_ms -eq 0) 'Wrong time contract'
+        $saved=@(Import-Csv -LiteralPath $csv)
+        Check ($saved[0].measured -eq 0 -and $saved[-1].phase -eq 'STOP_READBACK') 'Zero-start or complete streamed capture lost'
+    }
+    if ($expected -and $Target -eq 3000) {
+        Check ($meta.stop_reason -eq 'DEVICE_IDLE_AFTER_START' -and $null -eq $meta.maximum_observation_seconds) 'Boundary did not terminate without a capture deadline'
+        Check ($report.mcu_stop_reason -eq 'BOUNDARY_TARGET_REACHED' -and $report.target_reached) 'Boundary report lost target event'
+        Check (@(Import-Csv -LiteralPath $csv | Where-Object { $_.state -eq 14 }).Count -eq 0) 'Target3000 entered HOLD'
+    }
+    if ($Failure -eq 'RunningTimeout') {
+        Check ($meta.stop_reason -eq 'CAPTURE_ERROR' -and $meta.communication_errors.Count -eq 1) 'Real timeout disguised as observation complete'
+        Check ($meta.stop_sent_pc_ms-$sim.StartedAt -ge 6500) 'Late timeout was not exercised'
     }
     if ($Failure -eq 'StartEchoTimeout') { Check ($null -eq $meta.start_accepted) 'Lost echo was falsely labeled rejection' }
     $sim.Requests | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory 'wire_requests.json') -Encoding UTF8
@@ -147,7 +181,7 @@ Capture-Case Target650 650 25 8.5
 Capture-Case Target2999 2999 35 6
 Capture-Case Boundary 3000 40 10 Boundary
 Capture-Case Zeros 250 0 0
-foreach ($failure in @('GainChanged','PlanMismatch','DigestMismatch','StaleVersion','Lockout','Cancel','PlanTimeout','StartEchoTimeout','RunningFault')) {
+foreach ($failure in @('GainChanged','SessionChanged','BuildChanged','PlanMismatch','DigestMismatch','StaleVersion','Lockout','Cancel','PlanTimeout','StartEchoTimeout','RunningFault','RunningTimeout')) {
     Capture-Case $failure 500 30 7.5 $failure
 }
 # Parse README literal field examples and run them through the production capture core;
@@ -172,4 +206,4 @@ foreach ($example in $examples) {
 $wrapperTokens=$null;$wrapperErrors=$null
 [void][Management.Automation.Language.Parser]::ParseFile("$root/tools/run_force_characterization.ps1",[ref]$wrapperTokens,[ref]$wrapperErrors)
 Check ($wrapperErrors.Count -eq 0) 'Invalid field wrapper syntax'
-Write-Output 'CHARACTERIZATION_CAPTURE_CASES=21 + INVALID_INPUTS=6 PASS; PHYSICAL_NOT_RUN'
+Write-Output 'CHARACTERIZATION_CAPTURE_CASES=24 + INVALID_INPUTS=6 PASS; PHYSICAL_NOT_RUN'

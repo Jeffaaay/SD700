@@ -6,16 +6,18 @@
 #include "Application/force_servo_output_profile.h"
 
 #if SD700_FORCE_CHARACTERIZATION
-#define FORCE_SERVO_SCHEMA 0xF108U
-#define FORCE_SERVO_BUILD_ID 0x4653010AU
+#define FORCE_SERVO_SCHEMA 0xF109U
+#define FORCE_SERVO_BUILD_ID 0x4653010BU
 #define FS_CONFIG_PRESS_MIN 0
-#define FS_CONFIG_SESSION_MS 5000
+#define FS_CONFIG_SESSION_MS 0
+#define FS_CONFIG_SESSION_MIN 0
 #define FS_CONFIG_TRACKING_MS 5000
 #else
 #define FORCE_SERVO_SCHEMA 0xF107U
 #define FORCE_SERVO_BUILD_ID 0x46530109U
 #define FS_CONFIG_PRESS_MIN 1
 #define FS_CONFIG_SESSION_MS 45000
+#define FS_CONFIG_SESSION_MIN 1000
 #define FS_CONFIG_TRACKING_MS 10000
 #endif
 #define FORCE_SERVO_REPRESENTABLE 100000.0f
@@ -49,7 +51,7 @@
  X(control_min_ms,5,1,50) X(feedback_gap_ms,FS_FEEDBACK_GAP,2,FS_FEEDBACK_GAP) \
  X(sample_age_ms,20,1,20) X(lease_ms,FS_LEASE,3,FS_LEASE) \
  X(hold_enter,5,0.1f,20) X(hold_exit,10,0.2f,40) \
- X(session_ms,FS_CONFIG_SESSION_MS,1000,60000) X(saturation_ms,5000,100,30000) \
+ X(session_ms,FS_CONFIG_SESSION_MS,FS_CONFIG_SESSION_MIN,60000) X(saturation_ms,5000,100,30000) \
  X(tracking_error,50,1,275) X(tracking_ms,FS_CONFIG_TRACKING_MS,100,30000) \
  X(reverse_deadtime_ms,2,2,100) X(hold_dwell_ms,500,0,30000)
 

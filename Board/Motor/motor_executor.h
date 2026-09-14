@@ -90,6 +90,8 @@ bool MotorExecutor_ContinuousExpired(void);
 MotorResult MotorExecutor_BeginContinuous(uint32_t *token);
 /* Fixed monotonic deadlines; timer compare is min(receive lease, session,
  * active high-output deadline). A new sample cannot extend either budget. */
+/* duration_ms==0 is supported only by runtime characterization: no absolute
+ * session deadline, while normal_cap, receive lease and assist cutoff still apply. */
 bool MotorExecutor_SetContinuousBudget(uint32_t token,uint32_t now_ms,uint32_t duration_ms,int32_t normal_cap);
 bool MotorExecutor_ArmContinuousBoost(uint32_t token,uint32_t now_ms,uint32_t duration_ms);
 bool MotorExecutor_EndContinuousBoost(uint32_t token);

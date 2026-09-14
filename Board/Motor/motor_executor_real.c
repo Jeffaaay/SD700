@@ -11,7 +11,7 @@ static bool s_servo_has_sequence;
 static int32_t s_servo_committed;
 static int s_servo_last_sign;
 static uint32_t s_servo_off_ms;
-static bool s_budget_set, s_boost_set, s_boost_used, s_boost_end;
+static bool s_budget_set, s_session_limited, s_boost_set, s_boost_used, s_boost_end;
 static uint32_t s_session_deadline, s_boost_deadline, s_receive_deadline;
 static int32_t s_normal_cap;
 static bool s_boost_plan;
@@ -802,7 +802,7 @@ MotorResult MotorExecutor_BeginContinuous(uint32_t *token)
         if (++s_servo_generation==0) ++s_servo_generation;
         *token=s_servo_generation; s_servo_open=true; s_servo_has_sequence=false;
         s_servo_committed=0; s_servo_last_sign=0;
-        s_budget_set=false; s_boost_set=false; s_boost_used=false; s_boost_end=false; s_boost_plan=false;
+        s_budget_set=false; s_session_limited=false; s_boost_set=false; s_boost_used=false; s_boost_end=false; s_boost_plan=false;
         s_motor.boost_started_ms=0; s_motor.boost_deadline_ms=0; s_motor.boost_planned_end_ms=0;
         s_motor.last_action=MOTOR_ACTION_CONTINUOUS; s_motor.last_completion=MOTOR_COMPLETION_NONE;
         r=MOTOR_RESULT_OK;
@@ -814,8 +814,9 @@ bool MotorExecutor_SetContinuousBudget(uint32_t token,uint32_t now,uint32_t dura
 {
     uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
     bool ok=s_servo_open && token==s_servo_generation && !s_budget_set && !s_servo_has_sequence &&
-        duration>=3 && duration<=60000 && (cap>0 || (SD700_FORCE_CHARACTERIZATION && cap==0)) && cap<=FS_CONTINUOUS_CEILING;
-    if (ok) { s_budget_set=true; s_session_deadline=now+duration; s_normal_cap=cap; }
+        ((duration>=3 && duration<=60000) || (SD700_FORCE_CHARACTERIZATION && duration==0)) && (cap>0 || (SD700_FORCE_CHARACTERIZATION && cap==0)) && cap<=FS_CONTINUOUS_CEILING;
+    /* Keep the amplitude budget even when the runtime session has no time limit. */
+    if (ok) { s_budget_set=true; s_session_limited=duration!=0; s_session_deadline=now+duration; s_normal_cap=cap; }
     MotorAtomic_Leave(key); return ok;
 }
 bool MotorExecutor_ArmContinuousBoost(uint32_t token,uint32_t now,uint32_t duration)
@@ -824,7 +825,7 @@ bool MotorExecutor_ArmContinuousBoost(uint32_t token,uint32_t now,uint32_t durat
     bool ok=s_servo_open && token==s_servo_generation && s_budget_set && !s_boost_used &&
         duration>=3 && duration<=60000 &&
         (!SD700_FORCE_SERVO_COMMISSIONING || FS_SYNTHETIC_BOOST || duration<=FS_APPROVED_PEAK_MS) &&
-        (int32_t)(s_session_deadline-now)>(int32_t)duration &&
+        (!s_session_limited || (int32_t)(s_session_deadline-now)>(int32_t)duration) &&
         MotorExecutor_ActiveRequestIsValid();
     if (ok) { s_boost_set=true; s_boost_used=true; s_boost_deadline=now+duration; s_boost_started=now;
         s_motor.boost_started_ms=now; s_motor.boost_deadline_ms=s_boost_deadline; }
@@ -849,7 +850,7 @@ MotorResult MotorExecutor_HandoffContinuousBoost(uint32_t token,uint32_t now,int
         requested<0 || requested>s_normal_cap || requested>s_servo_committed ||
         (s_servo_committed<0 || (!SD700_FORCE_CHARACTERIZATION && s_servo_committed==0)) || s_completion_event_pending ||
         (int32_t)(s_boost_deadline-now)<2 || (int32_t)(s_receive_deadline-now)<2 ||
-        (int32_t)(s_session_deadline-now)<2 || !MotorExecutor_ActiveRequestIsValid()) goto fail;
+        (s_session_limited && (int32_t)(s_session_deadline-now)<2) || !MotorExecutor_ActiveRequestIsValid()) goto fail;
     /* Keep the short compare armed until the LOWER hardware plan is verified.
      * CommitArm consumes pending expiry fail-closed, never clears it to succeed. */
     if (!MotorStopTimer_CommitArm()) goto fail;
@@ -866,9 +867,9 @@ MotorResult MotorExecutor_HandoffContinuousBoost(uint32_t token,uint32_t now,int
     /* Re-read time after hardware work. The old receive timestamp and absolute
      * session deadline are the only permitted normal deadline sources. */
     now=MotorAtomic_Now(now);
-    if ((int32_t)(s_receive_deadline-now)<2 || (int32_t)(s_session_deadline-now)<2) goto fail;
+    if ((int32_t)(s_receive_deadline-now)<2 || (s_session_limited && (int32_t)(s_session_deadline-now)<2)) goto fail;
     uint32_t remaining=s_receive_deadline-now;
-    if (s_session_deadline-now<remaining) remaining=s_session_deadline-now;
+    if (s_session_limited && s_session_deadline-now<remaining) remaining=s_session_deadline-now;
     if (!MotorStopTimer_RenewLease(remaining) || !MotorStopTimer_CommitArm() ||
         !s_servo_open || s_completion_event_pending) goto fail;
     s_boost_set=false; s_boost_end=false; s_boost_plan=false; s_servo_committed=requested;
@@ -920,7 +921,7 @@ MotorResult MotorExecutor_ServiceContinuousBoost(uint32_t token,uint32_t now,int
     *finished=false;
     if (!s_boost_plan || !s_boost_set || s_completion_event_pending ||
         (int32_t)(s_boost_deadline-now)<2 || (int32_t)(s_receive_deadline-now)<2 ||
-        (int32_t)(s_session_deadline-now)<2 || !MotorExecutor_ActiveRequestIsValid()) goto fail;
+        (s_session_limited && (int32_t)(s_session_deadline-now)<2) || !MotorExecutor_ActiveRequestIsValid()) goto fail;
     if ((int32_t)(now-s_boost_end_ms)>=0) {
         int32_t lower=s_boost_lower<s_servo_committed ? s_boost_lower : s_servo_committed;
         result=MotorExecutor_HandoffContinuousBoost(token,now,lower);
@@ -962,7 +963,7 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     if (!s_servo_open || token!=s_servo_generation || !committed_mv || !interlocked)
         goto done;
     if (s_servo_has_sequence && (distance==0 || distance>=(UINT64_C(1)<<63))) goto done;
-    if (s_budget_set && ((int32_t)(now_ms-s_session_deadline)>=0 ||
+    if (s_budget_set && ((s_session_limited && (int32_t)(now_ms-s_session_deadline)>=0) ||
         (s_boost_set && (int32_t)(now_ms-s_boost_deadline)>=0) ||
         (requested_mv>s_normal_cap && !s_boost_set))) goto fail;
 #if SD700_FORCE_SERVO_COMMISSIONING
@@ -1002,7 +1003,7 @@ MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     /* Arm before enabling; renew while live without clearing any pending expiry.
      * Failure at any later stage revokes the lease and forces OFF. */
     uint32_t remaining=lease_ms-age;
-    if (s_budget_set && s_session_deadline-now_ms<remaining) remaining=s_session_deadline-now_ms;
+    if (s_session_limited && s_session_deadline-now_ms<remaining) remaining=s_session_deadline-now_ms;
     uint32_t normal_remaining=remaining;
     bool end_boost=s_boost_set && s_boost_end && actual<=s_normal_cap;
     if (s_boost_set && s_boost_deadline-now_ms<remaining)

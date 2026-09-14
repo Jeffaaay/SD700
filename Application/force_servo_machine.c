@@ -274,15 +274,11 @@ void Machine_CheckPressureSafety(MachineContext *m,uint32_t now)
  }
  if (!s->active) return;
  uint32_t session_limit=(uint32_t)fminf(s->config.session_ms,fminf(s->profile.session_ms,s->profile.energized_ms));
- /* Runtime checks pressure safety BEFORE consuming the TIM5 completion. Classify
-  * its existing one-ms conservative session compare here too; never delay OFF
-  * or disguise an earlier receive/assist expiry as an ordinary session ending. */
- if (now-s->session_started_ms>=session_limit ||
-     (SD700_FORCE_CHARACTERIZATION && !s->diagnostic.boost_active &&
-      now-s->session_started_ms==session_limit-1U && MotorExecutor_ContinuousExpired() &&
-      now-m->pressure.received_at_ms<=(uint32_t)s->config.feedback_gap_ms))
+ /* Zero is the compiled runtime profile's no-overall-deadline sentinel. */
+ if (session_limit && now-s->session_started_ms>=session_limit)
      fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_SESSION_TIMEOUT,now);
- else if (s->contacted && !s->ever_held && now-s->contact_at_ms>=(uint32_t)s->profile.build_ms)
+ else if (s->profile.build_ms>0 && s->contacted && !s->ever_held &&
+          now-s->contact_at_ms>=(uint32_t)s->profile.build_ms)
      fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_CYCLE_TIMEOUT,now);
  else if (now-m->pressure.received_at_ms>(uint32_t)s->config.feedback_gap_ms)
      fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_TIMEOUT,now);
@@ -407,12 +403,15 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  if (!Machine_IsPressureFresh(m,now)) {
      fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_TIMEOUT,now); return;
  }
- if (s->contacted && s->diagnostic.contact_count && measured<s->profile.contact) {
+ if (!SD700_FORCE_CHARACTERIZATION && s->contacted && s->diagnostic.contact_count && measured<s->profile.contact) {
      s->diagnostic.contact_lost_count++; s->diagnostic.contact_lost_raw=p->raw_pressure_counts;
      fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_CONTACT_LOST,now); return;
  }
  if (s->contacted && !s->diagnostic.contact_count && measured>=s->profile.contact) {
      s->diagnostic.contact_count=1; s->diagnostic.contact_raw=p->raw_pressure_counts;
+     /* Contact is latched once, including approach from zero. It does not
+      * reset the assist ledger, controller, session or receive lease. */
+     if (SD700_FORCE_CHARACTERIZATION) s->assist_initial_contact=true;
  }
  /* One response check after a verified normal handoff, before the control grid
   * or any possible output increase. A same-frame early handoff is already checked
@@ -506,8 +505,9 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
          requested<=0 || step.error<=0 || s->controller.previous_committed<=0 ? 5U :
 #endif
          d->boost_spent_ms+(uint32_t)s->profile.boost_ms>(uint32_t)s->profile.boost_total_ms ? 6U : 1U;
-     if (d->assist_admission==1 && now-s->session_started_ms+(uint32_t)s->profile.boost_ms<
-         (uint32_t)fminf(s->config.session_ms,fminf(s->profile.session_ms,s->profile.energized_ms))) {
+     if (d->assist_admission==1 && (SD700_FORCE_CHARACTERIZATION ||
+         now-s->session_started_ms+(uint32_t)s->profile.boost_ms<
+         (uint32_t)fminf(s->config.session_ms,fminf(s->profile.session_ms,s->profile.energized_ms)))) {
          /* Reserve full hard-cutoff exposure before any assist request. */
          s->boost_used=true; d->boost_spent_ms+=(uint32_t)s->profile.boost_ms;
          s->boost_handoff_request=requested;
@@ -600,10 +600,7 @@ void Machine_HandleMotorService(MachineContext *m,uint32_t now)
  if (!m || !m->servo.active) return;
  const MotorExecutorSnapshot *e=MotorExecutor_GetSnapshot();
  if (m->servo.contacted) {
-     if (SD700_FORCE_CHARACTERIZATION && e->last_completion==MOTOR_COMPLETION_LEASE &&
-         now-m->servo.session_started_ms>=4999U && now-m->pressure.received_at_ms<=125U)
-         fault(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_SESSION_TIMEOUT,now);
-     else if (e->last_completion==MOTOR_COMPLETION_LEASE)
+     if (e->last_completion==MOTOR_COMPLETION_LEASE)
          fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_LEASE_EXPIRED,now);
      else if (e->last_completion!=MOTOR_COMPLETION_NONE)
          fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now);

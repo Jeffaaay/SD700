@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 41796)
+        self.assertEqual(len(image.load_bytes), 41688)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -168,6 +168,10 @@ class VerifierTests(unittest.TestCase):
                     old=struct.unpack_from('<I',bad,offset)[0]
                     struct.pack_into('<I',bad,offset,old ^ 1)
                     self.reject_elf(bad,'configuration|parameter group')
+
+    def test_runtime1_predecessor_rejected(self):
+        old=ROOT/'output/StaticForceRuntimeCharacterization1/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization1_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(),'identity/configuration')
 
     def test_reviewfix_predecessor_rejected(self):
         old=ROOT/'output/StaticForceAuthority2_ReviewFix/firmware/SD700_ForceServo1_StaticForceAuthority2_ReviewFix_RealBench_Release.elf'

@@ -21,10 +21,15 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current candidate is StaticForceRuntimeCharacterization1. The user explicitly
+The current candidate is StaticForceRuntimeCharacterization2. The user explicitly
 provided the supervised1/2/4 ms assist envelope (4 ms reserved per deliberate
-session),5000 ms session and administrative inter-run lockout,30/2/25 N guards,
+session),5000 ms administrative inter-run lockout,30/2/25 N guards,
 and USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT (scale1 offset0, unit2).
+The current user removed overall session/build/capture deadlines. Zero force START
+uses normal continuous approach; first valid contact at20 N latches one assist
+eligibility. Below3000 N: active HOLD until manual STOP or fault;3000 N: first
+valid reach immediately OFF, no HOLD. Keep receive/assist and conditional stall
+protections; zero deadline fields apply only to this runtime unit2 profile.
 Only TargetForceN1..3000, AssistPercent0..40 and ContinuousPercent0..10 are runtime
 field inputs. All gains, timing, RELEASE100, reference/slew and protection remain
 firmware-owned. The lockout is NOT validated thermal cooling time. No motor,

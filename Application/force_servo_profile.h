@@ -17,6 +17,9 @@
 #define FS_ASSIST_RISE 1
 #define FS_ASSIST_END 2
 #define FS_OFF_MS 5000
+/* Runtime unit2: zero removes only elapsed run/build/capture deadlines.
+ * Receive lease, assist hard cutoff and conditional stall guards stay finite. */
+#define FS_EXPERIMENT_BUDGET_MS 0
 #define FS_RESPONSE_UNITS 2
 #define FS_EXCESSIVE_RISE 25
 #else
@@ -27,10 +30,10 @@
 #define FS_ASSIST_RISE 0
 #define FS_ASSIST_END 0
 #define FS_OFF_MS 0
+#define FS_EXPERIMENT_BUDGET_MS 5000
 #define FS_RESPONSE_UNITS 0
 #define FS_EXCESSIVE_RISE 0
 #endif
-#define FS_EXPERIMENT_BUDGET_MS 5000
 #define FORCE_SERVO_PROFILE_FIELDS(X) \
  X(id,FS_LIVE_PROFILE_ID) X(unit,FS_SENSOR_UNIT) X(qualifications,0) \
  X(raw_min,0) X(raw_trip,FS_LEGACY_RAW_TRIP) X(scale,1) X(offset,0) \
@@ -49,7 +52,7 @@ typedef struct {
 } ForceServoProfile;
 #define FORCE_SERVO_PROFILE_WORDS (sizeof(ForceServoProfile)/2U)
 extern const ForceServoProfile g_force_servo_profile;
-/* Requested percentages only. Zero time fields mean UNREVIEWED, not zero-time approval.
+/* Disabled unit0 catalog only: zero time fields mean UNREVIEWED, not approval.
  * Source1 = inherited single-session720/100; source2 = SYNTHETIC test envelope. */
 #define FORCE_SERVO_CANDIDATES(X) X(20,4800) X(30,7200) X(40,9600)
 #define FORCE_SERVO_CANDIDATE_COUNT 3U

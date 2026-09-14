@@ -12,7 +12,7 @@ $options=@{Port=$Port;TargetForceN=$TargetForceN;AssistPercent=$AssistPercent;Co
 foreach ($item in $options.GetEnumerator()) { Set-Variable -Name $item.Key -Value $item.Value }
 $plan=New-CharacterizationPlan $TargetForceN $AssistPercent $ContinuousPercent
 $root=(Resolve-Path "$PSScriptRoot/..").Path
-$firmware=Join-Path $root 'output/StaticForceRuntimeCharacterization1/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization1_RealBench_Release.hex'
+$firmware=Join-Path $root 'output/StaticForceRuntimeCharacterization2/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization2_RealBench_Release.hex'
 & python "$PSScriptRoot/verify_force_servo_firmware.py"
 if ($LASTEXITCODE -ne 0) { throw 'Strict repository HEX/ELF verification failed; no serial connection' }
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
@@ -49,7 +49,9 @@ Continuous command: $($p.continuous_cap)
 Assist rise:         1 ms
 Normal handoff:      2 ms
 Hard assist cutoff:  4 ms
-Session hard limit:  5000 ms
+Overall run limit:   NONE; below3000 N stays in active HOLD until manual STOP
+Target3000 N:        first valid reach => immediate OFF, no HOLD
+Initial force:       0 N allowed; normal continuous approach, contact at20 N gates one assist
 Re-arm lockout:      5000 ms (NOT validated thermal cooling time)
 Kp/Ki/Kd:            10 / 0 / 0 (LOCKED)
 PSU current setting: 0.5 A (operator-confirmed, unchanged)
@@ -67,7 +69,7 @@ try {
     Invoke-ForceCapture -TransportExchange $transport -Watch ([Diagnostics.Stopwatch]::StartNew()) `
         -SleepMilliseconds {param($ms) Start-Sleep -Milliseconds $ms} -Mode SingleStart `
         -StopRequested { if ([Console]::KeyAvailable) { return [Console]::ReadKey($true).Key -in @([ConsoleKey]::S,[ConsoleKey]::Escape) }; return $false } `
-        -OutputCsv $OutputCsv -ActualHash $actualHash -MaximumSeconds 5 -Target ([int]$TargetForceN) -TargetN -ProfileId 5 `
+        -OutputCsv $OutputCsv -ActualHash $actualHash -MaximumSeconds 0 -Target ([int]$TargetForceN) -TargetN -ProfileId 5 `
         -CharacterizationPlan $plan -ConfirmStart $confirmStart -CurrentLimitSetting $psuRecord `
         -InitialGap $gap -FieldNotes $notes -ConfirmedFirmwareSha256 $actualHash -RepositoryCommit $repositoryCommit
 } finally {

@@ -155,3 +155,9 @@ output/StaticForceRuntimeCharacterization1/*
 !output/StaticForceRuntimeCharacterization1/firmware/
 !output/StaticForceRuntimeCharacterization1/firmware/*.hex
 !output/StaticForceRuntimeCharacterization1/firmware/*.elf
+
+!output/StaticForceRuntimeCharacterization2/
+output/StaticForceRuntimeCharacterization2/*
+!output/StaticForceRuntimeCharacterization2/firmware/
+!output/StaticForceRuntimeCharacterization2/firmware/*.hex
+!output/StaticForceRuntimeCharacterization2/firmware/*.elf

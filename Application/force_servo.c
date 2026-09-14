@@ -39,7 +39,7 @@ const ForceServoProfile *ForceServo_FindProfile(uint16_t id)
  return NULL;
 }
 const uint32_t g_force_characterization_contract[16]={
- SD700_FORCE_CHARACTERIZATION,1,3000,40,10,240,1,2,4,4,5000,5000,30,2,25,2
+ SD700_FORCE_CHARACTERIZATION,1,3000,40,10,240,1,2,4,4,5000,FS_EXPERIMENT_BUDGET_MS,30,2,25,2
 };
 int32_t ForceServo_PercentCommand(float percent) { return (int32_t)floorf(percent*240.0f+0.5f); }
 bool ForceServo_CharacterizationPlanValid(const ForceCharacterizationPlan *p)
@@ -192,7 +192,7 @@ ForceServoRejection ForceServo_PlanAllowed(const ForceServoProfile *p,const Forc
  if (r!=FS_PROFILE_OK) return r;
  *seconds=ForceServo_TrajectorySeconds(c,m,t);
 #if SD700_FORCE_CHARACTERIZATION
- if (p->unit==2) return FS_PROFILE_OK; /* Bounded attempt, not a promise of reaching target. */
+ if (p->unit==2) return FS_PROFILE_OK; /* Operator-ended run; target attainment is not guaranteed. */
 #endif
  float budget=fminf(p->energized_ms,fminf(p->session_ms,c->session_ms));
  if (*seconds*1000+c->hold_dwell_ms>budget || *seconds*1000>p->build_ms)
@@ -221,7 +221,8 @@ bool ForceServo_ConfigValid(const ForceServoConfig *c)
  return c->integral_min<c->integral_max && c->hold_enter<c->hold_exit &&
  c->control_min_ms<c->feedback_gap_ms && c->feedback_gap_ms<c->lease_ms &&
  c->sample_age_ms<c->lease_ms && c->tracking_gain*c->feedback_gap_ms*0.001f<=1.0f &&
- c->saturation_ms<=c->session_ms && c->tracking_ms<=c->session_ms &&
+ ((SD700_FORCE_CHARACTERIZATION && c->session_ms==0) ||
+  (c->saturation_ms<=c->session_ms && c->tracking_ms<=c->session_ms)) &&
  floorf(c->control_min_ms)==c->control_min_ms && floorf(c->feedback_gap_ms)==c->feedback_gap_ms &&
  floorf(c->sample_age_ms)==c->sample_age_ms && floorf(c->lease_ms)==c->lease_ms &&
  floorf(c->session_ms)==c->session_ms && floorf(c->saturation_ms)==c->saturation_ms &&

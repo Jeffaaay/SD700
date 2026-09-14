@@ -1,0 +1,377 @@
+{
+  "baseline": "36c9416c098d63a3ed7111034101616875573fa9",
+  "candidate": "StaticForceRuntimeCharacterization2",
+  "physical_test": "NOT_RUN",
+  "executions": [
+    {
+      "name": "arm_release",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/build_gcc.ps1",
+        "-ForceServo",
+        "-StaticForceRuntimeCharacterization2",
+        "-MotorMode",
+        "RealBench",
+        "-Configuration",
+        "Release",
+        "-RealBenchAck",
+        "I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION",
+        "-BuildDir",
+        "output/StaticForceRuntimeCharacterization2/build"
+      ],
+      "started_utc": "2026-09-14T08:33:21.203967+00:00",
+      "elapsed_seconds": 16.687,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/prerequisites/arm_release.log",
+      "sha256": "E7A64201CAFD45A4EF948CE3F87B463E8902070FAF939B95EF56F063B104F6DA"
+    },
+    {
+      "name": "host_regression",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/run_host_tests.ps1",
+        "-OutputDirectory",
+        "output/StaticForceRuntimeCharacterization2/host-regression"
+      ],
+      "started_utc": "2026-09-14T08:33:37.880913+00:00",
+      "elapsed_seconds": 31.625,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/prerequisites/host_regression.log",
+      "sha256": "9374E0F034A1F3D338DE201FD14A4ACD1EA464594E45613E131ECDA4EBF3870A"
+    },
+    {
+      "name": "plain_force",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "tools/run_force_servo_tests.py",
+        "--output",
+        "output/StaticForceRuntimeCharacterization2/plain"
+      ],
+      "started_utc": "2026-09-14T08:34:09.510694+00:00",
+      "elapsed_seconds": 6.422,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/prerequisites/plain_force.log",
+      "sha256": "1AD3746965B289B8FA15F135BEC36B7B65BA25E9B886DF7D060974A3AE71D3B1"
+    },
+    {
+      "name": "capture_length_and_observe",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "Tests/Host/test_force_servo_capture.ps1",
+        "-OutputDirectory",
+        "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization2\\full-verification\\capture"
+      ],
+      "started_utc": "2026-09-14T08:34:29.241483+00:00",
+      "elapsed_seconds": 13.546,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/capture_length_and_observe.log",
+      "sha256": "30CC3F91D3E4A8AAD339CA9B0F720F4C8197CDFB437813178E947C6B26AFAA2C"
+    },
+    {
+      "name": "force_capture_selftest",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/capture_force_servo.ps1",
+        "-SelfTest"
+      ],
+      "started_utc": "2026-09-14T08:34:42.798520+00:00",
+      "elapsed_seconds": 13.782,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/force_capture_selftest.log",
+      "sha256": "A156D84F766A04BBF5293578EE8A548DAED0C7A75DDFAFD01DC5E9CB3E0654AA"
+    },
+    {
+      "name": "pressure_capture_selftest",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/capture_pressure_response.ps1",
+        "-SelfTest"
+      ],
+      "started_utc": "2026-09-14T08:34:56.574536+00:00",
+      "elapsed_seconds": 0.593,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/pressure_capture_selftest.log",
+      "sha256": "7C83ECAFDF28C085C781F57A262B13D4DAB2EB54DD755B8A60695B6A847CD2A6"
+    },
+    {
+      "name": "auto_capture_selftest",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/capture_auto_target_static.ps1",
+        "-SelfTest"
+      ],
+      "started_utc": "2026-09-14T08:34:57.168752+00:00",
+      "elapsed_seconds": 18.797,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/auto_capture_selftest.log",
+      "sha256": "BF4AC5C9FA908F35E25666738F8E02CCAE1FA76A3184292D509A05489B2530DE"
+    },
+    {
+      "name": "force_host",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "tools/run_force_servo_tests.py",
+        "--output",
+        "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization2\\full-verification\\host",
+        "--commissioning"
+      ],
+      "started_utc": "2026-09-14T08:35:15.966126+00:00",
+      "elapsed_seconds": 6.578,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/force_host.log",
+      "sha256": "D605E190E388468CD6D313DE77C37F77783866F846245CACD9F572D53BD9A6E8"
+    },
+    {
+      "name": "data_schema",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "tools/force_servo_data.py",
+        "--self-test"
+      ],
+      "started_utc": "2026-09-14T08:35:22.544073+00:00",
+      "elapsed_seconds": 0.11,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/data_schema.log",
+      "sha256": "45C3AF0B5E32F47C6542069A490530C4AA0115A1DF674E84B93955A1DDBB46D3"
+    },
+    {
+      "name": "target250_data",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "Tests/Host/test_target250_data.py"
+      ],
+      "started_utc": "2026-09-14T08:35:22.651098+00:00",
+      "elapsed_seconds": 0.125,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/target250_data.log",
+      "sha256": "052E14F3CE12FC97E5ABE25193DDFEB47A4C94DAA7B784B8359CA3B5ECC17895"
+    },
+    {
+      "name": "verifier_rejections",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "Tests/Host/test_force_servo_verifier.py"
+      ],
+      "started_utc": "2026-09-14T08:35:22.777874+00:00",
+      "elapsed_seconds": 2.39,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/verifier_rejections.log",
+      "sha256": "9C3DA83F8B6D093EA574C36A06E2B54057FD5247B64ECDA96ABEBAFD31B787FE"
+    },
+    {
+      "name": "offline_firmware",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "tools/verify_force_servo_firmware.py"
+      ],
+      "started_utc": "2026-09-14T08:35:25.170477+00:00",
+      "elapsed_seconds": 0.125,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/offline_firmware.log",
+      "sha256": "5416D95FE9958804237C1EDC9BDF49508201712368D40CE8A03C8303B59DE3B7"
+    },
+    {
+      "name": "historical_auto_firmware",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "tools/verify_current_auto_target_firmware.py"
+      ],
+      "started_utc": "2026-09-14T08:35:25.292115+00:00",
+      "elapsed_seconds": 0.079,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/historical_auto_firmware.log",
+      "sha256": "0FFB377F77B0FEC8EE0677A4652C9D7AD983266A2328291DFF2C464830CD4E8A"
+    },
+    {
+      "name": "continuous2_range_fixture",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "tools/run_force_servo_tests.py",
+        "--commissioning",
+        "--range-fixture",
+        "--output",
+        "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization2\\full-verification\\range_fixture"
+      ],
+      "started_utc": "2026-09-14T08:35:25.378680+00:00",
+      "elapsed_seconds": 6.672,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/continuous2_range_fixture.log",
+      "sha256": "EAFC3EC153C25FD053B56F13EACF1A0D5D582909126438D6319B76FEE7C9AD37"
+    },
+    {
+      "name": "commissioning_gate",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "Tests/Host/test_commissioning_gate.py",
+        "--output",
+        "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization2\\full-verification\\gate"
+      ],
+      "started_utc": "2026-09-14T08:35:32.066189+00:00",
+      "elapsed_seconds": 5.125,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/commissioning_gate.log",
+      "sha256": "87265323D1F3AD6D64286FEF2130993013DF3F0BE42329A3AEECD6A4DB1B6298"
+    },
+    {
+      "name": "characterization_host",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "tools/run_force_servo_tests.py",
+        "--commissioning",
+        "--characterization",
+        "--output",
+        "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization2\\full-verification\\characterization_host"
+      ],
+      "started_utc": "2026-09-14T08:35:37.201521+00:00",
+      "elapsed_seconds": 6.625,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/characterization_host.log",
+      "sha256": "425A4840788DDB2355E4D1B647395423E95C0B226511AA55103197229EE6DCF0"
+    },
+    {
+      "name": "characterization_capture",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "Tests/Host/test_force_characterization_capture.ps1",
+        "-OutputDirectory",
+        "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\StaticForceRuntimeCharacterization2\\full-verification\\characterization_capture"
+      ],
+      "started_utc": "2026-09-14T08:35:43.836609+00:00",
+      "elapsed_seconds": 34.172,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/characterization_capture.log",
+      "sha256": "103246E4FB3C0C04F94D011973EBD39B09F1EFCBBFB25ABEE24EBEC58EBE15F0"
+    },
+    {
+      "name": "characterization_data",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "Tests/Host/test_force_characterization_data.py"
+      ],
+      "started_utc": "2026-09-14T08:36:18.013431+00:00",
+      "elapsed_seconds": 0.125,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/characterization_data.log",
+      "sha256": "3C9B1D225F48B94C716EE142DC0F5DB2D01E579F97EB75729654994A50E63F92"
+    },
+    {
+      "name": "characterization_arm_release",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/build_gcc.ps1",
+        "-ForceServo",
+        "-StaticForceRuntimeCharacterization2",
+        "-MotorMode",
+        "RealBench",
+        "-Configuration",
+        "Release",
+        "-RealBenchAck",
+        "I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION",
+        "-BuildDir",
+        "output\\StaticForceRuntimeCharacterization2\\full-verification\\arm-build"
+      ],
+      "started_utc": "2026-09-14T08:36:18.138963+00:00",
+      "elapsed_seconds": 16.953,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/characterization_arm_release.log",
+      "sha256": "2E49D4766A30D2142A744444049982424D108A37D7B4FFD6CC268724CDA31285"
+    },
+    {
+      "name": "characterization_rebuild_identity",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-c",
+        "import sys;sys.path.insert(0,'tools');from pathlib import Path;from verify_force_servo_firmware import sha,PINNED_HASHES;from firmware_image import require;b=Path('C:\\\\Users\\\\jian\\\\Desktop\\\\SD700-GitHub\\\\output\\\\StaticForceRuntimeCharacterization2\\\\full-verification\\\\arm-build\\\\RealBench_ForceServo\\\\Release');[require(sha(b/('press_control_f411.'+e))==h,'Rebuilt '+e+' differs from field pair') for e,h in PINNED_HASHES.items()];print('REBUILD_EXACT_HEX_ELF=PASS')"
+      ],
+      "started_utc": "2026-09-14T08:36:35.101312+00:00",
+      "elapsed_seconds": 0.094,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/characterization_rebuild_identity.log",
+      "sha256": "F07A89132043AB531CEA5D9420DB8EAE92674A88411536DB75936D096C7D07E3"
+    },
+    {
+      "name": "developer_objcopy",
+      "command": [
+        "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "tools/verify_force_servo_firmware.py",
+        "--objcopy-cross-check"
+      ],
+      "started_utc": "2026-09-14T08:36:35.211338+00:00",
+      "elapsed_seconds": 0.172,
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "output/StaticForceRuntimeCharacterization2/full-verification/developer_objcopy.log",
+      "sha256": "5416D95FE9958804237C1EDC9BDF49508201712368D40CE8A03C8303B59DE3B7"
+    }
+  ],
+  "development": [
+    {
+      "name": "initial_zero_start_test",
+      "result": "FAIL_BEFORE_FIX",
+      "evidence": "output/StaticForceRuntimeCharacterization2/dev-host-1/O0.log",
+      "sha256": "0A1C1C101BAD502A141435741BED2946F17881442FBE52913889E4F8409D11CA",
+      "note": "The initial active-state assertion failed after a long low-target approach followed by pressure drop. Source inspection identified the retained conditional tracking expiry as the conflicting expectation; the earlier log did not capture the fault code. The test now uses Target1000 so contact-drop checks precede tracking expiry; a separate test requires the retained no-response fault."
+    },
+    {
+      "name": "initial_capture_config_check",
+      "result": "FAIL_BEFORE_FIX",
+      "evidence": "output/StaticForceRuntimeCharacterization2/dev-capture-1/Observe/SYNTHETIC.metadata.json",
+      "sha256": "599CCA79F00254E1E658BB04E92083323377332A73D53F12BC108BE9A6933C6A",
+      "note": "The first Observe test rejected session_ms=0 through the old finite-session relationship. The exact compiled zero-session contract now passes that relationship; all immutable config/profile checks remain, with explicit session/build mutation rejection tests."
+    }
+  ],
+  "transcript": "software_test_output.txt",
+  "transcript_sha256": "F1B610AE1263930802727755C90EC8638D4DF9DAC4C7E790A90049013959F35D"
+}

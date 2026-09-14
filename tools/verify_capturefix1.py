@@ -47,7 +47,7 @@ def main():
             ('characterization_host', py+['tools/run_force_servo_tests.py','--commissioning','--characterization','--output',str(out/'characterization_host')]),
             ('characterization_capture', ps+['Tests/Host/test_force_characterization_capture.ps1','-OutputDirectory',str(out/'characterization_capture')]),
             ('characterization_data', py+['Tests/Host/test_force_characterization_data.py']),
-            ('characterization_arm_release', ps+['tools/build_gcc.ps1','-ForceServo','-StaticForceRuntimeCharacterization1','-MotorMode','RealBench','-Configuration','Release','-RealBenchAck','I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION','-BuildDir',str((out/'arm-build').relative_to(ROOT))]),
+            ('characterization_arm_release', ps+['tools/build_gcc.ps1','-ForceServo','-StaticForceRuntimeCharacterization2','-MotorMode','RealBench','-Configuration','Release','-RealBenchAck','I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION','-BuildDir',str((out/'arm-build').relative_to(ROOT))]),
             ('characterization_rebuild_identity', py+['-c',
                 "import sys;sys.path.insert(0,'tools');from pathlib import Path;from verify_force_servo_firmware import sha,PINNED_HASHES;from firmware_image import require;"+
                 "b=Path("+repr(str(out/'arm-build/RealBench_ForceServo/Release'))+");"+

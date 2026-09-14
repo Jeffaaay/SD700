@@ -69,6 +69,10 @@ static void TestRuntimeMappings(void)
 static void TestAtomicPlanAndGains(void)
 {
  fixture(); plan(500,25,8.5f); ForceServoConfig old=machine.servo.config;
+ ForceServoConfig wrong=old; wrong.session_ms=5000;
+ assert(!ForceServo_ProfileConfigValid(&machine.servo.profile,&wrong));
+ ForceServoProfile wrong_profile=machine.servo.profile; wrong_profile.build_ms=5000;
+ assert(!ForceServo_ProfileValid(&wrong_profile));
  assert(write_reg(FS_REG_PLAN_BEGIN,0xB501)==COMMAND_ACCEPTED);
  assert(write_reg(FS_REG_PLAN_STAGE,0x7fc0)==COMMAND_ACCEPTED);
  assert(memcmp(&old,&machine.servo.config,sizeof(old))==0);
@@ -153,17 +157,25 @@ static void TestCharacterizationSessionsAndBoundary(void)
  const int targets[]={250,500,1000,2999,3000};
  for (unsigned i=0;i<5;i++) {
      run((float)targets[i],0,10);
-     for (unsigned j=0;j<499;j++) { sample(30,10); assert(machine.servo.active); }
-     sample(30,10); off(); assert(machine.fault_detail==FAULT_DETAIL_SESSION_TIMEOUT);
-     assert(machine.servo.diagnostic.run_reason==FS_RUN_TARGET_NOT_REACHED_WITHIN_SESSION);
+     for (unsigned j=0;j<120;j++) {
+         sample(30+(j/5)*2,100); assert(machine.servo.active && machine.state==FORCE_BUILD);
+         assert(machine.fault==FAULT_NONE && !machine.servo.diagnostic.target_reached);
+         assert(MotorExecutor_GuardOutput()==MOTOR_RESULT_OK);
+         assert(MotorExecutor_GetSnapshot()->logical_deadline_ms==machine.pressure.received_at_ms+130);
+     }
+     assert(now-machine.servo.session_started_ms==12000);
+     assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+     assert(machine.servo.diagnostic.run_reason==FS_RUN_OPERATOR_STOP);
      assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
  }
- run(1000,0,10);
- for (unsigned j=0;j<499;j++) sample(30,10);
- advance(9); off(); /* TIM5 absolute compare at4999 ms, runtime safety precedes Service. */
- Machine_CheckPressureSafety(&machine,now);
- assert(machine.fault_detail==FAULT_DETAIL_SESSION_TIMEOUT);
- assert(machine.servo.diagnostic.run_reason==FS_RUN_TARGET_NOT_REACHED_WITHIN_SESSION);
+ /* Prove removal, rather than replacement with a30/45/60 second deadline. */
+ run(3000,0,10);
+ for (unsigned j=0;j<700;j++) { sample(30+(j/5)*5,100); assert(machine.servo.active); }
+ assert(now-machine.servo.session_started_ms==70000 && machine.fault==FAULT_NONE);
+ /* A receive lease expiring after5s is still a lease fault, never SESSION_COMPLETE. */
+ advance(130); off(); MotorExecutor_Service(now); Machine_HandleMotorService(&machine,now);
+ assert(machine.fault_detail==FAULT_DETAIL_LEASE_EXPIRED);
+ assert(machine.servo.diagnostic.run_reason==FS_RUN_FAULT);
  run(3000,0,10); sample(2999,10); assert(machine.servo.active);
  sample(3000,10); off(); assert(machine.state==IDLE && !machine.servo.active && !machine.servo.ever_held);
  assert(machine.servo.diagnostic.run_reason==FS_RUN_BOUNDARY_TARGET_REACHED);
@@ -185,6 +197,64 @@ static void TestCharacterizationSessionsAndBoundary(void)
  run(1000,0,10); sample_at(65536,++seq,now,true); off(); assert(machine.fault_detail==FAULT_DETAIL_PRESSURE_INVALID);
  run(3000,0,10); advance(21); sample_at(3000,++seq,now-21,true); off();
  assert(!machine.servo.diagnostic.target_reached); /* stale is never successful boundary evidence */
+}
+static void TestZeroStartContactAndHold(void)
+{
+ fixture(); sample(0,5); plan(1000,40,10);
+ assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); sample(0,5);
+ assert(machine.servo.active && !machine.servo.diagnostic.contact_count);
+ uint32_t start=machine.servo.session_started_ms;
+ for (unsigned j=0;j<65;j++) {
+     sample((j*19)/64,100);
+     assert(machine.servo.active && !machine.servo.diagnostic.boost_active);
+     assert(machine.servo.diagnostic.boost_spent_ms==0 && !machine.servo.diagnostic.contact_count);
+     assert(MotorExecutor_GetSnapshot()->command_mv<=2400);
+ }
+ assert(TIM3->CCR3>0); /* Normal approach output from zero, without an assist. */
+ /* Duplicate high pressure cannot confirm contact or grant assist. */
+ sample_at(20,seq,now,true);
+ assert(!machine.servo.diagnostic.contact_count && !machine.servo.diagnostic.boost_spent_ms);
+ sample(20,100); assert(machine.servo.diagnostic.contact_count==1 && machine.servo.diagnostic.boost_active);
+ assert(machine.servo.session_started_ms==start && now-start>5000);
+ advance(1); Machine_Tick(&machine,now); assert(TIM3->CCR3==1920);
+ advance(1); Machine_Tick(&machine,now);
+ assert(!machine.servo.diagnostic.boost_active && machine.servo.diagnostic.assist_response_pending);
+ sample(21,98); assert(machine.servo.diagnostic.assist_after_result==1);
+ for (unsigned j=0;j<10;j++) sample(19+j%2,100);
+ assert(machine.servo.active && machine.servo.diagnostic.contact_count==1);
+ assert(machine.servo.diagnostic.boost_spent_ms==4 && !machine.servo.diagnostic.boost_active);
+ assert(machine.servo.session_started_ms==start); /* Contact is a latch, not a renewed session. */
+ sample(1000,100); assert(machine.state==FORCE_HOLD && machine.servo.diagnostic.target_reached);
+ for (unsigned j=0;j<700;j++) { sample(999,100); assert(machine.state==FORCE_HOLD && machine.servo.active); }
+ assert(TIM3->CCR3==2); /* Active P-only HOLD still correct after70 seconds. */
+ assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off(); sample(999,100); off();
+ assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
+ /*20 N is contact detection, not a minimum target or a low-force trip. */
+ const int targets[]={1,19};
+ for (unsigned i=0;i<2;i++) {
+     fixture(); sample(0,5); plan((float)targets[i],40,10);
+     assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); sample(0,5);
+     for (unsigned j=0;j<100;j++) sample(targets[i],100);
+     assert(machine.state==FORCE_HOLD && machine.servo.active && !machine.servo.diagnostic.boost_spent_ms);
+ }
+ run(1,40,10); /* Initial contact may unload below20 to a permitted low target. */
+ for (unsigned j=0;j<100;j++) sample(1,100);
+ assert(machine.state==FORCE_HOLD && machine.servo.active && !machine.servo.diagnostic.boost_spent_ms);
+}
+static void TestConditionalSafetyWithoutSessionDeadline(void)
+{
+ run(1000,0,10);
+ for (unsigned j=0;j<70 && machine.servo.active;j++) sample(30,100);
+ off(); assert(machine.fault_detail==FAULT_DETAIL_SATURATION_TIMEOUT);
+ assert(machine.servo.diagnostic.no_response_ms>=5000);
+ sample(40,100); off(); assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
+ /* Contact requires a fresh valid frame even after approach starts. */
+ fixture(); sample(0,5); plan(250,40,10); assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); sample(0,5);
+ advance(21); sample_at(20,++seq,now-21,true); off();
+ assert(machine.fault_detail==FAULT_DETAIL_PRESSURE_TIMEOUT && !machine.servo.diagnostic.boost_spent_ms);
+ fixture(); sample(0,5); plan(250,40,10); assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); sample(0,5);
+ sample_at(20,++seq,now,false); off();
+ assert(machine.fault_detail==FAULT_DETAIL_PRESSURE_INVALID && !machine.servo.diagnostic.boost_spent_ms);
 }
 static void TestCharacterizationWrap(void)
 {
@@ -239,8 +309,9 @@ int main(void)
 #define RUN_TEST(f) f(); puts(#f " PASS")
  RUN_TEST(TestRuntimeContinuousCeilings); RUN_TEST(TestCharacterizationRtuStopPriority); RUN_TEST(TestRuntimeMappings); RUN_TEST(TestAtomicPlanAndGains);
  RUN_TEST(TestCharacterizationAssistTiming); RUN_TEST(TestCharacterizationResponseAndStops);
- RUN_TEST(TestCharacterizationSessionsAndBoundary);
+ RUN_TEST(TestCharacterizationSessionsAndBoundary); RUN_TEST(TestZeroStartContactAndHold);
+ RUN_TEST(TestConditionalSafetyWithoutSessionDeadline);
  RUN_TEST(TestExecutorUpdates); RUN_TEST(TestLeaseRaces); RUN_TEST(TestCharacterizationWrap);
  RUN_TEST(TestTrajectory); RUN_TEST(TestNumericAndD); RUN_TEST(TestAntiWindup);
- puts("CHARACTERIZATION_PRODUCTION_GROUPS=13 PASS; PHYSICAL_NOT_RUN"); return 0;
+ puts("CHARACTERIZATION_PRODUCTION_GROUPS=15 PASS; PHYSICAL_NOT_RUN"); return 0;
 }
