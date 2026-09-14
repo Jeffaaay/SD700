@@ -3,11 +3,15 @@
 static void static_fixture(void)
 {
  fixture(); machine.servo.profile=g_force_servo_profile;
+ /* Historical non-boost envelope; current live boost is tested separately. */
+ machine.servo.profile.id=1; machine.servo.profile.peak_press=0;
+ machine.servo.profile.boost_ms=0; machine.servo.profile.boost_total_ms=0; machine.servo.profile.taper_margin=0;
  Machine_Tick(&machine,now);
 }
 static ForceServoProfile calibrated_fixture(void)
 {
  ForceServoProfile p=g_force_servo_profile;
+ p.peak_press=0; p.boost_ms=0; p.boost_total_ms=0; p.taper_margin=0;
  p.id=2; p.unit=1; p.qualifications=15;
  p.scale=2; p.offset=10; p.raw_trip=1600;
  p.calibration_min=10; p.calibration_max=3200;
@@ -118,7 +122,7 @@ static void TestStaticStopStagesAndReadback(void)
  static_fixture();
  for (unsigned i=0;i<FORCE_SERVO_PROFILE_WORDS;i++) {
      uint16_t word; uint32_t bits;
-     memcpy(&bits,(const unsigned char*)&g_force_servo_profile+(i/2)*4,4);
+     memcpy(&bits,(const unsigned char*)&machine.servo.profile+(i/2)*4,4);
      assert(ForceServoProtocol_Read(&machine,true,(uint16_t)(FS_REG_PROFILE+i),&word));
      assert(word==(uint16_t)(i%2 ? bits : bits>>16));
  }
@@ -129,9 +133,9 @@ static void TestStaticStopStagesAndReadback(void)
  assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); off();
  assert(write_reg(FS_REG_PROFILE_SELECT,1)==COMMAND_BUSY);
  assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
- assert(!ForceServo_BoostQualified(&g_force_servo_profile));
+ assert(ForceServo_BoostQualified(&g_force_servo_profile));
 }
-#if FS_PRESS_PROFILE_CEILING >= 6000
+#if FS_SYNTHETIC_BOOST
 static void expire_during_boost_transfer(void)
 { TIM5->CNT=TIM5->CCR1; TIM5->SR|=TIM_SR_CC1IF; }
 static void boost_fixture(void)

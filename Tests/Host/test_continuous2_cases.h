@@ -15,11 +15,11 @@ static void continuous2_config(float cap,float release,float kp)
 }
 static void TestContinuous2Range(void)
 {
- fixture(); machine.servo.profile.continuous_press=FS_PRESS_PROFILE_CEILING;
+ fixture(); machine.servo.profile.continuous_press=FS_CONTINUOUS_CEILING;
  machine.servo.profile.release=FS_RELEASE_PROFILE_CEILING; /* synthetic range fixture */
- continuous2_config(FS_PRESS_PROFILE_CEILING,FS_RELEASE_PROFILE_CEILING,1);
+ continuous2_config(FS_CONTINUOUS_CEILING,FS_RELEASE_PROFILE_CEILING,1);
  ForceServoConfig old=machine.servo.config,c=old;
- c.press_cap=FS_PRESS_PROFILE_CEILING+1; stage(&c);
+ c.press_cap=FS_CONTINUOUS_CEILING+1; stage(&c);
  assert(write_reg(FS_REG_COMMIT,0xC101)==COMMAND_INVALID_VALUE);
  assert(memcmp(&old,&machine.servo.config,sizeof(c))==0);
  c=old; c.release_cap=FS_RELEASE_PROFILE_CEILING+1; stage(&c);
@@ -28,11 +28,11 @@ static void TestContinuous2Range(void)
  c=old; c.press_cap=0; assert(!ForceServo_ConfigValid(&c));
  c=old; c.release_cap=0; assert(!ForceServo_ConfigValid(&c));
  int32_t actual; bool interlock; uint32_t token=continuous();
- assert(update(token,FS_PRESS_PROFILE_CEILING,&actual,&interlock)==MOTOR_RESULT_OK);
- assert(actual==FS_PRESS_PROFILE_CEILING && TIM3->CCR3>0);
- advance(5); assert(update(token,FS_PRESS_PROFILE_CEILING-1,&actual,&interlock)==MOTOR_RESULT_OK);
- assert(actual==FS_PRESS_PROFILE_CEILING-1); /* no hidden 100 clamp */
- advance(5); assert(update(token,FS_PRESS_PROFILE_CEILING+1,&actual,&interlock)!=MOTOR_RESULT_OK); off();
+ assert(update(token,FS_CONTINUOUS_CEILING,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==FS_CONTINUOUS_CEILING && TIM3->CCR3>0);
+ advance(5); assert(update(token,FS_CONTINUOUS_CEILING-1,&actual,&interlock)==MOTOR_RESULT_OK);
+ assert(actual==FS_CONTINUOUS_CEILING-1); /* no hidden 100 clamp */
+ advance(5); assert(update(token,FS_CONTINUOUS_CEILING+1,&actual,&interlock)!=MOTOR_RESULT_OK); off();
  assert(update(token,1,&actual,&interlock)!=MOTOR_RESULT_OK); off();
  token=continuous(); assert(update(token,-FS_RELEASE_PROFILE_CEILING,&actual,&interlock)==MOTOR_RESULT_OK);
  assert(actual==-FS_RELEASE_PROFILE_CEILING && TIM2->CCR3>0);
@@ -98,7 +98,7 @@ static void TestContinuous2Pwm(void)
  int32_t actual; bool interlock; uint16_t t2,t3;
  assert(MotorExecutor_PlanCommand(MOTOR_DIRECTION_PRESS,0,&t2,&t3)==MOTOR_RESULT_INVALID);
  for (unsigned dir=0;dir<2;dir++) {
-     unsigned ceiling=dir ? FS_RELEASE_PROFILE_CEILING : FS_PRESS_PROFILE_CEILING;
+     unsigned ceiling=dir ? FS_RELEASE_PROFILE_CEILING : FS_CONTINUOUS_CEILING;
      unsigned commands[]={1,4,5,6,99,100,ceiling-1,ceiling};
      for (unsigned j=0;j<sizeof(commands)/sizeof(commands[0]);j++) {
          unsigned v=commands[j]; uint32_t token=continuous();
@@ -110,7 +110,7 @@ static void TestContinuous2Pwm(void)
          advance(5); assert(update(token,0,&actual,&interlock)==MOTOR_RESULT_OK); off();
      }
      assert(MotorExecutor_PlanCommand(dir ? MOTOR_DIRECTION_RELEASE : MOTOR_DIRECTION_PRESS,
-                                     ceiling+1,&t2,&t3)==MOTOR_RESULT_INVALID);
+                                     (dir ? FS_RELEASE_PROFILE_CEILING : FS_PRESS_PROFILE_CEILING)+1,&t2,&t3)==MOTOR_RESULT_INVALID);
  }
  uint32_t token=continuous();
  assert(update(token,INT32_MIN,&actual,&interlock)!=MOTOR_RESULT_OK); off();

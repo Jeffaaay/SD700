@@ -62,6 +62,8 @@ static void fixture(void)
  /* Historical controller/long synthetic regressions use an explicit count
   * fixture envelope, NOT the live five-second profile. New Static tests below
   * restore g_force_servo_profile for all production-envelope checks. */
+ machine.servo.profile.id=1; machine.servo.profile.peak_press=0;
+ machine.servo.profile.boost_ms=0; machine.servo.profile.boost_total_ms=0; machine.servo.profile.taper_margin=0;
  machine.servo.profile.energized_ms=60000; machine.servo.profile.session_ms=60000;
  machine.servo.profile.build_ms=30000; machine.servo.profile.capture_ms=60000;
  Machine_CompleteBoot(&machine,true,now); assert(machine.state==IDLE);
@@ -510,6 +512,7 @@ static void TestCommissioningReverseOff(void)
 #include "Tests/Host/test_continuous2_cases.h"
 #include "Tests/Host/test_authority1_cases.h"
 #include "Tests/Host/test_static_force_cases.h"
+#include "Tests/Host/test_boost1_cases.h"
 #endif
 int main(void)
 {
@@ -530,8 +533,9 @@ int main(void)
  RUN(TestContinuous2Pwm) RUN(TestContinuous2Peak) RUN(TestContinuous2OldSaturation)
  RUN(TestAuthority1Sweep) RUN(TestAuthority1Ramp) RUN(TestAuthority1Safety)
  RUN(TestStaticUnitsAndQualification) RUN(TestStaticPlanAndAbsoluteBudget)
+ RUN(TestBoost1PeakHandoff) RUN(TestBoost1Safety) RUN(TestBoost1AdmissionAndBudget)
  RUN(TestStaticProgressNoiseAndCreep) RUN(TestStaticStopStagesAndReadback)
-#if FS_PRESS_PROFILE_CEILING >= 6000
+#if FS_SYNTHETIC_BOOST
  RUN(TestStaticBoostDeadlineAndTransfer) RUN(TestStaticBoostBudgetAndStop)
 #endif
 #endif

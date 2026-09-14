@@ -127,3 +127,10 @@ output/StaticForce3000_1/*
 !output/StaticForce3000_1/firmware/
 !output/StaticForce3000_1/firmware/*.hex
 !output/StaticForce3000_1/firmware/*.elf
+
+# Current bounded breakaway experiment; preserve historical pairs.
+!output/StaticForce3000_Boost1/
+output/StaticForce3000_Boost1/*
+!output/StaticForce3000_Boost1/firmware/
+!output/StaticForce3000_Boost1/firmware/*.hex
+!output/StaticForce3000_Boost1/firmware/*.elf

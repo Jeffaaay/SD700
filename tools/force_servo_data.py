@@ -54,6 +54,9 @@ def validate(config):
     check(c['control_min_ms']<c['feedback_gap_ms']<c['lease_ms'] and c['sample_age_ms']<c['lease_ms'])
     check(c['tracking_gain']*c['feedback_gap_ms']*.001<=1)
     check(c['saturation_ms']<=c['session_ms'] and c['tracking_ms']<=c['session_ms'])
+    profile={p['name']:p['default'] for p in s['profile']}
+    check(c['press_cap']<=profile['continuous_press'] and c['release_cap']<=profile['release'],
+          'Configuration exceeds continuous profile; peak is not writable continuous authority')
     return digest(c)
 
 def delta(a,b,bits=32): return (int(a)-int(b))&((1<<bits)-1)
@@ -148,6 +151,20 @@ def metrics(rows):
     statuses={0:'NO_BUILD_COMMAND',1:'SATURATING_WITH_PROGRESS',2:'COMMAND_WITHOUT_MEASURED_FORCE_RESPONSE',3:'COMMAND_WITH_PROGRESS'}
     result['observed_progress_statuses']={name:sum(r.get('progress_status')==code for r in valid) for code,name in statuses.items()}
     result['force_N_status']='CALIBRATED_PROFILE' if result['unit']=='N' else 'NOT_CALIBRATED_NO_N_MEASUREMENT'
+    # A 10 ms event can fall entirely between PC polls. Use the persistent MCU
+    # event fields, including STOP/fault rows; never interpolate a pressure at 10 ms.
+    event=next((r for r in reversed(rows) if r.get('boost_duration_ms',0)>0),None)
+    result['boost_event']=None if event is None else dict(
+        session=event.get('session'), active=bool(event.get('boost_active')),
+        peak_command=event.get('boost_peak_command') or None,
+        configured_duration_ms=event.get('boost_duration_ms'), reserved_total_ms=event.get('boost_spent_ms'),
+        started_ms=event.get('boost_started_ms'), end_ms=event.get('boost_end_ms'),
+        elapsed_ms=event.get('boost_elapsed_ms'), end_reason=event.get('boost_end_reason'),
+        handoff_command=event.get('boost_handoff_command') if event.get('boost_end_reason')==2 else None,
+        pressure_before=event.get('boost_pressure_before'), before_received_ms=event.get('boost_before_received_ms'),
+        pressure_after=event.get('boost_pressure_after') if event.get('boost_after_valid') else None,
+        after_received_ms=event.get('boost_after_received_ms') if event.get('boost_after_valid') else None,
+        measurement_limit='MCU command/register event, not measured waveform. After pressure is the next fresh in-range frame after the event; absent until valid. Abort elapsed is a capped service-time bound, not actual PWM duration.')
     result['progress_limit']='Bounded net-change diagnostic, not a stall or physical-root-cause diagnosis.'
     # tim2/tim3 are planned counts; output_off includes the hardware guard's register checks.
     # Neither is an externally measured waveform or physical-stop certificate.
@@ -196,7 +213,7 @@ def decode_csv_row(row):
 
 
 def self_test():
-    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==60 and len(s['floats'])==22 and len(s['profile'])==26
+    s=schema(); assert len(s['parameters'])==25 and len(s['u32'])==69 and len(s['floats'])==25 and len(s['profile'])==26
     c={p['name']:p['default'] for p in s['parameters']}; validate(c)
     bad=dict(c,lease_ms=10)
     try: validate(bad)

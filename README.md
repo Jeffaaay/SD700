@@ -1,212 +1,150 @@
-# SD700 - StaticForce3000_1
+# SD700 - StaticForce3000_Boost1
 
-**physical test NOT RUN.** Static workpiece software milestone from reviewed
-main `6bfb5f1e669234b0e56027b76c5853f94cea3e2a` (Target250Authority1).
-GitHub main is the delivery; no ZIP. No serial connection, flashing or motion
-was performed. No Authority1 physical result was supplied.
+**physical test NOT RUN.** Current candidate from StaticForce3000_1,
+`ed3c213b689929524dba2af016d85724097c7850`. Local HEAD and origin/main matched
+and the worktree was clean before changes. GitHub main is the delivery; no ZIP.
 
-The existing trajectory -> PID -> monitored continuous executor -> active HOLD
-path remains. This candidate adds an explicit operating profile, consistent
-units, finite progress-aware build policy and a bounded optional PRESS boost.
-**High-force and high-output hardware activation are disabled.** The current
-armed build retains only the user's short legacy count-domain experiment.
-Plain `-ForceServo` remains compiled LOCKED; there is no runtime unlock.
+The user reports that720 continuous command reached TIM3=144 but produced no
+motion or pressure rise (27 ->27). PSU display stayed about0.028 A; a scope
+captured one approximately600 ns /22 V pulse. STOP removed PWM, output_off=1,
+and no abnormal noise/heat/jamming was reported. See the exact
+[input evidence and its limits](Docs/StaticForce3000_Boost1/FIELD_EVIDENCE.md).
 
-[Current HEX](output/StaticForce3000_1/firmware/SD700_ForceServo1_StaticForce3000_1_RealBench_Release.hex)
-and [ELF](output/StaticForce3000_1/firmware/SD700_ForceServo1_StaticForce3000_1_RealBench_Release.elf).
+This candidate enables one **short supervised breakaway experiment** using the
+existing continuous ForceServo boost path. It is **not a continuous25% rating
+or3000 N qualification**. No serial connection, flashing or motion was performed.
 
-HEX SHA256: `39967AF2116B38A5FDB65C2D44AE83C04D5BA7EA3559932B09C64D2FCBE56AD9`
+[Current HEX](output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.hex)
+and [ELF](output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.elf).
 
-ELF SHA256: `95B4C99A75929D10E26D2DBE4DA8A708089B1285D6C1B50032E99BB326460323`
+HEX SHA256: `4EA0CDB953C06B4DB32F77746B16677B4421C752D828AC9F423F24BBC4DFF7E0`
 
-## Units and operating contract
+ELF SHA256: `A301D51A61F312BE680D259832B83C34DAB2EF6A0D4D1527C310BF1E83A58D82`
 
-`Application/force_servo_profile.h` contains one small, immutable reviewed
-profile, separately read back and digested from writable PID parameters.
-Profile selection confirms its ID; a register write cannot invent calibration,
-raise a hardware boundary, enable peak output or unlock the build.
+## Current experiment
 
-| Quantity | Current live experiment | Calibrated software path |
-| --- | --- | --- |
-| Profile ID / unit | 1 / 0: legacy control units | Fixture ID2 / unit1: N |
-| Raw counts | Independent sensor value, valid below raw trip325 | Independent raw bounds and raw trip |
-| Measured controller quantity | Existing raw-count identity; **not N** | raw * calibrated scale + offset; coverage checked |
-| Desired target | Configurable integer1..275; default250 | `target_N` register/API; tests through3000 N |
-| Operating maximum / hard trip | 275 /325 count-domain experimental limits | Operating max < hard trip < weakest hardware boundary |
-| Newton qualification | None; requests rejected before START | Confirmed sensor range, calibration coverage, mechanics, current/time required |
-| PRESS / RELEASE | 720 /100 command units maximum | Continuous and peak authority are separate profile fields |
-
-The wire decoder verifies seven-byte frames and exposes raw counts. The prior
-low-load display match does not establish a count-to-N calibration or full
-sensor range. See [sensor evidence](Docs/PRESSURE_SENSOR_PROTOCOL.md). The live
-allowed **calibrated force range is NONE**; 275 counts is not 275 N. Independent
-raw protection remains active even when N conversion is unavailable.
-
-The controller itself has no hidden275/325 clamps: it is unit-agnostic bounded
-arithmetic. A calibrated profile applies N consistently to reference, error,
-filtering, tolerances, tracking and overforce. Kp is command/N, Ki command/(N*s),
-Kd command*s/N, reference rate N/s and acceleration N/s^2. No automatic gain or
-threshold conversion assumes that one count equals one Newton.
-
-Synthetic tests use scale2 N/count, offset10 N and a **fictional**3200 N fixture
-boundary to exercise target3000 N, trip3100 N. These are not ZD3000 settings.
-A separate boundary test rejects that profile at the actual drawing's3000 N
-boundary and verifies a synthetic2900 target /2950 trip /3000 boundary ordering.
-Those numbers demonstrate margin checks, not a proposed live rating or a
-qualified stopping margin. Future values need measured uncertainty and stopping
-overshoot evidence; a3300 N trip is never assumed safe above3000 N hardware.
-
-## Time, progress and HOLD
-
-Current defaults remain Kp10, Ki/Kd0, reference rate200 control units/s,
-acceleration1000 control units/s^2, increasing output slew1000 command units/s
-and immediate reduction of requested magnitude. RELEASE stays100. Cubic
-reference duration is max(1.5*distance/rate, sqrt(6*distance/acceleration)).
-For22 ->250 this is1.71 s; hypothetical22 ->3000 at unchanged numbers is22.335 s,
-with reference402.908 at5 s. The latter calculation alone is not a Newton
-calibration or permission for a longer run.
-
-| Budget/diagnostic | Semantics |
+| Setting | Value |
 | --- | --- |
-| New sample age / active gap / receive-anchored lease |20 /125 /130 ms, unchanged; TIM5 reserves1 ms |
-| Pending START / minimum control interval / reverse OFF |250 /5 /at least2 ms, unchanged |
-| Requested HOLD dwell | New parameter, default500 ms; an observation goal, not an actuator HOLD rating |
-| Live build / energized / session / capture ceilings |5000 /5000 /5000 /5000 ms maximum |
-| Config session45000 and tracking10000 defaults | Representable tuning values; immutable5 s profile always wins |
-| Planned reference + requested HOLD | Must fit profile AND selected config budget; PC also requires fit inside capture duration |
-| Saturation elapsed | Continuous amplitude clipping telemetry only; not a stall diagnosis |
-| Progress window / net threshold |500 ms /2 controller units; bounded diagnostic settings, not measured sensor noise calibration |
-| No measured response | Fault5/Detail16 after min(config.saturation_ms, profile.no_response_ms), default5000 ms |
-| Tracking elapsed | Starts only after reference completion, error over configured threshold; faults when overdue without current progress |
-| Absolute expiry | Persists despite progress, HOLD, new samples or cap changes; independent TIM5 OFF and latched fault |
+| Profile / protocol / build |3 /F105 /46530107 |
+| Field target |250 legacy control units, **not N** |
+| Existing target range / raw abort |1..275 /325, unchanged |
+| Kp / Ki / Kd |10 /0 /0 |
+| Continuous PRESS / RELEASE |720 /100 command units |
+| Peak PRESS |6000 command units; nominal25%, CCR1200/4800 |
+| Boost duration / total reservation |10 /10 ms; at most one admission per START |
+| Normal handoff attempt |8 ms, reduction to the already computed normal command <=720 |
+| Independent cutoff if no handoff |Existing TIM5 reserve: approximately9 ms after boost admission |
+| PWM frequency |20 kHz, unchanged |
+| Ordinary increasing-output slew |1000 command units/s, unchanged |
+| Reference rate / acceleration |200 /1000, unchanged |
+| Pressure age / active gap / receive-anchored lease |20 /125 /130 ms, unchanged |
+| Pending START / control minimum / direction OFF |250 /5 /at least2 ms, unchanged |
+| Build / energized / session / PC capture maximum |5000 ms, unchanged |
+| No-response / saturation policy |Existing5 s bounded policy, unchanged |
+| Field PSU setting |**0.5 A unchanged**; display current is not winding current |
 
-`SATURATING_WITH_PROGRESS` and `COMMAND_WITHOUT_MEASURED_FORCE_RESPONSE` are
-separate telemetry/report states. Window anchors move only after a sufficient
-net increase. Alternating noise does not repeatedly earn progress; creep too
-slow to meet the threshold before the finite no-response deadline still stops.
-Neither status diagnoses the motor, PWM, power supply or mechanics. Absolute
-session/energized budgets are never renewed by progress.
+The PID, cubic trajectory, active HOLD, START admission, STOP priority,
+pressure/contact/overpressure checks, lease expiry, break-before-make, output
+guard and fault latch remain. Plain `-ForceServo` stays compiled LOCKED with no
+runtime unlock. Newton qualification bits remain0: this is a count-domain
+experiment, not a new sensor calibration or mechanical/thermal qualification.
 
-The PC logs planned duration before START, reads target/config/profile/digests
-back, then sends at most one START per invocation. Lost echo is UNKNOWN and is
-never retried. Capture time begins before transmission of START. MCU pending
-START remains OFF until a new valid fresh frame and a repeated plan check.
-Rejected targets are not silently clamped. Parameters may be reduced/tuned
-within reviewed bounds; exact-default equality and Target==250 are removed.
+## Bounded boost and handoff
 
-HOLD retains the same feedback controller and actual-output anti-windup. Initial
-Ki0 may leave steady error; functional PI remains tested. Neither fixed PWM nor
-successful host tracking proves physical force HOLD. Absolute output time includes
-HOLD and logical-zero intervals; it is conservative elapsed energized eligibility,
-not a measured integral of winding current or actual PWM on-time.
+Admission requires the exact compiled profile, Target250, the above P-only
+settings, valid contact, fresh ordered pressure, healthy continuous owner,
+positive ordinary demand, both target and reference margin above72 control
+units (720/Kp10), and remaining fixed/cumulative budgets. Lower targets or other
+valid tuning retain ordinary control; they do not admit this experimental peak.
+No runtime parameter can select a different peak profile or increase its budget.
 
-## Optional boost and hardware boundary
+Simply raising the old cap would not reach6000 within10 ms at the existing slew.
+During this one admitted stage the request is explicitly6000; diagnostics set
+`FS_LIMIT_BOOST=16`. The ordinary PID step still runs and computes a <=720
+handoff request. The controller records the executor's actual command with Ki0.
+The ordinary PID algorithm and its slew are unchanged outside this bounded
+peak stage. The continuous profile and executor reject persistent PRESS>720;
+6000 cannot be enabled without an armed, fixed boost deadline.
 
-The software supports a distinct peak PRESS ceiling up to6000 command units,
-nominal25% at the24 V mapping. Boost is a single continuous-path cap excursion,
-not repeated PRESS/OFF pulses. Admission needs qualified profile flags, valid
-contact, target and reference margin, fresh feedback, a healthy owner and enough
-remaining absolute/cumulative budget. It keeps the selected output slew: at1000
-command/s, zero ->6000 takes at least6 s with sufficient demand, not an instant
-kick. The high-PWM host fixture explicitly uses synthetic Kp100/slew10000 and
-800 ms/1600 ms peak/cumulative budgets to test actual CCR1200. **These settings
-have no hardware approval.**
+The unslept main loop attempts reduction at deadline-2 ms. It installs the lower
+hardware compare and verifies the existing guard before releasing the peak
+compare. It restores only the previously accepted pressure frame's original
+receive lease, bounded by the original absolute session deadline. There is no
+new pressure sequence, PID integration or lease extension from the handoff time.
+Fresh feedback can taper/exit sooner. Pending expiry wins even during transfer.
+Late servicing, STOP, a fault, feedback loss or lease expiry forces OFF; there
+is no automatic revival after the independent cutoff. **10 ms is a configured
+maximum budget, not a claim of exactly10 ms measured peak PWM.** Nominal timely
+handoff is8 ms; field scheduling and the waveform remain unmeasured.
 
-TIM5 is programmed to the earliest receive lease, fixed session deadline and
-active boost deadline. A new sample cannot extend boost. Missing feedback or a
-main-loop delay forces OFF independently. Early taper requests the normal
-controller cap; the peak compare is retained until that lower command has been
-physically installed and checked by the existing hardware guard. A pending
-expiry wins; failed transfer forces OFF. STOP/FAULT do not refund the reserved
-full boost duration. One admission per commanded session; cumulative reservations
-survive STOP, fault reset, configuration writes and subsequent explicit STARTs
-in the same boot. A reboot resets RAM accounting; it is not authorization to
-repeat a thermal exposure. No live peak profile or runtime peak reset exists.
+The full10 ms is reserved at admission and never refunded by early exit, STOP,
+fault reset, config writes or later explicit STARTs in the same MCU boot. This
+preserves the existing stronger cumulative-budget rule: **only the first admitted
+boost in that boot can fire**. Reboot is not permission to repeat the experiment.
 
-Current peak/duration/cumulative fields are all0: **BOOST_HARDWARE_ENABLED=NO**.
-The720 command continuous operating cap is nominal3% PWM (CCR144/4800), not a
-validated continuous thermal rating. The separately conservative RELEASE100
-remains unchanged. No automatic escalation, current loop, current measurement
-or I-squared-t protection has been invented.
+## Telemetry and capture
 
-The user's supplied ZD3000-60-170 drawing facts are24 V, maximum load3000 N,
-no-load5 mm/s, stroke60 mm, use frequency10% and internal limit switches. They
-establish an actuator design boundary only. Missing for a higher live profile:
-confirmed sensor full-scale and multi-point N calibration/uncertainty/coverage;
-weakest assembled frame/fixture/transmission limit and verified stopping margin;
-motor/driver peak and continuous current, stall current, permissible peak/on/HOLD
-time, cumulative exposure, minimum OFF/cooling time and the time base of10% duty.
-These are not inferred from the drawing. The actual present supply setting stays
-**0.5 A**, manually recorded; it is not a winding-current limit or measurement.
+The frozen schema has69 u32 +25 float fields (188 words); config remains50 FC03
+words and profile52 FC03 words. Existing framing, CRC, station/function, exact
+length and timeout checks remain. Scripts verify the current firmware offline
+before serial access. Python/PowerShell field use does not require ARM tools.
 
-## One combined supervised static session
+`boost_active`, `boost_peak_command`, configured `boost_duration_ms`, reserved
+`boost_spent_ms`, `boost_started_ms`, `boost_deadline_ms`, `boost_elapsed_ms`,
+`boost_end_ms`, `boost_end_reason`, and `boost_handoff_command` distinguish the
+peak and its handoff. End reason0=none,1=active,2=verified lower handoff,3=STOP/fault.
+The event survives STOP/fault and slow PC polling; a new session starts a new
+event record while retaining spent budget. Report `boost_event` may therefore
+show a6000 peak even when no PC RUN snapshot happened during those milliseconds.
 
-Use only profile1 and the present0.5 A supply setting, a fixed workpiece and
-permitted travel. Confirm IDLE, output OFF, firmware identity, pressure feedback,
-initial gap/contact and an immediately accessible physical stop. Record initial
-temperature/current-limit setting. If active STOP and feedback-loss stopping are
-still unvalidated, perform them in this same session with **separate deliberate
-operator requests**: low target60 control units, at most1 s for each stage.
-First command STOP during active output and verify physical cessation; next use
-the established safe feedback-interruption method with MCU powered and verify
-automatic output OFF/fault, then physical STOP. Restore feedback/reset only while
-OFF; resetting must not start motion. If either fails, end the session.
+`boost_pressure_before` has its accepted receive timestamp. `boost_pressure_after`
+is unavailable until `boost_after_valid=1`: it is the first fresh, ordered,
+in-range pressure frame after the recorded end, with its own timestamp.
+At roughly101 ms feedback cadence, this does **not** measure pressure at10 ms.
+Abort elapsed is a capped main-service-time bound, not measured PWM on-time.
+CCR fields and verified output OFF concern MCU registers, not physical cessation.
 
-Only if those prerequisites pass, take one useful static rise/taper/HOLD capture
-at the selected legacy target (default250 control units), at most3 s, then verify
-physical STOP. Keep total requested observation for these powered stages <=5 s;
-no automatic repeats, no extensions to wait for HOLD, no autonomous force/current
-increase. The plan-fit check can refuse a stage; do not bypass it. Separate stage
-files belong to one combined session. Stop immediately for abnormal motion,
-noise, visible limiting/dropout, temperature or mechanics. Do not test calibrated
-3000 N or rotating loads. No extra observe-only day is required.
+## One supervised field capture
 
-Field checkout and verifier require Git, Python and PowerShell; ARM tools are
-not required for offline identity/HEX/ELF/configuration checks:
+Use the existing supervised setup, confirmed travel/fixture and accessible
+physical stop. Verify correct firmware, IDLE/output OFF, live pressure, initial
+gap/contact and unchanged0.5 A limit. Do not increase current, test3000 N/rotating
+load, or automatically repeat. One script invocation sends the only START;
+do not add a manual START. Stop immediately for abnormal movement/noise/current,
+visible limiting/dropout, heat or mechanical problems. Return CSV/report/metadata
+and a brief account of movement, PSU behavior and physical STOP.
 
 ```powershell
 git switch main
 git pull --ff-only
 git rev-parse HEAD
 python tools/verify_force_servo_firmware.py
-# One invocation = one deliberate START; choose the stage's target/time above.
 $gap = Read-Host 'Actual initial gap/contact setup'
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
-.\tools\capture_force_servo.ps1 -Mode SingleStart -Port COM5 -ProfileId 1 -Target 250 -MaximumSeconds 3 `
-  -ConfirmSupervisedMotion -ConfirmedFirmwareSha256 39967AF2116B38A5FDB65C2D44AE83C04D5BA7EA3559932B09C64D2FCBE56AD9 `
+.\tools\capture_force_servo.ps1 -Mode SingleStart -Port COM5 -ProfileId 3 -Target 250 -MaximumSeconds 5 `
+  -ConfirmSupervisedMotion -ConfirmedFirmwareSha256 4EA0CDB953C06B4DB32F77746B16677B4421C752D828AC9F423F24BBC4DFF7E0 `
   -CurrentLimitSetting '0.5 A; manually confirmed unchanged' -InitialGap $gap `
-  -FieldNotes 'Combined static session; record STOP/feedback-loss results, motion, temperature and physical stop' `
-  -OutputCsv "captures/static-force3000-1-$stamp.csv"
+  -FieldNotes 'One supervised breakaway experiment; record movement, current display, waveform and physical STOP' `
+  -OutputCsv "captures/static-force3000-boost1-$stamp.csv"
 ```
 
-Use S/Escape for requested software STOP and the physical stop for emergencies.
-Return CSV, report, metadata for the planned stages and one short field note.
-Software `StopVerified` and planned CCR values are not external waveform or
-hardware stop validation. `-TargetN` is present but fails before serial connection
-on this profile with `MISSING_CONFIRMED_SENSOR_RANGE`; remaining missing
-qualifications are listed above. Neither capture nor reset authorizes unlocking.
+## Software verification
 
-## Verification and provenance
+[Actual test record](Docs/StaticForce3000_Boost1/TEST_RESULTS.md),
+[machine-readable execution record](Docs/StaticForce3000_Boost1/verification.json),
+[default parameters](Docs/StaticForce3000_Boost1/default_parameters.json),
+[protocol schema](Docs/StaticForce3000_Boost1/protocol_schema.json).
+Firmware hashes are pinned in `Firmware/ForceServo1.SHA256SUMS.txt`;
+`Firmware/StaticForce3000_1.SHA256SUMS.txt` preserves the predecessor pair.
 
-SchemaF104/build46530106:25 float parameters (50 words),26 profile fields
-(52 words, read-only), frozen60 u32 +22 floats (164 words). Reads retain the
-existing11-word RTU chunk limit and production FC03/04 framing, station/function,
-CRC, exact-length and timeout checks. FC03 profile starts0x180; FC06/03 profile
-confirmation0x104; integer `target_N`0x103; legacy target0x0000. The legacy target
-register is interpreted in the selected profile's controller unit. No writable
-calibration or runtime unlock is exposed.
+```powershell
+python tools/run_force_servo_tests.py --commissioning --output output/StaticForce3000_Boost1/recheck-host
+.\tools\build_gcc.ps1 -ForceServo -StaticForce3000Boost1 -MotorMode RealBench -Configuration Release `
+  -RealBenchAck I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION -BuildDir output/StaticForce3000_Boost1/rebuild
+python tools/verify_force_servo_firmware.py --objcopy-cross-check
+```
 
-[Actual commands and results](Docs/StaticForce3000_1/TEST_RESULTS.md),
-[parameters](Docs/StaticForce3000_1/default_parameters.json),
-[schema](Docs/StaticForce3000_1/protocol_schema.json),
-[current hashes](Firmware/ForceServo1.SHA256SUMS.txt).
-The verifier pins actual HEX/ELF bytes, addressed load-image equivalence, all
-profile/default fields, identity, arming state and protected legacy machine
-configuration. Damaged files, profile mutations and old releases are rejected.
-The measured/force_N numeric sentinel is0 when measured_valid=0; reports treat
-that as unavailable. MCU raw peak includes raw trip samples; calibrated peak
-contains only in-range samples, so it is not a bound on an overforce event.
-Earlier field CSV/reports and firmware remain byte-preserved.
-
-**HARDWARE_STOP_VALIDATION, static force/rise/HOLD, thermal duty and ROTATING_LOAD
-remain NOT_VALIDATED. physical test NOT RUN.**
+The last command verifies the tracked current pair; development objcopy is an
+optional extra cross-check. Test/build PASS does not establish hardware timing,
+physical STOP, static Target250 performance, or rotating-load performance.
+**HARDWARE_STOP_VALIDATION / STATIC_250 / ROTATING_LOAD remain unvalidated.**

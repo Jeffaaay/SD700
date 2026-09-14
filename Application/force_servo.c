@@ -23,6 +23,12 @@ uint32_t ForceServo_ProfileDigest(const ForceServoProfile *p)
 #undef FS_PROFILE_HASH
  return h;
 }
+/* Exact compiled experimental envelope only; this does not assert N qualification. */
+bool ForceServo_IsBreakawayProfile(const ForceServoProfile *p)
+{
+ return SD700_FORCE_SERVO_COMMISSIONING && FS_PEAK_PRESS==6000 && p &&
+     memcmp(p,&g_force_servo_profile,sizeof(*p))==0;
+}
 bool ForceServo_ProfileValid(const ForceServoProfile *p)
 {
  if (!p) return false;
@@ -36,7 +42,7 @@ bool ForceServo_ProfileValid(const ForceServoProfile *p)
      floorf(p->raw_min)!=p->raw_min || floorf(p->raw_trip)!=p->raw_trip ||
      p->scale<=0 || p->operating_max<=0 || p->operating_max>=p->force_trip ||
      p->force_trip>FORCE_SERVO_REPRESENTABLE || p->contact<0 || p->contact>=p->operating_max ||
-     p->continuous_press<1 || p->continuous_press>FS_PRESS_PROFILE_CEILING ||
+     p->continuous_press<1 || p->continuous_press>FS_CONTINUOUS_CEILING ||
      p->release<1 || p->release>FS_RELEASE_PROFILE_CEILING ||
      p->peak_press<0 || p->peak_press>6000 || p->boost_ms<0 || p->boost_total_ms<0 || p->taper_margin<0)
      return false;
@@ -49,7 +55,7 @@ bool ForceServo_ProfileValid(const ForceServoProfile *p)
  const float times[]={p->energized_ms,p->session_ms,p->capture_ms,p->build_ms,
      p->progress_window_ms,p->no_response_ms,p->boost_ms,p->boost_total_ms};
  for (unsigned i=0;i<sizeof(times)/sizeof(times[0]);i++) if (floorf(times[i])!=times[i]) return false;
- if (p->unit==0) return p->scale==1 && p->offset==0 && p->peak_press==0;
+ if (p->unit==0) return p->scale==1 && p->offset==0 && (p->peak_press==0 || ForceServo_IsBreakawayProfile(p));
  /* Numeric margin must lie below BOTH the actuator/mechanical boundary and
   * calibration coverage. The missing qualification bits are reported separately. */
  return p->hardware_boundary>p->force_trip && p->hardware_boundary<=FORCE_SERVO_REPRESENTABLE &&
@@ -84,7 +90,7 @@ bool ForceServo_Measure(const ForceServoProfile *p,uint32_t raw,int32_t control,
 }
 bool ForceServo_BoostQualified(const ForceServoProfile *p)
 {
- return ForceServo_ProfileValid(p) && p->unit==1 && p->qualifications==15 &&
+ return ForceServo_ProfileValid(p) && (ForceServo_IsBreakawayProfile(p) || (p->unit==1 && p->qualifications==15)) &&
      p->peak_press>p->continuous_press && p->peak_press<=FS_PRESS_PROFILE_CEILING &&
      p->boost_ms>0 && p->boost_total_ms>=p->boost_ms && p->taper_margin>0;
 }

@@ -41,9 +41,21 @@ static void publish(MachineContext *m,uint32_t now)
  d->last_command_result=m->last_command_result;
  MotorAtomic_Leave(key);
 }
+/* Event fields survive STOP/fault and slow PC polling. Elapsed is MCU ms,
+ * capped by the reserved budget; aborted events are not measured PWM on-time. */
+static void finish_boost(ForceServoMachine *s,uint32_t now,uint32_t reason,int32_t command)
+{
+ ForceServoDiagnostic *d=&s->diagnostic;
+ if (!d->boost_active) return;
+ d->boost_active=0; d->boost_end_ms=now; d->boost_end_reason=reason;
+ uint32_t elapsed=now-d->boost_started_ms;
+ d->boost_elapsed_ms=elapsed<d->boost_duration_ms ? elapsed : d->boost_duration_ms;
+ if (reason==2) d->boost_handoff_command=(float)command;
+}
 static void fault(MachineContext *m,MachineFault f,FaultDetail detail,uint32_t now)
 {
  (void)MotorExecutor_Disable();
+ finish_boost(&m->servo,now,3,0);
  m->servo.start_pending=false;
  m->servo.active=false; m->servo.diagnostic.boost_active=0; m->servo.controller.initialized=false; m->servo.controller.integral=0;
  if (m->state!=FAULT) { m->fault=f; m->fault_detail=detail; }
@@ -149,6 +161,7 @@ MachineCommandResult Machine_HandleCommand(MachineContext *m,const MachineComman
  ForceServoMachine *s=&m->servo;
  if (c->type==CMD_STOP || c->type==CMD_JOG_STOP) {
      s->start_pending=false;
+     finish_boost(s,now,3,0);
      s->active=false; s->diagnostic.boost_active=0; s->controller.initialized=false; s->controller.integral=0;
      s->staging_open=false;
      if (MotorExecutor_Disable()!=MOTOR_RESULT_OK) {
@@ -217,6 +230,17 @@ void Machine_CheckPressureSafety(MachineContext *m,uint32_t now)
  else if (s->contacted && (MotorExecutor_ContinuousExpired() || MotorExecutor_GetSnapshot()->last_completion==MOTOR_COMPLETION_LEASE ||
                           !MotorExecutor_ActiveRequestIsValid()))
      fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_LEASE_EXPIRED,now);
+ /* Main is unslept. Try a reduction at deadline-2 ms; TIM5 retains its existing
+  * deadline-1 ms cutoff if servicing is late. This never fabricates feedback. */
+ else if (s->diagnostic.boost_active && ForceServo_IsBreakawayProfile(&s->profile) &&
+          (int32_t)(now-(s->diagnostic.boost_deadline_ms-2U))>=0) {
+     if (MotorExecutor_HandoffContinuousBoost(s->token,now,s->boost_handoff_request)!=MOTOR_RESULT_OK)
+         fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_LEASE_EXPIRED,now);
+     else {
+         finish_boost(s,now,2,s->boost_handoff_request);
+         s->controller.previous_committed=(float)s->boost_handoff_request;
+     }
+ }
 }
 void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample *p,uint32_t now)
 {
@@ -262,6 +286,12 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
      if (s->active || s->start_pending) fault(m,FAULT_PRESSURE_SENSOR_FAULT,FAULT_DETAIL_PRESSURE_INVALID,now);
      return;
  }
+ if (s->diagnostic.boost_end_reason>=2 && !s->diagnostic.boost_after_valid &&
+     Machine_IsPressureFresh(m,now) && (int32_t)(p->received_at_ms-s->diagnostic.boost_end_ms)>=0) {
+     s->diagnostic.boost_pressure_after=measured;
+     s->diagnostic.boost_after_received_ms=p->received_at_ms;
+     s->diagnostic.boost_after_valid=1;
+ }
  if (s->active && Machine_IsPressureFresh(m,now) && measured>s->diagnostic.session_peak_measured)
      s->diagnostic.session_peak_measured=measured;
  if (s->start_pending) {
@@ -306,12 +336,17 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  }
  ForceServoStep step;
  ForceServoConfig effective=s->config;
+ bool breakaway=ForceServo_IsBreakawayProfile(&s->profile);
+ bool early_handoff=false;
  float margin=(float)m->target_pressure_units-measured;
  if (d->boost_active && (margin<=s->profile.taper_margin || s->controller.reference-measured<=s->profile.taper_margin || m->state==FORCE_HOLD)) {
      if (!MotorExecutor_EndContinuousBoost(s->token)) { fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now); return; }
-     d->boost_active=0;
+     early_handoff=true;
  }
  if (!s->boost_used && !s->ever_held && d->contact_count && margin>s->profile.taper_margin &&
+     (!breakaway || (m->target_pressure_units==250 && s->config.kp==10 && s->config.ki==0 &&
+         s->config.kd==0 && s->config.press_cap==720 && s->config.release_cap==100 &&
+         s->config.reference_rate==200 && s->config.reference_acceleration==1000 && s->config.output_rate==1000)) &&
      s->controller.reference-measured>s->profile.taper_margin && ForceServo_BoostQualified(&s->profile) &&
      d->boost_spent_ms+(uint32_t)s->profile.boost_ms<=(uint32_t)s->profile.boost_total_ms &&
      now-s->session_started_ms+(uint32_t)s->profile.boost_ms<
@@ -322,14 +357,26 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
          fault(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_HARDWARE,now); return;
      }
      d->boost_active=1; d->boost_deadline_ms=now+(uint32_t)s->profile.boost_ms;
+     d->boost_started_ms=now; d->boost_duration_ms=(uint32_t)s->profile.boost_ms;
+     d->boost_end_reason=1; d->boost_pressure_before=measured;
+     d->boost_before_received_ms=p->received_at_ms;
  }
- if (d->boost_active) effective.press_cap=s->profile.peak_press;
+ if (d->boost_active && !early_handoff && !breakaway) effective.press_cap=s->profile.peak_press;
  float dt=(float)(p->received_at_ms-s->last_control_rx_ms)*0.001f;
  if (!ForceServo_Prepare(&s->controller,&effective,measured,dt,&step)) {
      fault(m,FAULT_INTERNAL_FAULT,FAULT_DETAIL_NUMERIC,now); return;
  }
  int32_t committed; bool interlocked;
  int32_t requested=(int32_t)step.limited_output; /* truncate toward zero */
+ if (d->boost_active && !early_handoff && breakaway) {
+     /* One admitted breakaway peak; ordinary PID/trajectory and slew stay intact.
+      * Save their <=720 result for a reduction-only handoff without another frame. */
+     if (requested<=0 || requested>720) { fault(m,FAULT_INTERNAL_FAULT,FAULT_DETAIL_NUMERIC,now); return; }
+     s->boost_handoff_request=requested;
+     requested=(int32_t)s->profile.peak_press;
+     effective.press_cap=s->profile.peak_press; /* actual-output commit, Ki remains 0 */
+     step.limited_output=(float)requested; step.limits|=FS_LIMIT_BOOST; /* explicit boost override */
+ }
  if (MotorExecutor_UpdateContinuous(s->token,p->sequence,p->received_at_ms,now,
      (uint32_t)s->config.lease_ms,(uint32_t)s->config.sample_age_ms,
      (uint32_t)s->config.reverse_deadtime_ms,requested,&committed,&interlocked)!=MOTOR_RESULT_OK) {
@@ -340,6 +387,9 @@ void Machine_HandlePressureSample(MachineContext *m,const MachinePressureSample 
  if (!ForceServo_Commit(&s->controller,&effective,&step,committed)) {
      fault(m,FAULT_INTERNAL_FAULT,FAULT_DETAIL_NUMERIC,now); return;
  }
+ if (d->boost_active && committed>0 && (uint32_t)committed>d->boost_peak_command)
+     d->boost_peak_command=(uint32_t)committed;
+ if (early_handoff) finish_boost(s,now,2,committed);
  s->last_control_rx_ms=p->received_at_ms; s->last_control_sequence=p->sequence;
  d->control_sequence++; d->control_at_ms=now;
  d->dt_s=dt; d->filtered=step.filtered; d->reference=step.reference;

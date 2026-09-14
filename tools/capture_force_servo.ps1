@@ -9,7 +9,7 @@ param(
     [string]$ParameterFile,
     [ValidateRange(1,65535)][int]$Target=250,
     [switch]$TargetN,
-    [int]$ProfileId=1,
+    [int]$ProfileId=3,
     [ValidateRange(1,60)][int]$MaximumSeconds=5,
     [switch]$ConfirmMotorPowerDisconnected,
     [switch]$ConfirmSupervisedMotion,
@@ -158,7 +158,7 @@ function Invoke-ForceCapture {
         [ValidateRange(1,60)][int]$MaximumSeconds=5,
         [ValidateRange(1,65535)][int]$Target=250,
     [switch]$TargetN,
-    [int]$ProfileId=1,
+    [int]$ProfileId=3,
         $Desired,
         [string]$CurrentLimitSetting,
         [string]$InitialGap,
@@ -259,7 +259,7 @@ function Invoke-ForceCapture {
     @{mode=$Mode;start_attempts=$startAttempts;start_accepted=$startAccepted;stop_reason=$stopReason;error=$errorText;config=$activeConfig;
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
-        commissioning='StaticForce3000_1';profile=$activeProfile;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        commissioning='StaticForce3000_Boost1';profile=$activeProfile;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
         pwm_counts='tim2/tim3 are PLANNED; no external electrical measurement';
         maximum_observation_seconds=$MaximumSeconds;capture_wall_ms=$watch.ElapsedMilliseconds;
         bus='115200 8N1; frozen snapshot in <=11-register chunks; polling misses are reported'} |
@@ -341,7 +341,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/StaticForce3000_1/firmware/SD700_ForceServo1_StaticForce3000_1_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'

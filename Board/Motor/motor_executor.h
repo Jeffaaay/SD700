@@ -92,6 +92,8 @@ MotorResult MotorExecutor_BeginContinuous(uint32_t *token);
 bool MotorExecutor_SetContinuousBudget(uint32_t token,uint32_t now_ms,uint32_t duration_ms,int32_t normal_cap);
 bool MotorExecutor_ArmContinuousBoost(uint32_t token,uint32_t now_ms,uint32_t duration_ms);
 bool MotorExecutor_EndContinuousBoost(uint32_t token);
+/* Reduction only, same owner/sample lease; cannot start output or renew feedback. */
+MotorResult MotorExecutor_HandoffContinuousBoost(uint32_t token,uint32_t now_ms,int32_t requested_mv);
 MotorResult MotorExecutor_UpdateContinuous(uint32_t token, uint64_t sequence,
     uint32_t received_ms, uint32_t now_ms, uint32_t lease_ms, uint32_t max_age_ms,
     uint32_t deadtime_ms, int32_t requested_mv, int32_t *committed_mv, bool *interlocked);

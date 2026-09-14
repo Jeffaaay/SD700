@@ -21,15 +21,16 @@ Inspect generated directories before removing them. Retain useful test logs;
 remove regenerable objects, caches, temporary build trees and duplicate outputs.
 Never use `git reset --hard`, `git clean -fdx` or force push for cleanup/delivery.
 
-The current candidate is StaticForce3000_1. The explicit armed build permits
-only profile1: legacy control counts, target1..275, PRESS<=720/RELEASE<=100,
-unchanged0.5 A supply setting and <=5 s absolute energized/session/capture scope.
-This remains an unvalidated short experiment, not a continuous thermal rating.
-No live Newton calibration or high-output boost qualification exists. Peak
-hardware activation remains disabled; high-range/high-PWM fixtures are synthetic.
+The current candidate is StaticForce3000_Boost1, explicitly authorized by the
+user for one short supervised Target250 breakaway experiment. Profile3 is legacy
+control counts, continuous PRESS720/RELEASE100, peak6000, boost10 ms/total10 ms.
+Normal main-loop handoff is attempted at8 ms; unchanged TIM5 cutoff reserves1 ms
+and forces OFF if handoff is missed. Keep existing0.5 A and absolute5 s limits.
+No continuous25% rating, N calibration or3000 N qualification is established.
+Cumulative reservation survives STOP/fault/reset/new START within a boot. No
+retrigger, automatic repeated START or permission inferred from a reboot.
 Plain ForceServo remains LOCKED with no runtime unlock. Preserve STOP, freshness,
-receive-anchored lease, fixed boost/session deadlines, independent raw and
-calibrated overforce, direction interlock, hardware guard, fault latch and no
-restart. Latest user instructions allow one combined supervised static session
-within the confirmed short profile; no Codex hardware motion, current increase,
-automatic repeated START or unqualified3000 N trial. Use the current README.
+receive-anchored lease, fixed boost/session deadlines, independent overpressure,
+direction interlock, hardware guard and fault latch. No Codex serial connection,
+flashing or hardware motion. Preserve original field evidence; software PASS
+is not physical validation. Use the current README and exact verifier hashes.

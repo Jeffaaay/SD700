@@ -5,8 +5,8 @@
 #include "Application/motion_build_policy.h"
 #include "Application/force_servo_output_profile.h"
 
-#define FORCE_SERVO_SCHEMA 0xF104U
-#define FORCE_SERVO_BUILD_ID 0x46530106U
+#define FORCE_SERVO_SCHEMA 0xF105U
+#define FORCE_SERVO_BUILD_ID 0x46530107U
 #define FORCE_SERVO_REPRESENTABLE 100000.0f
 #define FORCE_SERVO_DEFAULT_TARGET 250U
 #define FORCE_SERVO_COMMISSIONING_LEASE_MS 130U
@@ -68,7 +68,7 @@ typedef struct {
  uint32_t limits;
 } ForceServoStep;
 enum { FS_LIMIT_AMPLITUDE=1, FS_LIMIT_RATE=2, FS_LIMIT_INTERLOCK=4,
-       FS_LIMIT_QUANTIZATION=8 };
+       FS_LIMIT_QUANTIZATION=8, FS_LIMIT_BOOST=16 };
 bool ForceServo_ConfigValid(const ForceServoConfig *c);
 uint32_t ForceServo_ConfigDigest(const ForceServoConfig *c);
 bool ForceServo_Init(ForceServo *s, const ForceServoConfig *c, float measured, float target);

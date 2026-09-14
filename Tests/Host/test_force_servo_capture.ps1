@@ -47,7 +47,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     $caseDir=Join-Path $testOutput $Name
     Check (-not (Test-Path -LiteralPath $caseDir)) "Do not overwrite existing test evidence: $caseDir"
     New-Item -ItemType Directory -Path $caseDir -Force | Out-Null
-    $defaults=Get-Content -Raw "$root/Docs/StaticForce3000_1/default_parameters.json" | ConvertFrom-Json
+    $defaults=Get-Content -Raw "$root/Docs/StaticForce3000_Boost1/default_parameters.json" | ConvertFrom-Json
     if ($Failure -eq 'ConservativeTuning') { $defaults.press_cap=100; $defaults.kp=2 }
     $configWords=@()
     foreach ($parameter in $schema.parameters) {
@@ -66,7 +66,7 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     if ($Failure -eq 'WrongConfigDigest') { $configDigest=$configDigest -bxor 1 }
     $profileDigest=Get-ForceDigest $profileValues $schema.profile
     $clock=[pscustomobject]@{ElapsedMilliseconds=0L}
-    $sim=@{Starts=0;Stops=0;Latches=0;Framed=0;Failed=$false;Stopped=$false;Target=0;ProfileId=1;
+    $sim=@{Starts=0;Stops=0;Latches=0;Framed=0;Failed=$false;Stopped=$false;Target=0;ProfileId=3;
            Requests=(New-Object Collections.ArrayList);Frozen=@()}
     $assert=${function:Check}
     $transport={param([byte[]]$Request,[int]$TimeoutMs)
@@ -88,17 +88,24 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
             } else {
             & $assert ($a -eq 0x102 -and $n -eq 0xD101) 'Only target and snapshot latch writes allowed'
             $sim.Latches++; $values=@{schema=$schema.schema;build_id=$schema.build_id;state=1;locked=[int](-not $Commissioning);output_off=1;
-                measured_valid=1;profile_id=1;profile_digest=$profileDigest;config_digest=$configDigest;session_peak_raw=267;session_peak_received_ms=123;config_version=1;now_ms=$clock.ElapsedMilliseconds;latest_raw=$InitialPressure;latest_received_ms=$clock.ElapsedMilliseconds}
+                measured_valid=1;profile_id=3;profile_digest=$profileDigest;config_digest=$configDigest;session_peak_raw=267;session_peak_received_ms=123;config_version=1;now_ms=$clock.ElapsedMilliseconds;latest_raw=$InitialPressure;latest_received_ms=$clock.ElapsedMilliseconds}
             if ($sim.Starts -eq 1 -and -not $sim.Stopped) { $values.state=13;$values.start_pending=0 }
             if ($Failure -eq 'DeviceFault' -and $sim.Latches -ge 2) { $values.state=9;$values.fault=2;$values.detail=2 }
             if ($Failure -eq 'RunningFault' -and $sim.Starts -eq 1) { $values.state=9;$values.fault=2;$values.detail=2 }
+            if ($Failure -eq 'BoostEvent' -and $sim.Starts -eq 1) {
+                $values.boost_active=0; $values.boost_peak_command=6000; $values.boost_duration_ms=10
+                $values.boost_spent_ms=10; $values.boost_started_ms=100; $values.boost_end_ms=108
+                $values.boost_elapsed_ms=8; $values.boost_end_reason=2; $values.boost_before_received_ms=100
+                $values.boost_after_valid=1; $values.boost_after_received_ms=201
+                $values.boost_handoff_command=720; $values.boost_pressure_before=27; $values.boost_pressure_after=28
+            }
             $sim.Frozen=@()
             foreach ($name in $schema.u32) {
                 [uint32]$u=if ($values.ContainsKey($name)) { $values[$name] } else { 0 }
                 $sim.Frozen+=@(($u -shr 16),($u -band 65535))
             }
             foreach ($name in $schema.floats) {
-                [single]$value=if ($name -eq 'target') {$sim.Target} elseif ($name -eq 'post_limit_output') {98.5} elseif ($name -eq 'measured') {$InitialPressure} elseif ($name -eq 'session_peak_measured') {267} else {0}
+                [single]$value=if ($name -eq 'target') {$sim.Target} elseif ($name -eq 'post_limit_output') {98.5} elseif ($name -eq 'measured') {$InitialPressure} elseif ($name -eq 'session_peak_measured') {267} elseif ($values.ContainsKey($name)) {$values[$name]} else {0}
                 [uint32]$u=[BitConverter]::ToUInt32([BitConverter]::GetBytes($value),0)
                 $sim.Frozen+=@(($u -shr 16),($u -band 65535))
             }
@@ -160,6 +167,12 @@ function Invoke-ObserveCase([string]$Name,[string]$Failure='',[string]$CaptureMo
     Check ([int]$rows[-1].session_peak_raw -eq 267 -and [single]$rows[-1].post_limit_output -eq 98.5) 'New peak/post-limit wire fields lost'
     Check ($report.StopVerified -eq $true -and $metadata.start_attempts -eq $expectedStarts) 'Report/metadata STOP and START count proof'
     Check ($report.data_status -eq 'INSUFFICIENT_DATA') 'Observe must not imply powered tracking acceptance'
+    if ($Failure -eq 'BoostEvent') {
+        Check ($report.boost_event.peak_command -eq 6000 -and $report.boost_event.handoff_command -eq 720 -and
+               $report.boost_event.elapsed_ms -eq 8 -and $report.boost_event.pressure_before -eq 27 -and
+               $report.boost_event.pressure_after -eq 28 -and $report.boost_event.after_received_ms -eq 201) 'Persistent boost wire/report fields lost'
+        Check ($metadata.profile.boost_ms -eq 10 -and $metadata.profile.boost_total_ms -eq 10) 'Boost profile metadata missing'
+    }
     if ($Failure -eq 'StartEchoTimeout') { Check ($null -eq $metadata.start_accepted) 'Lost echo must be unknown, never retried or called rejected' }
     if ($Failure -eq 'OperatorStop') {
         Check ($metadata.stop_reason -eq 'OPERATOR_STOP') 'Operator STOP reason lost'
@@ -218,6 +231,7 @@ Invoke-ObserveCase CommissioningSingleStart '' SingleStart $true
 Invoke-ObserveCase CommissioningStartEchoTimeout StartEchoTimeout SingleStart $true
 Invoke-ObserveCase CommissioningRunningFault RunningFault SingleStart $true
 Invoke-ObserveCase Target250OperatorStop OperatorStop SingleStart $true
+Invoke-ObserveCase Boost1PersistentEvent 'BoostEvent' SingleStart $true
 Invoke-ObserveCase StaticAcceptLowTarget '' SingleStart $true 60
 Invoke-ObserveCase Target250ZeroInitial '' SingleStart $true 250 0
 Invoke-ObserveCase Target250InitialOutsideOldGate '' SingleStart $true 250 31
