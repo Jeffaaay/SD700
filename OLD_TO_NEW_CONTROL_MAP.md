@@ -1,3 +1,5 @@
+Current firmware is BuildToTarget2_CoolingAnchorFix1, based on8e2973a. It changes only the failed-admission cooling baseline; all mappings and parameters below remain inherited from Interpulse1. [Current handoff](Docs/BuildToTarget2_CoolingAnchorFix1/HANDOFF.md).
+
 # Current interpulse port: BuildToTarget2_Interpulse1
 
 Source: the user explicitly supplied the Desktop ZIP. Its actual pressure_control.c SHA256 remains `920aec9a59ec60a439ae7b5624e75aad17ae76e0372c418f7484b505340cafe2`. [Archive/member hash record](Docs/BuildToTarget2_Interpulse1/SOURCE_REFERENCE.json).

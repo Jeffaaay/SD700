@@ -1,6 +1,6 @@
-# SD700 - BuildToTarget2_Interpulse1
+# SD700 - BuildToTarget2_CoolingAnchorFix1
 
-Current candidate: **BuildToTarget2_Interpulse1**, based on clean main/origin/main `5b41ad8dab6af67998ea40c0cb1bf1e141ecf54a` (BuildToTarget2_StartAnchorFix1). This ports MICRO/FINE interpulse preload from the user-confirmed Desktop archive's actual `pressure_control.c`. Pulse amplitude, compensation, boost, duration and safety thresholds remain unchanged. [Source and line mapping](Docs/BuildToTarget2_Interpulse1/SOURCE_REFERENCE.json) and [control map](OLD_TO_NEW_CONTROL_MAP.md) disclose the executor/timer adaptations.
+Current candidate: **BuildToTarget2_CoolingAnchorFix1**, based on clean main/origin/main `8e2973a5a6b9869d14cfc63569989dc8cf1d9ce8` (BuildToTarget2_Interpulse1). A failed preload-to-pulse admission now anchors cooling at its verified physical OFF, after refreshing the MCU clock. Accounting may already have cleared preload_active; that no longer lets cooling start at the preceding pulse end. Repeated STOP never clears budgets or moves the anchor. All pulse/boost/preload parameters and8 s/12 s/108 s/5 s thresholds are unchanged. [Inherited source mapping](Docs/BuildToTarget2_Interpulse1/SOURCE_REFERENCE.json) and [actual regression](Docs/BuildToTarget2_CoolingAnchorFix1/TEST_RESULTS.md).
 
 **PHYSICAL_STATUS=NOT_RUN.** No serial connection, flashing or machine motion. One HEX supports integer TargetForceN **1..3000 N**; synthetic force attainment is not measured attainment or stable holding. Installed sensor units remain user-confirmed, scale1/offset0, without a new calibration claim.
 
@@ -31,7 +31,7 @@ There is **no normal overall session/build/capture timeout**. Detail17 remains d
 
 All voltages here are command equivalents at the existing24 V mapping. PWM/CCR are software requests, not measured motor voltage/current. The command-time cap is an additional exposure constraint, **not measured heat or a motor/thermal/continuous rating**. The existing0.5 A PSU setting is unchanged. Finite safety budgets do not guarantee reaching a target on the physical plant.
 
-Firmware: [HEX](output/BuildToTarget2_Interpulse1/firmware/SD700_ForceServo1_BuildToTarget2_Interpulse1_RealBench_Release.hex), [ELF](output/BuildToTarget2_Interpulse1/firmware/SD700_ForceServo1_BuildToTarget2_Interpulse1_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2_Interpulse1/HANDOFF.md). Identity F10C /4653010F / profile7; immutable Build config version3, digest2848875769. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
+Firmware: [HEX](output/BuildToTarget2_CoolingAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_CoolingAnchorFix1_RealBench_Release.hex), [ELF](output/BuildToTarget2_CoolingAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_CoolingAnchorFix1_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2_CoolingAnchorFix1/HANDOFF.md). Identity F10C /46530110 / profile7; immutable Build config version3, digest2848875769. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
 
 For a single supervised field session, verify the checkout before connecting:
 
@@ -52,4 +52,4 @@ The wrapper prints these stage ceilings/times before one explicit START confirma
 
 Exactly one script START, no additional manual START and no automatic repeat. CSV streams through build and target-OFF decay monitoring until S/Escape, external STOP or a real fault. Stop immediately for abnormal motion/noise/current/heat. Return CSV, metadata, report and brief field conditions. Capture cannot certify hardware stopping; target touch and sampled OFF retention are separate from stable holding or rotating-load qualification.
 
-[Actual tests and commands](Docs/BuildToTarget2_Interpulse1/TEST_RESULTS.md) - [Protocol and identity](Docs/BuildToTarget2_Interpulse1/PROTOCOL.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
+[Actual tests and commands](Docs/BuildToTarget2_CoolingAnchorFix1/TEST_RESULTS.md) - [Protocol and identity](Docs/BuildToTarget2_CoolingAnchorFix1/PROTOCOL.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.

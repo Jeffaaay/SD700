@@ -1,4 +1,4 @@
-"""BuildToTarget2_Interpulse1 software evidence runner. Never connects a serial port."""
+"""BuildToTarget2_CoolingAnchorFix1 software evidence runner. Never connects a serial port."""
 import argparse, json, subprocess, sys, time
 from datetime import datetime, timezone
 from pathlib import Path

@@ -1,15 +1,15 @@
-"""Exact BuildToTarget2_Interpulse1 hashes, ARM ELF data and bounded arming profile."""
+"""Exact BuildToTarget2_CoolingAnchorFix1 hashes, ARM ELF data and bounded arming profile."""
 import argparse, hashlib, json, struct, subprocess
 from firmware_image import ElfImage, compare_images, require
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
-STEM='SD700_ForceServo1_BuildToTarget2_Interpulse1_RealBench_Release'
-FW_RELATIVE='output/BuildToTarget2_Interpulse1/firmware'
+STEM='SD700_ForceServo1_BuildToTarget2_CoolingAnchorFix1_RealBench_Release'
+FW_RELATIVE='output/BuildToTarget2_CoolingAnchorFix1/firmware'
 FW=ROOT/FW_RELATIVE
 PINNED_HASHES={
-    'hex':'BF145FFC2D3CCB7A3A9454C1F1F0EC23852D7DA6810B62D9F0C05D9F69CD978B',
-    'elf':'2A387A04708E543D47C79554E966ACF9E77D3A47712E365AB4FC10D791DC5F53',
+    'hex':'11D2525F2FE0F206453D09CEF4DD483C29CBD1812E7097BA53B6854FB48F25FF',
+    'elf':'6082D8EB0DE290040961EED0F0E388EE76536D35834BCAF62827D940F41B8507',
 }
 
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest().upper()
@@ -27,7 +27,7 @@ def verify_contents(elf_data, hex_data):
 
 
 def verify_contract(sym):
-    require(sym['g_force_servo_contract']==struct.pack('<20I',0xF10C,0x4653010F,1,3000,3000,0,8500,100,250,250,125,130,0,100,1,1,8500,0,4,3),'Firmware identity/configuration assertion failed')
+    require(sym['g_force_servo_contract']==struct.pack('<20I',0xF10C,0x46530110,1,3000,3000,0,8500,100,250,250,125,130,0,100,1,1,8500,0,4,3),'Firmware identity/configuration assertion failed')
     require(sym['g_force_characterization_contract']==struct.pack('<16I',1,1,3000,0,0,240,1,2,4,4,5000,0,30,2,25,2),
             'Runtime characterization configuration assertion failed')
     defaults=(10,0,0,.02,200,1000,1000,0,100,-1000,1000,5,0,5,125,20,130,5,10,0,5000,50,5000,2,500)
@@ -81,10 +81,10 @@ def verify(objcopy_cross_check=False):
             converted=Path(d)/'converted.hex'
             subprocess.run([executable,'-O','ihex',str(elf),str(converted)],check=True)
             require(converted.read_bytes()==(FW/(STEM+'.hex')).read_bytes(),'objcopy HEX/ELF mismatch')
-    result=dict(configuration='PASS',candidate='BuildToTarget2_Interpulse1',schema='F10C',build_id='4653010F',physical_output='COMMISSIONING_ARMED_WITH_EXISTING_GUARD',
+    result=dict(configuration='PASS',candidate='BuildToTarget2_CoolingAnchorFix1',schema='F10C',build_id='46530110',physical_output='COMMISSIONING_ARMED_WITH_EXISTING_GUARD',
                 runtime_target_N=[1,3000],reserved_assist_and_continuous_percent=[0,0],
                 progress_anchor='FIRST_VALID_FRESH_FRAME_OF_ACCEPTED_NEW_START',
-                start_resets_no_response_or_exposure=False,interpulse_output='MICRO_FINE_FORWARD_PRELOAD_200_TO_600_BOUNDED_BY_RECEIVE_LEASE_AND_TOTAL_ON',
+                start_resets_no_response_or_exposure=False,cooling_anchor='VERIFIED_OFF_AFTER_FAILED_PRELOAD_TRANSITION',interpulse_output='MICRO_FINE_FORWARD_PRELOAD_200_TO_600_BOUNDED_BY_RECEIVE_LEASE_AND_TOTAL_ON',
                 command_per_percent=240,maximum_segment_command=8500,continuous_output_available=False,release_output_available=False,
                 boot_press_cap=0,boot_assist_command=0,boot_target_valid=False,atomic_plan_required=True,one_START_per_plan=True,
                 fixed_kp_ki_kd=[10,0,0],measurement_filter_s=0,

@@ -638,10 +638,84 @@ static void TestInterpulseRacingCutoffAndNoReverse(void)
  preload(300); /* No reverse owner accepted; no direction mutation. */
  build_sample(251,1); off(); /* negative error is true OFF, never forward preload/RELEASE */
 }
+static void assert_full_cooling_from_now(void)
+{
+ off(); MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
+ printf("ACTUAL_OFF_COOLING reserved=%lu rest=%lu expected=108000\n",
+     (unsigned long)e.reserved_ms,(unsigned long)e.rest_remaining_ms);
+ assert(e.rest_remaining_ms==108000);
+ uint32_t epoch=e.epoch,reserved=e.reserved_ms,approach=e.approach_reserved_ms,credit=e.preload_credit_ms;
+ for (unsigned i=0;i<3;i++) {
+     advance(10); assert(MotorExecutor_Disable()==MOTOR_RESULT_OK); off();
+     MotorBuildSnapshot stop=MotorExecutor_GetBuildSnapshot(now);
+     assert(stop.epoch==epoch && stop.reserved_ms==reserved && stop.approach_reserved_ms==approach);
+     assert(stop.preload_credit_ms==credit && stop.rest_remaining_ms==108000-10*(i+1));
+ }
+ advance(108000-31); e=MotorExecutor_GetBuildSnapshot(now);
+ assert(e.epoch==epoch && e.reserved_ms==reserved && e.rest_remaining_ms==1); off();
+ advance(1); e=MotorExecutor_GetBuildSnapshot(now);
+ assert(e.epoch==epoch+1 && e.reserved_ms==0 && e.rest_remaining_ms==0); off();
+}
+static void TestCoolingBudgetRejectionActualOff(void)
+{
+ uint32_t token=build_owner(); ForceBuildRequest r={BUILD_PHASE_BUILD,3000,11,3000,BUILD_MODE_MICRO,300};
+ for (unsigned i=0;i<400;i++) {
+     if (MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)!=MOTOR_RESULT_OK) {
+         assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms==12000);
+         assert_full_cooling_from_now(); return;
+     }
+     executor_wait(10); preload(300);
+     executor_wait(30); MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
+     assert(MotorExecutor_AcceptBuildPost(token,e.request,++seq,now,now));
+ }
+ assert(!"Expected the unchanged12000-ms reservation cap to reject a segment");
+}
+static unsigned cooling_failure_kind;
+static void fail_during_preload_transition(void)
+{
+ bool pulse_timer=(TIM5->CR1 & TIM_CR1_OPM)!=0;
+ if (!pulse_timer || (cooling_failure_kind==1 && TIM3->CCR3!=600)) {
+     dsb_hook=fail_during_preload_transition; return;
+ }
+ now+=3; /* Caller timestamp must not predate actual OFF after timer/HW work. */
+ if (cooling_failure_kind==0) TIM5->SR|=TIM_SR_UIF; /* before segment_active is set */
+ else if (cooling_failure_kind==1) TIM3->CCR3=0; /* HW update/readback fails */
+ else assert(MotorExecutor_Disable()==MOTOR_RESULT_OK); /* STOP in the transition */
+}
+static void TestCoolingTimerHardwareStopFailures(void)
+{
+ for (cooling_failure_kind=0;cooling_failure_kind<3;cooling_failure_kind++) {
+     uint32_t token=build_owner(); ForceBuildRequest r={BUILD_PHASE_BUILD,3000,11,3000,BUILD_MODE_MICRO,300};
+     assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)==MOTOR_RESULT_OK);
+     executor_wait(10); preload(300); executor_wait(30);
+     assert(MotorExecutor_AcceptBuildPost(token,MotorExecutor_GetBuildSnapshot(now).request,++seq,now,now));
+     uint32_t admitted_at=now; dsb_hook=fail_during_preload_transition;
+     assert(MotorExecutor_StartBuildSegment(token,&r,++seq,admitted_at,admitted_at)!=MOTOR_RESULT_OK);
+     assert(now==admitted_at+3 && !MotorExecutor_BuildOwnerValid(token));
+     assert_full_cooling_from_now();
+ }
+}
+static void TestCoolingWaitsForVerifiedHardwareOff(void)
+{
+ uint32_t token=build_owner(); ForceBuildRequest r={BUILD_PHASE_BUILD,3000,11,3000,BUILD_MODE_MICRO,300};
+ assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)==MOTOR_RESULT_OK);
+ executor_wait(40); preload(300);
+ assert(MotorExecutor_AcceptBuildPost(token,MotorExecutor_GetBuildSnapshot(now).request,++seq,now,now));
+ FakeStm32Hal_GetState()->fail_disable_on_call=FakeStm32Hal_GetState()->force_disable_count+1;
+ r.preload_command=601;
+ assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)!=MOTOR_RESULT_OK);
+ assert(!MotorExecutor_OutputIsDisabled()); /* Failed register OFF is not cooling. */
+ uint32_t reserved=MotorExecutor_GetBuildSnapshot(now).reserved_ms;
+ now+=1000;
+ assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms==reserved);
+ assert(MotorExecutor_Disable()==MOTOR_RESULT_OK);
+ assert_full_cooling_from_now();
+}
 int main(void)
 {
  setvbuf(stdout,NULL,_IONBF,0);
 #define RUN(f) f(); puts(#f " PASS")
+ RUN(TestCoolingWaitsForVerifiedHardwareOff); RUN(TestCoolingBudgetRejectionActualOff); RUN(TestCoolingTimerHardwareStopFailures);
  RUN(TestBuildApproachAndLowTargets); RUN(TestBuildSyntheticTargetsOffAndDecay);
  RUN(TestBuildSlowProgressAndShortPlateau); RUN(TestBuildNoiseAndPersistentBudgets);
  RUN(TestBuildSecondStartProgressAndPlatform); RUN(TestBuildStartAnchorRequiresFreshFrame);
@@ -654,5 +728,5 @@ int main(void)
  RUN(TestInterpulseInitialMicroFineAndNoOff); RUN(TestInterpulseDroopFreshGateAndPersistence);
  RUN(TestInterpulseEnergyDeadlineWithoutMain); RUN(TestInterpulseStopFaultTargetAndLease); RUN(TestInterpulseRacingCutoffAndNoReverse);
  RUN(TestTrajectory); RUN(TestNumericAndD); RUN(TestAntiWindup);
- puts("BUILD_TO_TARGET_GROUPS=24 PASS; SYNTHETIC_ONLY; PHYSICAL_NOT_RUN"); return 0;
+ puts("BUILD_TO_TARGET_GROUPS=27 PASS; SYNTHETIC_ONLY; PHYSICAL_NOT_RUN"); return 0;
 }

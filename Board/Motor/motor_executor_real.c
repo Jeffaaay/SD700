@@ -33,7 +33,7 @@ static volatile MotorStopTimerEvent s_pending_completion_event;
 static volatile bool s_completion_event_pending;
 #if SD700_BUILD_TO_TARGET
 static volatile bool s_build_open; /* ISR can revoke ownership, as for s_servo_open. */
-static bool s_build_have_sequence, s_build_rest_required;
+static bool s_build_have_sequence, s_build_rest_required, s_build_off_verified;
 static uint32_t s_build_generation, s_build_off_at;
 static uint64_t s_build_used_sequence;
 static MotorBuildSnapshot s_build;
@@ -50,7 +50,7 @@ static void MotorExecutor_BuildRecordPulseEnd(uint32_t now,uint32_t reason)
      reason=BUILD_END_DEADLINE; s_build_rest_required=true;
  }
  s_build.segment_active=false; s_build.post_pending=true;
- s_build.ended_ms=now; s_build.end_reason=reason; s_build_off_at=now;
+ s_build.ended_ms=now; s_build.end_reason=reason;
  if (reason!=BUILD_END_NORMAL && reason!=BUILD_END_REDUCED) s_build_open=false;
 }
 /* Prepaid preload time is retained across STOP/START, never refunded. Consume
@@ -68,13 +68,20 @@ static void MotorExecutor_BuildChargePreload(uint32_t now)
  } else s_build.preload_credit_ms-=elapsed;
  s_build.preload_active=false;
 }
+/* Accounting flags can clear before a rejected preload transition goes OFF.
+ * Only verified hardware OFF starts cooling; repeated STOP cannot renew it. */
+static void MotorExecutor_BuildConfirmOff(uint32_t now)
+{
+ if (!MotorHwReal_IsDisabled()) { s_build_off_verified=false; return; }
+ if (!s_build_off_verified) { s_build_off_at=now; s_build_off_verified=true; }
+}
 static void MotorExecutor_BuildRecordOff(uint32_t now,uint32_t reason)
 {
  bool preload=s_build.preload_active;
  MotorExecutor_BuildRecordPulseEnd(now,reason);
  MotorExecutor_BuildChargePreload(now);
+ MotorExecutor_BuildConfirmOff(now);
  if (preload) {
-     s_build_off_at=now;
      if (s_build.end_reason!=BUILD_END_DEADLINE) s_build.end_reason=reason;
  }
  if (reason!=BUILD_END_NORMAL && reason!=BUILD_END_REDUCED) s_build_open=false;
@@ -82,6 +89,7 @@ static void MotorExecutor_BuildRecordOff(uint32_t now,uint32_t reason)
 static MotorResult MotorExecutor_BuildFinishPulse(uint32_t now,uint32_t reason);
 static void MotorExecutor_BuildRefreshRest(uint32_t now)
 {
+ MotorExecutor_BuildConfirmOff(now);
  if (!s_build.segment_active && !s_build.preload_active && MotorHwReal_IsDisabled() &&
      (s_build_rest_required || s_build.reserved_ms)) {
      uint32_t off=now-s_build_off_at;
@@ -91,7 +99,7 @@ static void MotorExecutor_BuildRefreshRest(uint32_t now)
          s_build_rest_required=false; ++s_build.epoch;
      }
      s_build.rest_remaining_ms=off>=g_force_build_config.full_rest_ms ? 0 : g_force_build_config.full_rest_ms-off;
- } else s_build.rest_remaining_ms=(s_build.segment_active || s_build.preload_active) ? g_force_build_config.full_rest_ms : 0;
+ } else s_build.rest_remaining_ms=(s_build.segment_active || s_build.preload_active || !s_build_off_verified) ? g_force_build_config.full_rest_ms : 0;
  s_build.inhibited=s_build_rest_required ? 1U : 0U;
 }
 #endif
@@ -317,6 +325,7 @@ MotorResult MotorExecutor_Initialize(void)
 #if SD700_BUILD_TO_TARGET
     memset(&s_build,0,sizeof(s_build)); s_build_open=false; s_build_have_sequence=false;
     s_build_off_at=MotorAtomic_Now(0); s_build_rest_required=true;
+    s_build_off_verified=MotorHwReal_IsDisabled();
     /* Reboot is not proof that a hot motor cooled. Require a full OFF interval. */
 #endif
 #if SD700_FORCE_SERVO_ENABLED
@@ -1315,11 +1324,13 @@ MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildReque
        MotorStopTimer_Arm(r->hard_ms-1,r->hard_ms))) goto fail;
  s_build.segment_active=true;
  if (!MotorStopTimer_CommitArm() || !s_build_open || s_completion_event_pending) goto fail;
+ s_build_off_verified=false;
  if (!(from_preload ? MotorHwReal_Update(true,t3) : MotorHwReal_ApplyPress(t3)) || !MotorHwReal_MatchesPlan(t2,t3) || MotorHwReal_IsDisabled() ||
      !MotorStopTimer_CommitArm() || !s_build_open || s_completion_event_pending) goto fail;
  result=MOTOR_RESULT_OK; goto done;
 fail:
- MotorHwReal_DisableImmediate(); MotorExecutor_BuildRecordOff(now,BUILD_END_HARDWARE);
+ MotorHwReal_DisableImmediate(); now=MotorAtomic_Now(now);
+ MotorExecutor_BuildRecordOff(now,BUILD_END_HARDWARE);
  s_build_open=false; MotorStopTimer_Cancel();
  if (!s_completion_event_pending) MotorExecutor_LatchCompletion(MOTOR_STOP_TIMER_ERROR);
  result=MOTOR_RESULT_HARDWARE_ERROR;

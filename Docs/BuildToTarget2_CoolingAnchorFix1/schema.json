@@ -1,0 +1,606 @@
+{
+  "characterization": true,
+  "build_to_target": true,
+  "build_profile": {
+    "version": 3,
+    "approach_command": 5000,
+    "contact_N": 10,
+    "approach_hard_ms": 100,
+    "approach_total_ms": 8000,
+    "micro_min_command": 800,
+    "micro_max_command": 3000,
+    "boost_step_command": 300,
+    "boost_max_command": 4000,
+    "build_ceiling": 7000,
+    "pulse_base_ms": 10,
+    "pulse_hard_max_ms": 11,
+    "pulse_hard_min_ms": 3,
+    "taper_margin_N": 50,
+    "fine_margin_N": 3,
+    "fine_min_command": 400,
+    "fine_max_command": 1000,
+    "fine_boost_max_command": 1000,
+    "off_settle_ms": 30,
+    "total_on_ms": 12000,
+    "full_rest_ms": 108000,
+    "no_response_ms": 5000,
+    "progress_N": 2,
+    "low_response_N": 1,
+    "low_response_count": 2,
+    "excessive_rise_N": 25,
+    "pulse_min_ms": 2,
+    "hard_guard_ms": 1,
+    "coarse_check_ms": 200,
+    "coarse_step_command": 500,
+    "coarse_max_command": 3500,
+    "approach_ceiling": 8500,
+    "approach_command_ms_budget": 40000000,
+    "preload_initial_command": 300,
+    "preload_min_command": 200,
+    "preload_max_command": 600,
+    "preload_step_command": 100,
+    "preload_drop_N": 2
+  },
+  "build_digest": 2848875769,
+  "profile": [
+    {
+      "name": "id",
+      "default": 7.0
+    },
+    {
+      "name": "unit",
+      "default": 2.0
+    },
+    {
+      "name": "qualifications",
+      "default": 0.0
+    },
+    {
+      "name": "raw_min",
+      "default": 0.0
+    },
+    {
+      "name": "raw_trip",
+      "default": 3000.0
+    },
+    {
+      "name": "scale",
+      "default": 1.0
+    },
+    {
+      "name": "offset",
+      "default": 0.0
+    },
+    {
+      "name": "calibration_min",
+      "default": 0.0
+    },
+    {
+      "name": "calibration_max",
+      "default": 0.0
+    },
+    {
+      "name": "operating_max",
+      "default": 3000.0
+    },
+    {
+      "name": "force_trip",
+      "default": 3000.0
+    },
+    {
+      "name": "hardware_boundary",
+      "default": 0.0
+    },
+    {
+      "name": "contact",
+      "default": 10.0
+    },
+    {
+      "name": "continuous_press",
+      "default": 0.0
+    },
+    {
+      "name": "release",
+      "default": 100.0
+    },
+    {
+      "name": "peak_press",
+      "default": 0.0
+    },
+    {
+      "name": "boost_ms",
+      "default": 4.0
+    },
+    {
+      "name": "boost_total_ms",
+      "default": 4.0
+    },
+    {
+      "name": "taper_margin",
+      "default": 30.0
+    },
+    {
+      "name": "energized_ms",
+      "default": 0.0
+    },
+    {
+      "name": "session_ms",
+      "default": 0.0
+    },
+    {
+      "name": "capture_ms",
+      "default": 0.0
+    },
+    {
+      "name": "build_ms",
+      "default": 0.0
+    },
+    {
+      "name": "progress_window_ms",
+      "default": 500.0
+    },
+    {
+      "name": "progress_units",
+      "default": 2.0
+    },
+    {
+      "name": "no_response_ms",
+      "default": 5000.0
+    },
+    {
+      "name": "experiment_enabled",
+      "default": 1.0
+    },
+    {
+      "name": "limits_source",
+      "default": 3.0
+    },
+    {
+      "name": "assist_rise_ms",
+      "default": 1.0
+    },
+    {
+      "name": "assist_end_ms",
+      "default": 2.0
+    },
+    {
+      "name": "off_ms",
+      "default": 5000.0
+    },
+    {
+      "name": "response_units",
+      "default": 2.0
+    },
+    {
+      "name": "excessive_rise_units",
+      "default": 25.0
+    }
+  ],
+  "candidates": [
+    {
+      "id": 20,
+      "unit": 0,
+      "qualifications": 0.0,
+      "raw_min": 0.0,
+      "raw_trip": 325,
+      "scale": 1.0,
+      "offset": 0.0,
+      "calibration_min": 0.0,
+      "calibration_max": 0.0,
+      "operating_max": 275,
+      "force_trip": 325,
+      "hardware_boundary": 0.0,
+      "contact": 20,
+      "continuous_press": 2400,
+      "release": 100.0,
+      "peak_press": 4800,
+      "boost_ms": 0,
+      "boost_total_ms": 0,
+      "taper_margin": 0,
+      "energized_ms": 0,
+      "session_ms": 0,
+      "capture_ms": 0,
+      "build_ms": 0,
+      "progress_window_ms": 500.0,
+      "progress_units": 2.0,
+      "no_response_ms": 5000.0,
+      "experiment_enabled": 0,
+      "limits_source": 0,
+      "assist_rise_ms": 0,
+      "assist_end_ms": 0,
+      "off_ms": 0,
+      "response_units": 0,
+      "excessive_rise_units": 0
+    },
+    {
+      "id": 30,
+      "unit": 0,
+      "qualifications": 0.0,
+      "raw_min": 0.0,
+      "raw_trip": 325,
+      "scale": 1.0,
+      "offset": 0.0,
+      "calibration_min": 0.0,
+      "calibration_max": 0.0,
+      "operating_max": 275,
+      "force_trip": 325,
+      "hardware_boundary": 0.0,
+      "contact": 20,
+      "continuous_press": 2400,
+      "release": 100.0,
+      "peak_press": 7200,
+      "boost_ms": 0,
+      "boost_total_ms": 0,
+      "taper_margin": 0,
+      "energized_ms": 0,
+      "session_ms": 0,
+      "capture_ms": 0,
+      "build_ms": 0,
+      "progress_window_ms": 500.0,
+      "progress_units": 2.0,
+      "no_response_ms": 5000.0,
+      "experiment_enabled": 0,
+      "limits_source": 0,
+      "assist_rise_ms": 0,
+      "assist_end_ms": 0,
+      "off_ms": 0,
+      "response_units": 0,
+      "excessive_rise_units": 0
+    },
+    {
+      "id": 40,
+      "unit": 0,
+      "qualifications": 0.0,
+      "raw_min": 0.0,
+      "raw_trip": 325,
+      "scale": 1.0,
+      "offset": 0.0,
+      "calibration_min": 0.0,
+      "calibration_max": 0.0,
+      "operating_max": 275,
+      "force_trip": 325,
+      "hardware_boundary": 0.0,
+      "contact": 20,
+      "continuous_press": 2400,
+      "release": 100.0,
+      "peak_press": 9600,
+      "boost_ms": 0,
+      "boost_total_ms": 0,
+      "taper_margin": 0,
+      "energized_ms": 0,
+      "session_ms": 0,
+      "capture_ms": 0,
+      "build_ms": 0,
+      "progress_window_ms": 500.0,
+      "progress_units": 2.0,
+      "no_response_ms": 5000.0,
+      "experiment_enabled": 0,
+      "limits_source": 0,
+      "assist_rise_ms": 0,
+      "assist_end_ms": 0,
+      "off_ms": 0,
+      "response_units": 0,
+      "excessive_rise_units": 0
+    }
+  ],
+  "schema": 61708,
+  "build_id": 1179844880,
+  "parameters": [
+    {
+      "name": "kp",
+      "default": 10.0,
+      "minimum": 0.0,
+      "maximum": 1000.0
+    },
+    {
+      "name": "ki",
+      "default": 0.0,
+      "minimum": 0.0,
+      "maximum": 1000.0
+    },
+    {
+      "name": "kd",
+      "default": 0.0,
+      "minimum": 0.0,
+      "maximum": 100.0
+    },
+    {
+      "name": "d_filter_s",
+      "default": 0.02,
+      "minimum": 0.001,
+      "maximum": 1.0
+    },
+    {
+      "name": "reference_rate",
+      "default": 200.0,
+      "minimum": 0.1,
+      "maximum": 200.0
+    },
+    {
+      "name": "reference_acceleration",
+      "default": 1000.0,
+      "minimum": 0.1,
+      "maximum": 1000.0
+    },
+    {
+      "name": "output_rate",
+      "default": 1000.0,
+      "minimum": 1.0,
+      "maximum": 100000.0
+    },
+    {
+      "name": "press_cap",
+      "default": 0.0,
+      "minimum": 0.0,
+      "maximum": 8500.0
+    },
+    {
+      "name": "release_cap",
+      "default": 100.0,
+      "minimum": 1.0,
+      "maximum": 100.0
+    },
+    {
+      "name": "integral_min",
+      "default": -1000.0,
+      "minimum": -5000.0,
+      "maximum": 0.0
+    },
+    {
+      "name": "integral_max",
+      "default": 1000.0,
+      "minimum": 0.0,
+      "maximum": 5000.0
+    },
+    {
+      "name": "tracking_gain",
+      "default": 5.0,
+      "minimum": 0.01,
+      "maximum": 100.0
+    },
+    {
+      "name": "measurement_filter_s",
+      "default": 0.0,
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    {
+      "name": "control_min_ms",
+      "default": 5.0,
+      "minimum": 1.0,
+      "maximum": 50.0
+    },
+    {
+      "name": "feedback_gap_ms",
+      "default": 125.0,
+      "minimum": 2.0,
+      "maximum": 125.0
+    },
+    {
+      "name": "sample_age_ms",
+      "default": 20.0,
+      "minimum": 1.0,
+      "maximum": 20.0
+    },
+    {
+      "name": "lease_ms",
+      "default": 130.0,
+      "minimum": 3.0,
+      "maximum": 130.0
+    },
+    {
+      "name": "hold_enter",
+      "default": 5.0,
+      "minimum": 0.1,
+      "maximum": 20.0
+    },
+    {
+      "name": "hold_exit",
+      "default": 10.0,
+      "minimum": 0.2,
+      "maximum": 40.0
+    },
+    {
+      "name": "session_ms",
+      "default": 0.0,
+      "minimum": 0.0,
+      "maximum": 60000.0
+    },
+    {
+      "name": "saturation_ms",
+      "default": 5000.0,
+      "minimum": 100.0,
+      "maximum": 30000.0
+    },
+    {
+      "name": "tracking_error",
+      "default": 50.0,
+      "minimum": 1.0,
+      "maximum": 275.0
+    },
+    {
+      "name": "tracking_ms",
+      "default": 5000.0,
+      "minimum": 100.0,
+      "maximum": 30000.0
+    },
+    {
+      "name": "reverse_deadtime_ms",
+      "default": 2.0,
+      "minimum": 2.0,
+      "maximum": 100.0
+    },
+    {
+      "name": "hold_dwell_ms",
+      "default": 500.0,
+      "minimum": 0.0,
+      "maximum": 30000.0
+    }
+  ],
+  "powered_test_ready": true,
+  "press_profile_ceiling": 8500.0,
+  "live_executor_press_ceiling": 8500.0,
+  "live_continuous_ceiling": 0.0,
+  "live_approved_peak_ms": 4.0,
+  "release_profile_ceiling": 100.0,
+  "u32": [
+    "schema",
+    "build_id",
+    "revision",
+    "now_ms",
+    "control_at_ms",
+    "sample_hi",
+    "sample_lo",
+    "received_ms",
+    "age_ms",
+    "control_sequence",
+    "session",
+    "config_version",
+    "config_digest",
+    "state",
+    "fault",
+    "detail",
+    "raw",
+    "limits",
+    "lease_deadline",
+    "lease_active",
+    "tim2",
+    "tim3",
+    "locked",
+    "output_off",
+    "contact_count",
+    "contact_lost_count",
+    "contact_at_ms",
+    "contact_raw",
+    "contact_lost_raw",
+    "contact_threshold",
+    "session_started_ms",
+    "saturated_ms",
+    "tracking_ms",
+    "skipped_samples",
+    "rx_interval_min_ms",
+    "rx_interval_max_ms",
+    "latest_sample_hi",
+    "latest_sample_lo",
+    "latest_received_ms",
+    "latest_raw",
+    "delivered_interval_min_ms",
+    "delivered_interval_max_ms",
+    "start_pending",
+    "start_requested_ms",
+    "last_command_result",
+    "session_peak_raw",
+    "session_peak_received_ms",
+    "profile_id",
+    "profile_digest",
+    "unit",
+    "rejection",
+    "progress_status",
+    "no_response_ms",
+    "reference_complete",
+    "hold_ms",
+    "energized_elapsed_ms",
+    "boost_active",
+    "boost_deadline_ms",
+    "boost_spent_ms",
+    "measured_valid",
+    "boost_started_ms",
+    "boost_duration_ms",
+    "boost_elapsed_ms",
+    "boost_end_ms",
+    "boost_end_reason",
+    "boost_peak_command",
+    "boost_before_received_ms",
+    "boost_after_received_ms",
+    "boost_after_valid",
+    "assist_admission",
+    "assist_exit",
+    "assist_requested_peak",
+    "assist_peak_ccr",
+    "assist_rise_ms",
+    "assist_normal_end_ms",
+    "cooling_until_ms",
+    "cooling_active",
+    "assist_response_pending",
+    "assist_after_result",
+    "boost_after_sample_hi",
+    "boost_after_sample_lo",
+    "run_reason",
+    "target_reached",
+    "target_reached_ms",
+    "plan_version",
+    "plan_digest",
+    "build_mode",
+    "build_config_digest",
+    "build_phase",
+    "segment_request",
+    "segment_phase",
+    "segment_command",
+    "segment_hard_ms",
+    "segment_started_ms",
+    "segment_deadline_ms",
+    "segment_end_ms",
+    "segment_end_reason",
+    "post_pulse_pending",
+    "post_pulse_valid",
+    "post_pulse_request",
+    "post_pulse_received_ms",
+    "post_pulse_sample_hi",
+    "post_pulse_sample_lo",
+    "exposure_epoch",
+    "energized_reserved_ms",
+    "approach_reserved_ms",
+    "energized_upper_ms",
+    "full_rest_remaining_ms",
+    "exposure_inhibited",
+    "build_boost_command",
+    "build_low_response_count",
+    "build_no_response_ms",
+    "segment_base_command",
+    "segment_mode",
+    "segment_normal_ms",
+    "coarse_boost_command",
+    "coarse_check_ms",
+    "approach_command_ms",
+    "interpulse_active",
+    "interpulse_command",
+    "interpulse_next_command",
+    "interpulse_deadline_ms",
+    "interpulse_spent_ms",
+    "interpulse_credit_ms"
+  ],
+  "floats": [
+    "dt_s",
+    "filtered",
+    "target",
+    "reference",
+    "reference_rate",
+    "error",
+    "p",
+    "i",
+    "d",
+    "ff",
+    "raw_output",
+    "control_committed",
+    "next_integral",
+    "current_committed",
+    "control_pressure",
+    "requested_output",
+    "post_limit_output",
+    "measured",
+    "force_N",
+    "planned_reference_s",
+    "progress_delta",
+    "session_peak_measured",
+    "boost_handoff_command",
+    "boost_pressure_before",
+    "boost_pressure_after",
+    "assist_pressure_peak",
+    "assist_response_peak",
+    "pulse_force_before",
+    "pulse_force_after",
+    "build_progress_anchor",
+    "requested_equivalent_V",
+    "mapped_pwm_percent"
+  ]
+}

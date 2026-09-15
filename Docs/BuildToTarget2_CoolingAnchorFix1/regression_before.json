@@ -1,0 +1,40 @@
+[
+  {
+    "batch": "repro-before",
+    "name": "build_to_target_force",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/run_force_servo_tests.py",
+      "--commissioning",
+      "--characterization",
+      "--build-to-target",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\BuildToTarget2_CoolingAnchorFix1\\repro-before\\build_host"
+    ],
+    "started_utc": "2026-09-15T01:55:09.005764+00:00",
+    "elapsed_seconds": 4.063,
+    "exit_code": 1,
+    "result": "FAIL",
+    "log": "output/BuildToTarget2_CoolingAnchorFix1/repro-before/build_to_target_force.log",
+    "sha256": "9415B0B4CCC4905BA0C3D9C79116D567FDAD97343172B0C326D0B5F13530E032"
+  },
+  {
+    "batch": "off-verification-before",
+    "name": "build_to_target_force",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/run_force_servo_tests.py",
+      "--commissioning",
+      "--characterization",
+      "--build-to-target",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\BuildToTarget2_CoolingAnchorFix1\\off-verification-before\\build_host"
+    ],
+    "started_utc": "2026-09-15T02:01:21.650725+00:00",
+    "elapsed_seconds": 3.531,
+    "exit_code": 1,
+    "result": "FAIL",
+    "log": "output/BuildToTarget2_CoolingAnchorFix1/off-verification-before/build_to_target_force.log",
+    "sha256": "AD71D9FADDDF60272EF3F7D0B9E2149B5DC71F0F1D16BCD0F188664E3C714E10"
+  }
+]

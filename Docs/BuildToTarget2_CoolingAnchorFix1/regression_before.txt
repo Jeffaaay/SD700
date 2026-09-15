@@ -1,0 +1,27 @@
+repro-before
+ACTUAL_OFF_COOLING reserved=12000 rest=107970 expected=108000
+ Assertion failed: e.rest_remaining_ms==108000, file Tests/Host/test_build_to_target.c, line 646
+
+Traceback (most recent call last):
+  File "C:\Users\jian\Desktop\SD700-GitHub\tools\run_force_servo_tests.py", line 52, in <module>
+    if __name__=='__main__': main()
+                             ^^^^^^
+  File "C:\Users\jian\Desktop\SD700-GitHub\tools\run_force_servo_tests.py", line 49, in main
+    result.check_returncode()
+  File "C:\Users\jian\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 502, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+subprocess.CalledProcessError: Command '['C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\BuildToTarget2_CoolingAnchorFix1\\repro-before\\build_host\\force_servo_O0.exe']' returned non-zero exit status 3221226505.
+
+off-verification-before
+ACTUAL_OFF_COOLING reserved=131 rest=107000 expected=108000
+ Assertion failed: e.rest_remaining_ms==108000, file Tests/Host/test_build_to_target.c, line 646
+
+Traceback (most recent call last):
+  File "C:\Users\jian\Desktop\SD700-GitHub\tools\run_force_servo_tests.py", line 52, in <module>
+    if __name__=='__main__': main()
+                             ^^^^^^
+  File "C:\Users\jian\Desktop\SD700-GitHub\tools\run_force_servo_tests.py", line 49, in main
+    result.check_returncode()
+  File "C:\Users\jian\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 502, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+subprocess.CalledProcessError: Command '['C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\BuildToTarget2_CoolingAnchorFix1\\off-verification-before\\build_host\\force_servo_O0.exe']' returned non-zero exit status 3221226505.

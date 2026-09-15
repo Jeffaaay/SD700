@@ -10,7 +10,7 @@ $options=@{Port=$Port;TargetForceN=$TargetForceN;OutputCsv=$OutputCsv}
 foreach ($item in $options.GetEnumerator()) { Set-Variable -Name $item.Key -Value $item.Value }
 $plan=New-CharacterizationPlan $TargetForceN 0 0
 $root=(Resolve-Path "$PSScriptRoot/..").Path
-$firmware=Join-Path $root 'output/BuildToTarget2_Interpulse1/firmware/SD700_ForceServo1_BuildToTarget2_Interpulse1_RealBench_Release.hex'
+$firmware=Join-Path $root 'output/BuildToTarget2_CoolingAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_CoolingAnchorFix1_RealBench_Release.hex'
 & python "$PSScriptRoot/verify_force_servo_firmware.py"
 if ($LASTEXITCODE -ne 0) { throw 'Strict repository HEX/ELF verification failed; no serial connection' }
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
@@ -38,7 +38,7 @@ foreach ($p in @($OutputCsv,[IO.Path]::ChangeExtension($OutputCsv,'.report.txt')
 }
 $confirmStart={param($p)
     Write-Host @"
-=== SD700 BuildToTarget2_Interpulse1 SUPERVISED EXPERIMENT ===
+=== SD700 BuildToTarget2_CoolingAnchorFix1 SUPERVISED EXPERIMENT ===
 Target:              $($p.target_N) N (only writable control)
 Initial force:       0 N allowed; contact10 N; already reached target takes priority
 APPROACH:            base5000 + coarse0..3500 command (~20.83..35.42% PWM)

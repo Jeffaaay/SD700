@@ -188,3 +188,9 @@ output/BuildToTarget2_Interpulse1/*
 !output/BuildToTarget2_Interpulse1/firmware/
 !output/BuildToTarget2_Interpulse1/firmware/*.hex
 !output/BuildToTarget2_Interpulse1/firmware/*.elf
+
+!output/BuildToTarget2_CoolingAnchorFix1/
+output/BuildToTarget2_CoolingAnchorFix1/*
+!output/BuildToTarget2_CoolingAnchorFix1/firmware/
+!output/BuildToTarget2_CoolingAnchorFix1/firmware/*.hex
+!output/BuildToTarget2_CoolingAnchorFix1/firmware/*.elf
