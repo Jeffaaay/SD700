@@ -30,7 +30,8 @@ typedef enum
     MOTOR_ACTION_PRESS_PULSE,
     MOTOR_ACTION_RELEASE_PULSE,
     MOTOR_ACTION_CONTINUOUS,
-    MOTOR_ACTION_BUILD_SEGMENT
+    MOTOR_ACTION_BUILD_SEGMENT,
+    MOTOR_ACTION_BUILD_PRELOAD
 } MotorAction;
 
 typedef enum
@@ -117,7 +118,8 @@ typedef struct {
  uint32_t rest_remaining_ms, inhibited, request, phase, command, hard_ms;
  uint32_t started_ms, ended_ms, deadline_ms, receive_deadline_ms, end_reason;
  uint32_t base_command, mode, approach_command_ms;
- bool segment_active, post_pending;
+ uint32_t preload_command, preload_started_ms, preload_deadline_ms, preload_credit_ms, preload_spent_ms;
+ bool segment_active, post_pending, preload_active;
 } MotorBuildSnapshot;
 MotorResult MotorExecutor_BeginBuild(uint32_t now_ms,uint32_t *token);
 MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildRequest *request,

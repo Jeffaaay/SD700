@@ -1,0 +1,18 @@
+TestBuildApproachAndLowTargets PASS
+SYNTHETIC_TARGET=250
+SYNTHETIC_TARGET=500
+SYNTHETIC_TARGET=1000
+SYNTHETIC_TARGET=2000
+SYNTHETIC_TARGET=3000
+TestBuildSyntheticTargetsOffAndDecay PASS
+TestBuildSlowProgressAndShortPlateau PASS
+TestBuildNoiseAndPersistentBudgets PASS
+CROSS_START_REPRO second10_to61=PASS; subsequent_platform5000ms=OFF_DETAIL22
+TestBuildSecondStartProgressAndPlatform PASS
+TestBuildStartAnchorRequiresFreshFrame PASS
+TestBuildRestartNoiseBadFramesAndStop PASS
+TestBuildContractAndPostFeedback PASS
+TestBuildCutoffsAndStopRaces PASS
+TestBuildMissingBadFeedbackAndTargetPriority PASS
+TestBuildBoostAndTaperEnergy PASS
+Assertion failed: MotorExecutor_StartBuildSegment(token,&pulse,++seq,now,now)==MOTOR_RESULT_OK, file Tests/Host/test_build_to_target.c, line 407

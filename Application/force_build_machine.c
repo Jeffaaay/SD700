@@ -32,6 +32,9 @@ void ForceBuildMachine_Publish(MachineContext *m,uint32_t now)
  d->segment_normal_ms=e.hard_ms ? e.hard_ms-1U : 0U;
  d->coarse_boost_command=b->coarse_boost; d->coarse_check_ms=b->coarse_check_ms;
  d->approach_command_ms=e.approach_command_ms;
+ d->interpulse_active=e.preload_active; d->interpulse_command=e.preload_active ? e.preload_command : 0;
+ d->interpulse_next_command=b->preload_command; d->interpulse_deadline_ms=e.preload_deadline_ms;
+ d->interpulse_spent_ms=e.preload_spent_ms; d->interpulse_credit_ms=e.preload_credit_ms;
  d->segment_end_ms=e.ended_ms; d->segment_end_reason=e.end_reason;
  d->post_pulse_pending=b->post_pending; d->exposure_epoch=e.epoch;
  d->energized_reserved_ms=e.reserved_ms; d->approach_reserved_ms=e.approach_reserved_ms;
@@ -41,8 +44,10 @@ void ForceBuildMachine_Publish(MachineContext *m,uint32_t now)
  d->progress_status=!m->servo.active || b->monitoring ? 0U : b->no_response_ms<500 && d->progress_delta>=2 ? 3U : 2U;
  d->build_progress_anchor=b->progress_anchor;
  d->energized_elapsed_ms=e.energized_upper_ms;
- d->post_limit_output=e.segment_active ? (float)e.command : 0;
- d->lease_deadline=e.receive_deadline_ms; d->lease_active=e.segment_active;
+ d->post_limit_output=e.segment_active ? (float)e.command : e.preload_active ? (float)e.preload_command : 0;
+ d->requested_equivalent_V=d->post_limit_output*.001f;
+ d->mapped_pwm_percent=d->post_limit_output/240.0f;
+ d->lease_deadline=e.receive_deadline_ms; d->lease_active=e.segment_active || e.preload_active;
  if (e.inhibited) { d->cooling_active=1; d->cooling_until_ms=now+e.rest_remaining_ms; }
 }
 bool ForceBuildMachine_Ready(MachineContext *m,uint32_t now)
@@ -76,7 +81,9 @@ void ForceBuildMachine_Safety(MachineContext *m,uint32_t now)
  if (!MotorExecutor_BuildOwnerValid(s->token)) {
      fail(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_LEASE_EXPIRED,now); return;
  }
- if (e.segment_active && ((int32_t)(now-e.receive_deadline_ms)>=0 || (int32_t)(now-e.deadline_ms)>=0)) {
+ if (((e.segment_active || e.preload_active) && (int32_t)(now-e.receive_deadline_ms)>=0) ||
+     (e.segment_active && (int32_t)(now-e.deadline_ms)>=0) ||
+     (e.preload_active && (int32_t)(now-e.preload_deadline_ms)>=0)) {
      fail(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_BUILD_CUTOFF,now); return;
  }
  if (b->phase!=BUILD_PHASE_APPROACH && b->no_response_ms>=g_force_build_config.no_response_ms)
@@ -102,6 +109,7 @@ bool ForceBuildMachine_Begin(MachineContext *m,uint32_t now)
  sync_epoch(m,now); b->accounted_ms=now; b->monitoring=false;
  float measured=(float)m->pressure.raw_pressure_counts;
  b->boost=0; b->low_count=0; b->coarse_boost=0;
+ if (!b->preload_command) b->preload_command=g_force_build_config.preload_initial_command;
  b->coarse_check_ms=now; b->coarse_reference=measured;
  b->contact_latched=measured>=g_force_build_config.contact_N;
  s->diagnostic.contact_count=b->contact_latched ? 1U : 0U;
@@ -221,6 +229,7 @@ void ForceBuildMachine_Pressure(MachineContext *m,uint32_t now)
          b->post_sequence=m->pressure.sequence;
      }
  } else if (!b->post_pending) {
+     r.preload_command=r.mode==BUILD_MODE_COARSE ? 0 : b->preload_command;
      if (MotorExecutor_StartBuildSegment(s->token,&r,m->pressure.sequence,m->pressure.received_at_ms,now)!=MOTOR_RESULT_OK) {
          MotorBuildSnapshot rejected=MotorExecutor_GetBuildSnapshot(now);
          fail(m,rejected.inhibited ? FAULT_MOTION_TIMEOUT : FAULT_MOTOR_FAULT,

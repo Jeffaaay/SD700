@@ -27,4 +27,8 @@ void MotorStopTimer_IrqHandler(void);
 
 bool MotorStopTimer_ArmLease(uint32_t remaining_ms);
 bool MotorStopTimer_RenewLease(uint32_t remaining_ms);
+/* BUILD-only same-direction transitions. Neither resets CNT nor clears a
+ * pending cutoff. Handoff is legal only after verified preload PWM. */
+bool MotorStopTimer_BuildHandoff(uint32_t remaining_ms);
+bool MotorStopTimer_BuildPulse(uint32_t normal_ms,uint32_t hard_ms);
 #endif

@@ -1,3 +1,24 @@
+# Current interpulse port: BuildToTarget2_Interpulse1
+
+Source: the user explicitly supplied the Desktop ZIP. Its actual pressure_control.c SHA256 remains `920aec9a59ec60a439ae7b5624e75aad17ae76e0372c418f7484b505340cafe2`. [Archive/member hash record](Docs/BuildToTarget2_Interpulse1/SOURCE_REFERENCE.json).
+
+| Old source lines | Current port |
+|---|---|
+|32-35,68| Immutable preload initial300, min200, max600, step100, drop2 N; command/1000 is the old voltage equivalent |
+|83-99| Preload is not reset by ResetAdaptive: preserve it across new START and cooling; boot starts300 |
+|104-111| Only matching, valid fresh post-forward-pulse feedback may add100 for movement<-2; cap600. No decrease or reset on positive response. ForceBuild_PulseBoost contains these operations before the unchanged PulseBoost logic |
+|437-449,518-530| Both MICRO/FINE end through MotorExecutor_BuildFinishPulse: same-forward existing HW update, preload instead of OFF. Reverse/legacy/COARSE completion cannot enter this branch; current BUILD accepts only PRESS, target/negative error OFF, no new reverse authority |
+|453-459,534-541| Retain >=30 ms cooldown and stronger modern sequence/age/request/RX>=end+30 gates. Exclude old400 ms retry without fresh feedback because the required modern stale/lease protections fail closed |
+|594-618| Final old preload HOLD deliberately not ported. Every target1..3000 first valid reach is bridge OFF and decay monitoring only |
+
+Necessary modern safety adaptation: TIM5 normal compare keeps the original pulse hard ARR until the bounded preload compare is verified. A Build-only timer handoff then keeps the counter running under the earlier of the original receive lease and prepaid remaining exposure. Preload-to-next-pulse similarly preserves CNT/pending events; no direct application PWM writes or old driver calls. Same motor executor, unchanged amplitudes/boost/durations, gains and all original configuration words except version; five disclosed preload constants appended.
+
+Preload is energized time. The12 s ledger now covers unchanged nonrefundable pulse hard reservations plus prepaid preload time. A gap spends full enabled wall time+1 ms upper guard; unused prepaid credit stays in the same cumulative ledger across STOP/START, funds later preload only, and is reset only by108 s true OFF. Reservation never falls except a qualified cooling epoch. No thermal/current or physical equivalence claim. Tests exercise automatic OFF at the independent exposure deadline without main polling.
+
+The original BuildToTarget2 map below is a historical record. Its statements excluding interpulse preload describe that original release; this current section supersedes those statements for Interpulse1. Final target OFF remains unchanged.
+
+---
+
 # BuildToTarget2 - actual old source to modern control map
 
 Baseline: clean main/origin/main1a4c93d57d386e25efa300a64828e2fef5a67071. The source is the actual attached working tree, not old Git HEAD3ec8554. The requested dated filename `SD700-Servo-Press-Controller-master(20260914-221951).zip` was not present under that name. The local `C:\Users\jian\Desktop\SD700-Servo-Press-Controller-master.zip` contains the same three exact working-tree source hashes pinned in the preceding supplied BuildToTarget1 instruction. It was read directly with zipfile, without extraction, Git checkout, modification or archive creation.

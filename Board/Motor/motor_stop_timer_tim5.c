@@ -22,6 +22,9 @@ static bool s_initialized;
 static bool s_armed;
 static bool s_healthy;
 static MotorFailureStage s_last_failure_stage;
+#if SD700_BUILD_TO_TARGET
+static bool s_build_normal_callback, s_build_handoff;
+#endif
 
 static uint32_t MotorStopTimer_InputClockHz(void)
 {
@@ -238,7 +241,24 @@ void MotorStopTimer_IrqHandler(void)
         s_healthy = false;
     }
 
+#if SD700_BUILD_TO_TARGET
+    s_build_handoff=false;
+    s_build_normal_callback=event==MOTOR_STOP_TIMER_NORMAL && (TIM5->CR1 & TIM_CR1_OPM);
+    if (s_build_normal_callback) {
+        /* Acknowledge ONLY the normal compare. A racing UIF/overcapture stays
+         * latched and prevents extending the original pulse hard deadline. */
+#if SD700_MOTOR_REAL_HOST_TEST
+        TIM5->SR &= ~TIM_SR_CC1IF;
+#else
+        TIM5->SR = ~TIM_SR_CC1IF;
+#endif
+    }
+#endif
     s_handler(event);
+#if SD700_BUILD_TO_TARGET
+    s_build_normal_callback=false;
+    if (s_build_handoff) { s_build_handoff=false; return; }
+#endif
     MotorStopTimer_Cancel();
 }
 
@@ -282,3 +302,38 @@ bool MotorStopTimer_RenewLease(uint32_t remaining_ms)
     /* A compare event between the read and write remains latched. Never revive it. */
     return MotorStopTimer_CommitArm();
 }
+
+#if SD700_BUILD_TO_TARGET
+static bool MotorStopTimer_BuildTransitionReady(void)
+{
+    return MotorStopTimer_IsArmed() && s_healthy &&
+        !(TIM5->SR & (TIM_SR_UIF|TIM_SR_CC1IF|TIM_SR_CC1OF));
+}
+bool MotorStopTimer_BuildHandoff(uint32_t remaining_ms)
+{
+    /* The executor has already verified the bounded forward compare while the
+     * original hard ARR was still armed. No expired high pulse is revived. */
+    if (!MotorStopTimer_BuildTransitionReady() || !(TIM5->CR1 & TIM_CR1_OPM) ||
+        TIM5->CNT>=TIM5->ARR || remaining_ms<=1 || remaining_ms>MOTOR_STOP_MAX_LEASE_MS) return false;
+    uint32_t counter=TIM5->CNT;
+    TIM5->CCR1=counter+(remaining_ms-1U)*MOTOR_STOP_TIMER_TICKS_PER_MS;
+    TIM5->ARR=UINT32_MAX;
+    TIM5->CR1 &= ~TIM_CR1_OPM;
+    __DSB();
+    if (!MotorStopTimer_BuildTransitionReady() || (int32_t)(TIM5->CNT-TIM5->CCR1)>=0) return false;
+    if (s_build_normal_callback) s_build_handoff=true;
+    return true;
+}
+bool MotorStopTimer_BuildPulse(uint32_t normal_ms,uint32_t hard_ms)
+{
+    if (!MotorStopTimer_BuildTransitionReady() || (TIM5->CR1 & TIM_CR1_OPM) ||
+        (int32_t)(TIM5->CNT-TIM5->CCR1)>=0 || !normal_ms || hard_ms<=normal_ms ||
+        hard_ms>MOTOR_STOP_MAX_LEASE_MS) return false;
+    uint32_t counter=TIM5->CNT;
+    TIM5->CCR1=counter+normal_ms*MOTOR_STOP_TIMER_TICKS_PER_MS;
+    TIM5->ARR=counter+hard_ms*MOTOR_STOP_TIMER_TICKS_PER_MS-1U;
+    TIM5->CR1 |= TIM_CR1_OPM;
+    __DSB();
+    return MotorStopTimer_BuildTransitionReady() && TIM5->CNT<TIM5->ARR;
+}
+#endif

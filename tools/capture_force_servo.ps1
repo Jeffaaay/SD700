@@ -98,7 +98,7 @@ function Read-ForceSnapshot([scriptblock]$Exchange,[string]$Phase) {
         ($values.current_committed -ge $activeConfig.press_cap -or $values.current_committed -le -$activeConfig.release_cap))
     $values.saturated=[int](($values.limits -band 1) -ne 0 -or $values.at_output_cap -ne 0)
     if ($schema.build_to_target) {
-        $cap=if ($values.segment_mode -eq 1) {$schema.build_profile.approach_ceiling} elseif ($values.segment_mode -eq 3) {
+        $cap=if ($values.interpulse_active) {$schema.build_profile.preload_max_command} elseif ($values.segment_mode -eq 1) {$schema.build_profile.approach_ceiling} elseif ($values.segment_mode -eq 3) {
             $schema.build_profile.fine_max_command+$schema.build_profile.fine_boost_max_command
         } else {$schema.build_profile.build_ceiling}
         $values.at_output_cap=[int]($values.current_committed -gt 0 -and $values.current_committed -ge $cap)
@@ -401,7 +401,7 @@ function Invoke-ForceCapture {
         current_limit_setting=$CurrentLimitSetting;initial_gap=$InitialGap;field_notes=$FieldNotes;
         firmware_sha256=$actualHash;operator_flash_attestation=$ConfirmedFirmwareSha256;
         build_profile=$activeBuildProfile;build_config_digest=$schema.build_digest;
-        commissioning=$(if ($schema.build_to_target) {'BuildToTarget2_StartAnchorFix1'} elseif ($schema.characterization) {'StaticForceRuntimeCharacterization2'} else {'StaticForceAuthority2_ReviewFix'});runtime_plan=$verifiedPlan;repository_commit=$RepositoryCommit;sensor_unit_source=$(if ($schema.characterization) {'USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT'} else {'LEGACY_COUNTS'});profile=$activeProfile;candidate_catalog=$activeCandidates;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
+        commissioning=$(if ($schema.build_to_target) {'BuildToTarget2_Interpulse1'} elseif ($schema.characterization) {'StaticForceRuntimeCharacterization2'} else {'StaticForceAuthority2_ReviewFix'});runtime_plan=$verifiedPlan;repository_commit=$RepositoryCommit;sensor_unit_source=$(if ($schema.characterization) {'USER_CONFIRMED_INSTALLED_SENSOR_OUTPUT_UNIT'} else {'LEGACY_COUNTS'});profile=$activeProfile;candidate_catalog=$activeCandidates;profile_digest=$profileDigest;config_digest=$configDigest;target=$Target;target_N=[bool]$TargetN;planned_reference_seconds=$plannedReference;qualification='SHORT_SUPERVISED_EXPERIMENT_NOT_CONTINUOUS_RATING';powered_test_ready=$schema.powered_test_ready;physical_test_status='OPERATOR_CAPTURE_UNVALIDATED';
         pwm_counts='tim2/tim3 are PLANNED; no external electrical measurement';
         maximum_observation_seconds=$(if ($MaximumSeconds -gt 0) {$MaximumSeconds} else {$null});capture_end_policy=$(if ($MaximumSeconds -eq 0) {'OPERATOR_STOP_OR_DEVICE_TERMINAL_OR_FAULT'} else {'FINITE_OBSERVATION'});capture_wall_ms=$watch.ElapsedMilliseconds;
         stop_reserve_ms=$forceStopReserveMs;transaction_timeout_ms=$forceTransactionMs;
@@ -489,7 +489,7 @@ if ($Mode -ne 'SingleStart' -and -not $ConfirmMotorPowerDisconnected) { throw 'O
 if ($Mode -eq 'SingleStart' -and (-not $ConfirmSupervisedMotion -or -not $CurrentLimitSetting -or -not $InitialGap)) {
     throw 'SingleStart requires supervision, permitted load/travel/thermal exposure, external E-stop, actual current limit and initial gap'
 }
-$firmware=Join-Path $PSScriptRoot '../output/BuildToTarget2_StartAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_StartAnchorFix1_RealBench_Release.hex'
+$firmware=Join-Path $PSScriptRoot '../output/BuildToTarget2_Interpulse1/firmware/SD700_ForceServo1_BuildToTarget2_Interpulse1_RealBench_Release.hex'
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
 if ($ConfirmedFirmwareSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $ConfirmedFirmwareSha256 -ine $actualHash) {
     throw 'Operator flash attestation must match the repository HEX; this is not MCU binary verification'

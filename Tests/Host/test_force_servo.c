@@ -37,6 +37,13 @@ static void advance(uint32_t ms)
  now+=ms;
  if (MotorStopTimer_IsArmed()) {
      uint32_t old=TIM5->CNT; TIM5->CNT+=ms*10;
+#if SD700_BUILD_TO_TARGET
+     if ((TIM5->CR1 & TIM_CR1_OPM) && TIM5->CNT>TIM5->ARR) {
+         TIM5->SR|=TIM_SR_UIF; TIM5->CR1 &= ~TIM_CR1_CEN;
+         if (!critical) MotorStopTimer_IrqHandler();
+         return;
+     }
+#endif
      if ((int32_t)(old-TIM5->CCR1)<0 && (int32_t)(TIM5->CNT-TIM5->CCR1)>=0) {
          TIM5->SR=TIM_SR_CC1IF;
          if (!critical) MotorStopTimer_IrqHandler();

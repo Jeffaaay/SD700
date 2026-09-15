@@ -27,7 +27,7 @@ static int32_t s_boost_initial, s_boost_peak, s_boost_lower;
 
 static MotorExecutorSnapshot s_motor;
 static bool s_initialized;
-/* TIM5 is one-shot: the ISR is the single producer and main is the
+/* TIM5 terminal events: the ISR is the single producer and main is the
    single consumer of at most one pending completion event. */
 static volatile MotorStopTimerEvent s_pending_completion_event;
 static volatile bool s_completion_event_pending;
@@ -37,9 +37,9 @@ static bool s_build_have_sequence, s_build_rest_required;
 static uint32_t s_build_generation, s_build_off_at;
 static uint64_t s_build_used_sequence;
 static MotorBuildSnapshot s_build;
-/* Called only after hardware OFF. Count full bridge-enabled wall time, never
+/* After verified pulse handoff/OFF. Count full bridge-enabled wall time, never
  * PWM-high fraction; admission reserves the full hard limit without refunds. */
-static void MotorExecutor_BuildRecordOff(uint32_t now,uint32_t reason)
+static void MotorExecutor_BuildRecordPulseEnd(uint32_t now,uint32_t reason)
 {
  if (!s_build.segment_active) return;
  uint32_t elapsed=now-s_build.started_ms+1U;
@@ -53,17 +53,45 @@ static void MotorExecutor_BuildRecordOff(uint32_t now,uint32_t reason)
  s_build.ended_ms=now; s_build.end_reason=reason; s_build_off_at=now;
  if (reason!=BUILD_END_NORMAL && reason!=BUILD_END_REDUCED) s_build_open=false;
 }
+/* Prepaid preload time is retained across STOP/START, never refunded. Consume
+ * it by full bridge-enabled wall time, including a one-ms upper-bound guard.
+ * The unused credit can fund later gaps; total reservations never decrease. */
+static void MotorExecutor_BuildChargePreload(uint32_t now)
+{
+ if (!s_build.preload_active) return;
+ uint32_t elapsed=now-s_build.preload_started_ms+1U;
+ s_build.preload_spent_ms+=elapsed; s_build.energized_upper_ms+=elapsed;
+ if (elapsed>s_build.preload_credit_ms) {
+     s_build.reserved_ms+=elapsed-s_build.preload_credit_ms;
+     s_build.preload_credit_ms=0; s_build_rest_required=true; s_build_open=false;
+     s_build.end_reason=BUILD_END_DEADLINE;
+ } else s_build.preload_credit_ms-=elapsed;
+ s_build.preload_active=false;
+}
+static void MotorExecutor_BuildRecordOff(uint32_t now,uint32_t reason)
+{
+ bool preload=s_build.preload_active;
+ MotorExecutor_BuildRecordPulseEnd(now,reason);
+ MotorExecutor_BuildChargePreload(now);
+ if (preload) {
+     s_build_off_at=now;
+     if (s_build.end_reason!=BUILD_END_DEADLINE) s_build.end_reason=reason;
+ }
+ if (reason!=BUILD_END_NORMAL && reason!=BUILD_END_REDUCED) s_build_open=false;
+}
+static MotorResult MotorExecutor_BuildFinishPulse(uint32_t now,uint32_t reason);
 static void MotorExecutor_BuildRefreshRest(uint32_t now)
 {
- if (!s_build.segment_active && MotorHwReal_IsDisabled() &&
+ if (!s_build.segment_active && !s_build.preload_active && MotorHwReal_IsDisabled() &&
      (s_build_rest_required || s_build.reserved_ms)) {
      uint32_t off=now-s_build_off_at;
      if (off>=g_force_build_config.full_rest_ms) {
          s_build.reserved_ms=0; s_build.approach_reserved_ms=0; s_build.energized_upper_ms=0; s_build.approach_command_ms=0;
+         s_build.preload_credit_ms=0; s_build.preload_spent_ms=0;
          s_build_rest_required=false; ++s_build.epoch;
      }
      s_build.rest_remaining_ms=off>=g_force_build_config.full_rest_ms ? 0 : g_force_build_config.full_rest_ms-off;
- } else s_build.rest_remaining_ms=s_build.segment_active ? g_force_build_config.full_rest_ms : 0;
+ } else s_build.rest_remaining_ms=(s_build.segment_active || s_build.preload_active) ? g_force_build_config.full_rest_ms : 0;
  s_build.inhibited=s_build_rest_required ? 1U : 0U;
 }
 #endif
@@ -168,7 +196,20 @@ static MotorCompletion MotorExecutor_MapCompletion(
 static void MotorExecutor_StopTimerExpiredFromIsr(
     MotorStopTimerEvent event)
 {
-    /* ISR ordering: output off, timer cleared, minimal event latched. */
+#if SD700_BUILD_TO_TARGET
+    if (event==MOTOR_STOP_TIMER_NORMAL && s_build.segment_active &&
+        s_motor.direction==MOTOR_DIRECTION_PRESS &&
+        (s_build.mode==BUILD_MODE_MICRO || s_build.mode==BUILD_MODE_FINE)) {
+        /* Normal completion changes to the latched preload under the original
+         * pulse hard ARR. Only a verified handoff may retain timer/output. */
+        if (MotorExecutor_BuildFinishPulse(MotorAtomic_Now(0),BUILD_END_NORMAL)==MOTOR_RESULT_OK) return;
+        event=MOTOR_STOP_TIMER_ERROR;
+    } else if (s_build.preload_active) {
+        if (s_build.preload_deadline_ms!=s_build.receive_deadline_ms) s_build_rest_required=true;
+        event=MOTOR_STOP_TIMER_BACKSTOP;
+    }
+#endif
+    /* All other completions/errors: output off, timer cleared, event latched. */
     MotorHwReal_DisableImmediate();
 #if SD700_BUILD_TO_TARGET
     MotorExecutor_BuildRecordOff(MotorAtomic_Now(0),event==MOTOR_STOP_TIMER_NORMAL ? BUILD_END_NORMAL : BUILD_END_DEADLINE);
@@ -188,6 +229,12 @@ static MotorResult MotorExecutor_PublishCompletion(
 #if SD700_BUILD_TO_TARGET
     if (s_motor.last_action==MOTOR_ACTION_BUILD_SEGMENT && s_build.end_reason==BUILD_END_DEADLINE)
         event=MOTOR_STOP_TIMER_ERROR;
+#endif
+#if SD700_BUILD_TO_TARGET
+    if (event!=MOTOR_STOP_TIMER_NORMAL) {
+        MotorHwReal_DisableImmediate();
+        MotorExecutor_BuildRecordOff(MotorAtomic_Now(0),BUILD_END_DEADLINE);
+    }
 #endif
     MotorExecutor_SetPhysicalStatus();
     if (!s_motor.physical_output_disabled)
@@ -773,6 +820,17 @@ MotorResult MotorExecutor_GuardOutput(void)
 
 bool MotorExecutor_ActiveRequestIsValid(void)
 {
+#if SD700_BUILD_TO_TARGET
+    if (s_motor.last_action==MOTOR_ACTION_BUILD_SEGMENT || s_motor.last_action==MOTOR_ACTION_BUILD_PRELOAD) {
+        uint32_t key=MotorAtomic_Enter();
+        bool valid=s_completion_event_pending ? MotorHwReal_IsDisabled() && !MotorStopTimer_IsArmed() :
+            s_build_open && s_motor.logical_active && (s_build.segment_active || s_build.preload_active) &&
+            s_motor.direction==MOTOR_DIRECTION_PRESS && MotorStopTimer_IsArmed() && MotorStopTimer_IsHealthy() &&
+            MotorHwReal_OutputArmingAllowed() && !MotorHwReal_IsDisabled() &&
+            MotorHwReal_MatchesPlan(s_motor.planned_tim2_ccr3,s_motor.planned_tim3_ccr3);
+        MotorAtomic_Leave(key); return valid;
+    }
+#endif
 #if SD700_FORCE_SERVO_ENABLED
     if (s_motor.last_action == MOTOR_ACTION_CONTINUOUS && !s_completion_event_pending) {
         bool valid = s_servo_open && s_motor.logical_active && MotorStopTimer_IsHealthy() &&
@@ -1125,6 +1183,11 @@ MotorBuildSnapshot MotorExecutor_GetBuildSnapshot(uint32_t now)
  uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
  MotorExecutor_BuildRefreshRest(now); MotorBuildSnapshot r=s_build;
  if (s_build.segment_active) r.energized_upper_ms+=now-s_build.started_ms+1U;
+ if (s_build.preload_active) {
+     uint32_t dt=now-s_build.preload_started_ms+1U;
+     r.energized_upper_ms+=dt; r.preload_spent_ms+=dt;
+     r.preload_credit_ms=dt<r.preload_credit_ms ? r.preload_credit_ms-dt : 0;
+ }
  MotorAtomic_Leave(key); return r;
 }
 bool MotorExecutor_BuildOwnerValid(uint32_t token)
@@ -1144,23 +1207,66 @@ MotorResult MotorExecutor_BeginBuild(uint32_t now,uint32_t *token)
  }
  MotorAtomic_Leave(key); return result;
 }
+/* Same forward compare only. Reverse/legacy/COARSE completions never enter
+ * this function; they retain their non-forward OFF path. */
+static MotorResult MotorExecutor_BuildFinishPulse(uint32_t now,uint32_t reason)
+{
+ const ForceBuildConfig *c=&g_force_build_config; uint16_t t2,t3;
+ if (!s_build_open || !s_build.segment_active || s_completion_event_pending ||
+     s_motor.direction!=MOTOR_DIRECTION_PRESS ||
+     (s_build.mode!=BUILD_MODE_MICRO && s_build.mode!=BUILD_MODE_FINE) ||
+     MotorExecutor_TimeReached(now,s_build.deadline_ms) || MotorExecutor_TimeReached(now,s_build.receive_deadline_ms) ||
+     !MotorHwReal_MatchesPlan(s_motor.planned_tim2_ccr3,s_motor.planned_tim3_ccr3)) return MOTOR_RESULT_TIMER_ERROR;
+ if (s_build.reserved_ms>c->total_on_ms) return MOTOR_RESULT_TIMER_ERROR;
+ uint32_t remaining=s_build.receive_deadline_ms-now;
+ uint32_t available=c->total_on_ms-s_build.reserved_ms+s_build.preload_credit_ms;
+ if (remaining>available) remaining=available;
+ if (remaining<=1) { s_build_rest_required=true; return MOTOR_RESULT_TIMER_ERROR; }
+ uint32_t deadline=now+remaining;
+ if (remaining>s_build.preload_credit_ms) {
+     s_build.reserved_ms+=remaining-s_build.preload_credit_ms; s_build.preload_credit_ms=remaining;
+ }
+ if (MotorExecutor_PlanCommand(MOTOR_DIRECTION_PRESS,s_build.preload_command,&t2,&t3)!=MOTOR_RESULT_OK ||
+     !MotorHwReal_Update(true,t3) || !MotorHwReal_MatchesPlan(t2,t3) ||
+     !s_build_open || s_completion_event_pending) return MOTOR_RESULT_TIMER_ERROR;
+ now=MotorAtomic_Now(now);
+ if (MotorExecutor_TimeReached(now,deadline) ||
+     !MotorStopTimer_BuildHandoff(deadline-now) || !s_build_open || s_completion_event_pending) return MOTOR_RESULT_TIMER_ERROR;
+ now=MotorAtomic_Now(now);
+ if (MotorExecutor_TimeReached(now,s_build.deadline_ms) || MotorExecutor_TimeReached(now,s_build.receive_deadline_ms))
+     return MOTOR_RESULT_TIMER_ERROR;
+ MotorExecutor_BuildRecordPulseEnd(now,reason);
+ s_build.preload_active=true; s_build.preload_started_ms=now; s_build.preload_deadline_ms=deadline;
+ s_motor.last_action=MOTOR_ACTION_BUILD_PRELOAD; s_motor.last_completion=MOTOR_COMPLETION_NORMAL;
+ s_motor.command_mv=s_build.preload_command; s_motor.planned_tim2_ccr3=t2; s_motor.planned_tim3_ccr3=t3;
+ s_motor.requested_duration_ms=remaining; s_motor.logical_deadline_ms=s_build.preload_deadline_ms;
+ s_motor.logical_backstop_ms=s_build.preload_deadline_ms; s_motor.logical_active=true;
+ return MOTOR_RESULT_OK;
+}
 MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildRequest *r,
  uint64_t sequence,uint32_t received,uint32_t now)
 {
  uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now); MotorResult result=MOTOR_RESULT_INVALID;
  uint16_t t2=0,t3=0; const ForceBuildConfig *c=&g_force_build_config;
+ bool from_preload=s_build.preload_active;
  if (!r || !s_build_open || token!=s_build_generation) goto done;
- if (s_build.segment_active || s_motor.logical_active || s_completion_event_pending || s_build.post_pending ||
+ if (s_build.segment_active || (s_motor.logical_active && !from_preload) || s_completion_event_pending || s_build.post_pending ||
      (s_build_have_sequence && !ForceServo_SequenceAfter(sequence,s_build_used_sequence))) goto done;
  MotorExecutor_BuildRefreshRest(now);
  if (s_build_rest_required || now-received>FORCE_SERVO_COMMISSIONING_AGE_MS ||
-     !MotorHwReal_IsDisabled() || MotorStopTimer_IsArmed() || !MotorExecutor_IsHealthy()) goto fail;
+     !MotorExecutor_IsHealthy()) goto fail;
+ if (from_preload) {
+     if (MotorHwReal_IsDisabled() || !MotorStopTimer_CommitArm() || !s_build_open || s_completion_event_pending ||
+         MotorExecutor_TimeReached(now,s_build.preload_deadline_ms) || MotorExecutor_TimeReached(now,s_build.receive_deadline_ms)) goto fail;
+ } else if (!MotorHwReal_IsDisabled() || MotorStopTimer_IsArmed()) goto fail;
  if (r->phase==BUILD_PHASE_APPROACH) {
-     if (r->mode!=BUILD_MODE_COARSE || r->base_command!=c->approach_command ||
+     if (from_preload || r->preload_command!=0 || r->mode!=BUILD_MODE_COARSE || r->base_command!=c->approach_command ||
          r->command<c->approach_command || r->command>c->approach_ceiling ||
          (r->command-c->approach_command)%c->coarse_step_command || r->hard_ms!=c->approach_hard_ms) goto fail;
  } else if (r->phase==BUILD_PHASE_BUILD || r->phase==BUILD_PHASE_TAPER) {
      uint32_t maximum;
+     if (r->preload_command<c->preload_min_command || r->preload_command>c->preload_max_command ||
+         r->preload_command%c->preload_step_command) goto fail;
      if (r->mode==BUILD_MODE_MICRO) {
          if (r->base_command<c->micro_min_command || r->base_command>c->micro_max_command ||
              (r->phase==BUILD_PHASE_BUILD && r->base_command!=c->micro_max_command)) goto fail;
@@ -1176,7 +1282,9 @@ MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildReque
      if (r->hard_ms!=normal+c->hard_guard_ms) goto fail;
  } else goto fail;
  if (r->hard_ms>=FORCE_SERVO_COMMISSIONING_LEASE_MS-(now-received) ||
-     (s_build_have_sequence && now-s_build_off_at<c->off_settle_ms)) goto fail;
+     (s_build_have_sequence && now-s_build.ended_ms<c->off_settle_ms)) goto fail;
+ MotorExecutor_BuildChargePreload(now);
+ if (!s_build_open) goto fail;
  if (s_build.reserved_ms+r->hard_ms>c->total_on_ms ||
      (r->phase==BUILD_PHASE_APPROACH &&
          (s_build.approach_reserved_ms+r->hard_ms>c->approach_total_ms ||
@@ -1192,7 +1300,7 @@ MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildReque
  s_build.started_ms=now; s_build.deadline_ms=now+r->hard_ms;
  s_build.receive_deadline_ms=received+FORCE_SERVO_COMMISSIONING_LEASE_MS;
  s_build.phase=r->phase; s_build.command=r->command; s_build.hard_ms=r->hard_ms;
- s_build.base_command=r->base_command; s_build.mode=r->mode;
+ s_build.base_command=r->base_command; s_build.mode=r->mode; s_build.preload_command=r->preload_command;
  s_build.end_reason=BUILD_END_NONE; ++s_build.request;
  s_build_used_sequence=sequence; s_build_have_sequence=true;
  if (MotorExecutor_PlanCommand(MOTOR_DIRECTION_PRESS,r->command,&t2,&t3)!=MOTOR_RESULT_OK) goto fail;
@@ -1201,12 +1309,13 @@ MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildReque
  s_motor.requested_duration_ms=r->hard_ms-1; s_motor.logical_deadline_ms=now+r->hard_ms-1;
  s_motor.logical_backstop_ms=now+r->hard_ms; s_motor.planned_tim2_ccr3=t2; s_motor.planned_tim3_ccr3=t3;
  s_motor.logical_active=true; ++s_motor.request_sequence;
- /* Normal OFF one ms before the independently programmed hard backstop.
-  * Both precede the original receive lease. No feedback update renews this segment. */
- if (!MotorStopTimer_Arm(r->hard_ms-1,r->hard_ms)) goto fail;
+ /* Normal handoff/OFF precedes the independent hard backstop. A continuing
+  * forward preload never cancels the old timer or clears a pending event. */
+ if (!(from_preload ? MotorStopTimer_BuildPulse(r->hard_ms-1,r->hard_ms) :
+       MotorStopTimer_Arm(r->hard_ms-1,r->hard_ms))) goto fail;
  s_build.segment_active=true;
  if (!MotorStopTimer_CommitArm() || !s_build_open || s_completion_event_pending) goto fail;
- if (!MotorHwReal_ApplyPress(t3) || !MotorHwReal_MatchesPlan(t2,t3) || MotorHwReal_IsDisabled() ||
+ if (!(from_preload ? MotorHwReal_Update(true,t3) : MotorHwReal_ApplyPress(t3)) || !MotorHwReal_MatchesPlan(t2,t3) || MotorHwReal_IsDisabled() ||
      !MotorStopTimer_CommitArm() || !s_build_open || s_completion_event_pending) goto fail;
  result=MOTOR_RESULT_OK; goto done;
 fail:
@@ -1221,18 +1330,28 @@ MotorResult MotorExecutor_EndBuildSegment(uint32_t token,uint32_t now)
 {
  uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now); MotorResult result=MOTOR_RESULT_INVALID;
  if (s_build_open && token==s_build_generation && s_build.segment_active && !s_completion_event_pending) {
-     MotorHwReal_DisableImmediate();
+     bool preload=s_motor.direction==MOTOR_DIRECTION_PRESS &&
+         (s_build.mode==BUILD_MODE_MICRO || s_build.mode==BUILD_MODE_FINE);
+     if (!preload) MotorHwReal_DisableImmediate();
      now=MotorAtomic_Now(now);
-     /* OFF is immediate, but a pending/elapsed cutoff cannot be canceled into
-      * a successful reduction and followed by another segment. */
+     /* The old pulse hard cutoff cannot be canceled into a successful
+      * reduction and followed by another segment. */
      if (!MotorStopTimer_CommitArm() || s_completion_event_pending || !s_build_open ||
          MotorExecutor_TimeReached(now,s_build.deadline_ms) ||
          MotorExecutor_TimeReached(now,s_build.receive_deadline_ms)) {
+         MotorHwReal_DisableImmediate();
          MotorExecutor_BuildRecordOff(now,BUILD_END_DEADLINE);
          s_build.end_reason=BUILD_END_DEADLINE; s_build_open=false; s_build_rest_required=true;
          MotorStopTimer_Cancel();
          if (!s_completion_event_pending) MotorExecutor_LatchCompletion(MOTOR_STOP_TIMER_ERROR);
          result=MOTOR_RESULT_TIMER_ERROR;
+     } else if (preload) {
+         result=MotorExecutor_BuildFinishPulse(now,BUILD_END_REDUCED);
+         if (result!=MOTOR_RESULT_OK) {
+             MotorHwReal_DisableImmediate(); MotorExecutor_BuildRecordOff(MotorAtomic_Now(now),BUILD_END_DEADLINE);
+             s_build_open=false; MotorStopTimer_Cancel();
+             if (!s_completion_event_pending) MotorExecutor_LatchCompletion(MOTOR_STOP_TIMER_ERROR);
+         }
      } else {
          MotorExecutor_BuildRecordOff(now,BUILD_END_REDUCED); MotorStopTimer_Cancel();
          s_motor.last_completion=MOTOR_COMPLETION_NORMAL; MotorExecutor_ClearActivePlan();
@@ -1246,11 +1365,14 @@ bool MotorExecutor_AcceptBuildPost(uint32_t token,uint32_t request,uint64_t sequ
 {
  uint32_t key=MotorAtomic_Enter(); now=MotorAtomic_Now(now);
  bool ok=s_build_open && token==s_build_generation && s_build.post_pending && request==s_build.request &&
-     !s_build.segment_active && !s_motor.logical_active && !s_completion_event_pending &&
+     !s_build.segment_active && (!s_motor.logical_active || s_build.preload_active) && !s_completion_event_pending &&
      (s_build.end_reason==BUILD_END_NORMAL || s_build.end_reason==BUILD_END_REDUCED) &&
      ForceServo_SequenceAfter(sequence,s_build_used_sequence) && now-received<=FORCE_SERVO_COMMISSIONING_AGE_MS &&
      (int32_t)(received-s_build.ended_ms)>=(int32_t)g_force_build_config.off_settle_ms &&
-     MotorHwReal_IsDisabled() && MotorExecutor_IsHealthy();
+     MotorExecutor_IsHealthy() &&
+     (s_build.preload_active ?
+         !MotorExecutor_TimeReached(now,s_build.preload_deadline_ms) && !MotorExecutor_TimeReached(now,s_build.receive_deadline_ms) &&
+         MotorStopTimer_CommitArm() && s_build_open && !s_completion_event_pending : MotorHwReal_IsDisabled());
  if (ok) { s_build.post_pending=false; }
  MotorAtomic_Leave(key); return ok;
 }

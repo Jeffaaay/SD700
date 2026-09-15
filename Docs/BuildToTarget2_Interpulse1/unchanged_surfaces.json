@@ -1,0 +1,63 @@
+{
+  "baseline": "5b41ad8dab6af67998ea40c0cb1bf1e141ecf54a",
+  "unchanged_source_hashes": {
+    "Application/force_servo.c": "DE0687D6D3BA5F6E70001270D97890B099397C95C0118AA0809A76D09C94B8AE",
+    "Application/force_servo_machine.c": "AD6F861542E411EDA6A1BF7825C32D492F6A740EEA9C5458D3ACAB0279FCFEF9",
+    "Application/machine.c": "D08ABFE9AA850D00E1639154869F985059365F40880DFC0D66A39E76923C9590",
+    "Application/force_servo_output_profile.h": "509514C7DEF0C5B0F3A3BCB5542CE41824C759603CA08D77057B5FC033E0C352",
+    "Application/force_servo_profile.h": "A70FB9A6B1AE81CA77A1B4A4F5C122BD289E13ABFAA57E674CD0A1955B0E71B5",
+    "Board/Motor/motor_hw_real.c": "C2F4702211B458FA244BD1D726267107CF51F04557AEA3D4E83282F7436E7378",
+    "Board/Motor/motor_real_gate.c": "5D4210242485206988F6EE57EC91113004D763BE5D6311891611F68AD933D4B8",
+    "Transport/Modbus/force_servo_protocol.c": "FE131EDF6D34153001FEE21665A8F8D714CB7506E8026E22776BE774B1007265"
+  },
+  "unchanged_elf_symbols": {
+    "g_force_servo_default_config": "09982CAE8BD62EDF778581C0AD649A85ECF15F9D73BCA92C47EECDA432F8BF28",
+    "g_force_servo_profile": "C7B0BB289EBFEFF3A47FF167617EB8C9067D38CFE1E4C792130309970C2A22B9",
+    "g_force_servo_candidates": "50021B78595B23C0534D2BFE5AEF3A40620D63E654F403B749B495A9780C96EF",
+    "g_force_characterization_contract": "68AECD0B93DB0475CDF53CB5E8D8B5AB906207B7AB7C3BCA8B85AE399F3E080F",
+    "g_sd700_auto_target_machine_config": "5A703DF20DC1C7C763A8E4AEEEE10DC09D586ED3209CE265A8F91F0DBA3B4FE2",
+    "MotorHwReal_OutputArmingAllowed": "64D23481CB6A254816FB9C4C9B22031F78ED0A6ECE5A6B0F6849A3EE7F77A2BB",
+    "MotorExecutor_BeginContinuous": "64D23481CB6A254816FB9C4C9B22031F78ED0A6ECE5A6B0F6849A3EE7F77A2BB"
+  },
+  "all_32_original_build_parameters_unchanged": true,
+  "new_build_config_version": 3,
+  "appended_preload_parameters": [
+    300,
+    200,
+    600,
+    100,
+    2
+  ],
+  "historical_firmware_unchanged": {
+    "output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.elf": "7E09AB5463A92158459739682B8DE1DE2E257A955347A1EC5DCDC5CEACEC2D2D",
+    "output/AutoTarget/firmware/SD700_AutoTarget_ConvergenceMeasure1_RealBench_Release.hex": "BB5486FB8318045416CE0C65668118CAA556F675AB7C6F403D1ED7F8192B780B",
+    "output/BuildToTarget1/firmware/SD700_ForceServo1_BuildToTarget1_RealBench_Release.elf": "F98652424AACE83A525BBEBCD85EC1A3D81190B0CD5FC5638D0CDC53F06DC2E3",
+    "output/BuildToTarget1/firmware/SD700_ForceServo1_BuildToTarget1_RealBench_Release.hex": "21258CF7E2F4D9D0ADDDA251DF482852BC7F3F087A81E475BDE548DA0EEED6F2",
+    "output/BuildToTarget2/firmware/SD700_ForceServo1_BuildToTarget2_RealBench_Release.elf": "D4D704893E9188F16F29D43B64A423B7B5E4B4079AB49EC1414C792CF4E78740",
+    "output/BuildToTarget2/firmware/SD700_ForceServo1_BuildToTarget2_RealBench_Release.hex": "248E4D0149AD4DEC418EBE6D7E1EF7768EEF2CB9B36F02DFCBC2BAA39958B141",
+    "output/BuildToTarget2_StartAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_StartAnchorFix1_RealBench_Release.elf": "C8346251004C69386A0C3AAD3BC4F0C29C964D2766B4EBD92BF0C76778717209",
+    "output/BuildToTarget2_StartAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_StartAnchorFix1_RealBench_Release.hex": "0FB3F0BE63871F66FADA18F8240AE8B3B46B65BA679F36C08037882B868DD394",
+    "output/CommissioningUnlock1/firmware/SD700_ForceServo1_CommissioningUnlock1_RealBench_Release.elf": "0925C1CDAEEDB7DCBFCD08EC0BF5E37505ABAA2175B2B11A17112D747CB86D41",
+    "output/CommissioningUnlock1/firmware/SD700_ForceServo1_CommissioningUnlock1_RealBench_Release.hex": "F96936FF7962ADC65737C0C6C97F5EBC49F30E8A3B33A20B75C450E3657DD46C",
+    "output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.elf": "B6AEFBCAD93DE82A3514C134518A249A6D6851D3E8C4E8DF3EE7C41DC0984EFF",
+    "output/ForceServo1/firmware/SD700_ForceServo1_RealBench_Locked_Release.hex": "C76059E0FAA126D5E52A6D640599A007E71D669080C022FEEE6180D3AB414B41",
+    "output/StaticForce3000_1/firmware/SD700_ForceServo1_StaticForce3000_1_RealBench_Release.elf": "95B4C99A75929D10E26D2DBE4DA8A708089B1285D6C1B50032E99BB326460323",
+    "output/StaticForce3000_1/firmware/SD700_ForceServo1_StaticForce3000_1_RealBench_Release.hex": "39967AF2116B38A5FDB65C2D44AE83C04D5BA7EA3559932B09C64D2FCBE56AD9",
+    "output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.elf": "A301D51A61F312BE680D259832B83C34DAB2EF6A0D4D1527C310BF1E83A58D82",
+    "output/StaticForce3000_Boost1/firmware/SD700_ForceServo1_StaticForce3000_Boost1_RealBench_Release.hex": "4EA0CDB953C06B4DB32F77746B16677B4421C752D828AC9F423F24BBC4DFF7E0",
+    "output/StaticForceAuthority2/firmware/SD700_ForceServo1_StaticForceAuthority2_RealBench_Release.elf": "5BFE60DED2B6F2392F7EB47FA38794298A05CFF1F4CD60EE02874DD366D43B6F",
+    "output/StaticForceAuthority2/firmware/SD700_ForceServo1_StaticForceAuthority2_RealBench_Release.hex": "D895A3895FDC08ABDCA7231F5D71140610FD5C192D606BB45E6E909AB52F0BC6",
+    "output/StaticForceAuthority2_ReviewFix/firmware/SD700_ForceServo1_StaticForceAuthority2_ReviewFix_RealBench_Release.elf": "D0B1961A06EC5263F0C222151C3410CAFED7B69D84B5A5D6E5FD2DD34D2641A7",
+    "output/StaticForceAuthority2_ReviewFix/firmware/SD700_ForceServo1_StaticForceAuthority2_ReviewFix_RealBench_Release.hex": "7346FA1A6B4D6DE045DAC1D03A13B46BC15F0F41053F1C7B146143E3FAFEF2D3",
+    "output/StaticForceRuntimeCharacterization1/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization1_RealBench_Release.elf": "60F5AB4CFF7A8793DB8C6C3BC3C7C082565C56D4ADC0F2CD7A4EA76B843C8A14",
+    "output/StaticForceRuntimeCharacterization1/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization1_RealBench_Release.hex": "35A72464F8DBD5E3CFE1C8C72FDED97D7771BF8F2BD956603E77FC7EBF21D99E",
+    "output/StaticForceRuntimeCharacterization2/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization2_RealBench_Release.elf": "953C06FF39F46B8C5212D94807D82A91CA7882D6C4E7C18EC9909A2914123AA5",
+    "output/StaticForceRuntimeCharacterization2/firmware/SD700_ForceServo1_StaticForceRuntimeCharacterization2_RealBench_Release.hex": "C7915B062D9E9016717B862BE15218ADF5C96645C6045B60CD101F6117F7972F",
+    "output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.elf": "DB6D3364EF0BFC1DF05A6F0E1065EF052684E0DBE63EE8B117C54015614D1E06",
+    "output/Target250Authority1/firmware/SD700_ForceServo1_Target250Authority1_RealBench_Release.hex": "322537355B059AA080B5C2356452D43C1C685E30889640D87E01CF5213037A48",
+    "output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.elf": "CE5CF188C03AA229288B57DF766615BF5819B0FD9E9494BDB9BF3967C62E35AA",
+    "output/Target250Continuous2/firmware/SD700_ForceServo1_Target250Continuous2_RealBench_Release.hex": "2B99E36C3694BDC8A9E9A0145161CBA537432607AA3A2268176CD62A18D0CA83",
+    "output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.elf": "06B8281B8D089D97D5639C6176A94F962AB5297FE04EEAE9CC32AF5B5DB31B01",
+    "output/Target250MVP1/firmware/SD700_ForceServo1_Target250MVP1_RealBench_Release.hex": "4277556949A4AD6A2D5D24E49F8A1DEA97C7D8906CA48AA9878D68B5DF924055"
+  }
+}

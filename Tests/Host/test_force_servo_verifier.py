@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 47628)
+        self.assertEqual(len(image.load_bytes), 49724)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -170,7 +170,7 @@ class VerifierTests(unittest.TestCase):
                     self.reject_elf(bad,'configuration|parameter group')
 
     def test_all_build_configuration_words_rejected(self):
-        for index in range(33):
+        for index in range(38):
             with self.subTest(index=index):
                 bad=bytearray(self.elf); offset=self.image.symbol_offsets['g_force_build_config']+index*4
                 old=struct.unpack_from('<I',bad,offset)[0]
@@ -182,7 +182,7 @@ class VerifierTests(unittest.TestCase):
         self.reject_elf(bad,'Continuous owner admission')
 
     def test_build_implementation_presence_required(self):
-        for name in ('MotorExecutor_StartBuildSegment','MotorExecutor_AcceptBuildPost','ForceBuildMachine_Safety','ForceBuild_PulseBoost','ForceBuild_CoarseBoost','MotorStopTimer_Arm'):
+        for name in ('MotorExecutor_StartBuildSegment','MotorExecutor_AcceptBuildPost','ForceBuildMachine_Safety','ForceBuild_PulseBoost','ForceBuild_CoarseBoost','MotorStopTimer_Arm','MotorStopTimer_BuildHandoff','MotorStopTimer_BuildPulse'):
             sym=dict(self.image.symbols); del sym[name]
             with self.assertRaisesRegex(ValueError,'Missing active implementation'): verifier.verify_contract(sym)
 
@@ -190,15 +190,24 @@ class VerifierTests(unittest.TestCase):
         old=ROOT/'output/BuildToTarget2/firmware/SD700_ForceServo1_BuildToTarget2_RealBench_Release.elf'
         self.reject_elf(old.read_bytes(),'identity/configuration')
         prior=ElfImage(old.read_bytes()).symbols
-        for name in ('g_force_build_config','g_force_servo_default_config','g_force_servo_profile',
+        for name in ('g_force_servo_default_config','g_force_servo_profile',
                      'g_force_servo_candidates','g_force_characterization_contract','g_sd700_auto_target_machine_config',
                      'MotorHwReal_OutputArmingAllowed','MotorExecutor_BeginContinuous'):
             with self.subTest(name=name): self.assertEqual(self.image.symbols[name],prior[name])
         current=struct.unpack('<20I',self.image.symbols['g_force_servo_contract'])
         previous=struct.unpack('<20I',prior['g_force_servo_contract'])
-        self.assertEqual(current[0],previous[0]) # same diagnostic schema
+        old_cfg=struct.unpack('<33I',prior['g_force_build_config'])
+        new_cfg=struct.unpack('<38I',self.image.symbols['g_force_build_config'])
+        self.assertEqual(new_cfg[1:33],old_cfg[1:]) # ALL original output/time/energy/safety constants
+        self.assertEqual((old_cfg[0],new_cfg[0]),(2,3))
+        self.assertEqual(new_cfg[33:],(300,200,600,100,2))
+        self.assertEqual((previous[0],current[0]),(0xF10B,0xF10C))
         self.assertEqual(current[2:],previous[2:]) # every output/safety limit unchanged
-        self.assertEqual((previous[1],current[1]),(0x4653010D,0x4653010E))
+        self.assertEqual((previous[1],current[1]),(0x4653010D,0x4653010F))
+
+    def test_anchor_fix_predecessor_rejected(self):
+        old=ROOT/'output/BuildToTarget2_StartAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_StartAnchorFix1_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(),'identity/configuration')
 
     def test_build1_predecessor_rejected(self):
         old=ROOT/'output/BuildToTarget1/firmware/SD700_ForceServo1_BuildToTarget1_RealBench_Release.elf'

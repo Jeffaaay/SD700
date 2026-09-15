@@ -19,6 +19,13 @@ uint32_t ForceBuild_ConfigDigest(void)
 void ForceBuild_PulseBoost(ForceBuildState *b,float movement,uint32_t maximum)
 {
  const ForceBuildConfig *c=&g_force_build_config;
+ /* Old pressure_control.c104-111: caller has admitted a fresh post-forward
+  * MICRO/FINE sample. Strict >2 N droop; no reset on START or cooling. */
+ if (!b->preload_command) b->preload_command=c->preload_initial_command;
+ if (movement<-(float)c->preload_drop_N) {
+     b->preload_command+=c->preload_step_command;
+     if (b->preload_command>c->preload_max_command) b->preload_command=c->preload_max_command;
+ }
  if (fabsf(movement)<c->low_response_N) {
      if (++b->low_count>=c->low_response_count) {
          b->low_count=0; b->boost+=c->boost_step_command;
@@ -65,6 +72,7 @@ bool ForceBuild_Select(float m,float t,bool contacted,uint32_t boost,uint32_t co
      r->base_command=c->micro_min_command+(uint32_t)(ratio*(c->micro_max_command-c->micro_min_command));
      if (boost>c->boost_max_command) boost=c->boost_max_command;
  }
+ r->preload_command=c->preload_initial_command;
  r->command=r->base_command+boost;
  /* Old volt-second compensation (floor, minimum2 ms), now actual normal
   * timer duration; independent hard cutoff is one additional ms. */

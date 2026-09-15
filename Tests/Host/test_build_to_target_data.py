@@ -7,14 +7,27 @@ from force_servo_data import schema,build_to_target_metrics,select_build_branch
 class BuildData(unittest.TestCase):
     def test_exact_schema_and_profile(self):
         s=schema(True,True); c={p['name']:p['default'] for p in s['parameters']}
-        self.assertEqual((s['schema'],s['build_id'],len(s['u32']),len(s['floats'])),(0xF10B,0x4653010E,118,32))
-        self.assertEqual(len(s['build_profile']),33); self.assertEqual(s['build_digest'],1817994819)
+        self.assertEqual((s['schema'],s['build_id'],len(s['u32']),len(s['floats'])),(0xF10C,0x4653010F,124,32))
+        self.assertEqual(len(s['build_profile']),38); self.assertEqual(s['build_digest'],2848875769)
         self.assertEqual((s['live_executor_press_ceiling'],s['live_continuous_ceiling']),(8500,0))
         self.assertEqual([c[k] for k in ('kp','ki','kd','press_cap','session_ms','lease_ms','feedback_gap_ms')],[10,0,0,0,0,130,125])
-        self.assertEqual(len(set(s['u32']+s['floats'])),150)
+        self.assertEqual(len(set(s['u32']+s['floats'])),156)
         self.assertEqual([p['contact'] for p in s['candidates']],[20,20,20])
         self.assertEqual(s['build_profile']['total_on_ms'],12000)
         self.assertEqual(s['build_profile']['full_rest_ms'],108000)
+    def test_interpulse_report_is_explicit_and_not_hold(self):
+        meta,row=self.fixture()
+        row.update(state=13,target_reached=0,output_off=0,lease_active=1,current_committed=400,tim3=80,
+                   interpulse_active=1,interpulse_command=400,interpulse_next_command=400,
+                   interpulse_spent_ms=300,interpulse_credit_ms=90)
+        r=build_to_target_metrics([row],meta)
+        self.assertEqual(r['interpulse_observed_samples'],1)
+        self.assertEqual(r['maximum_interpulse_command'],400)
+        self.assertEqual(r['maximum_interpulse_spent_ms'],300)
+        self.assertEqual(r['off_monitor_samples'],0)
+        self.assertFalse(r['target_reached'])
+        self.assertEqual([meta['build_profile'][k] for k in ('preload_initial_command','preload_min_command',
+            'preload_max_command','preload_step_command','preload_drop_N')],[300,200,600,100,2])
     def test_historical_schema_selection(self):
         self.assertEqual(schema(True)['schema'],0xF109)
         self.assertEqual(len(schema()['u32']),86)

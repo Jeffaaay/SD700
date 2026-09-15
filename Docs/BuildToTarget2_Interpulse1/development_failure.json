@@ -1,0 +1,63 @@
+{
+  "command": [
+    "python",
+    "tools/run_force_servo_tests.py",
+    "--commissioning",
+    "--characterization",
+    "--build-to-target",
+    "--output",
+    "output/BuildToTarget2_Interpulse1/host-dev01"
+  ],
+  "result": "FAIL",
+  "python_exit_code": 1,
+  "original_log": "output/BuildToTarget2_Interpulse1/host-dev01/O0.log",
+  "original_log_sha256": "D16D51ADC11A3C247AD9B98A0CAA563A64F3A0BA22F978B5B42F87CB444A0290",
+  "host": [
+    {
+      "optimization": "-O0",
+      "command": [
+        "gcc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pedantic",
+        "-O0",
+        "-I.",
+        "-ITests/Host/Shim",
+        "-DSD700_FORCE_SERVO_ENABLED=1",
+        "-DSD700_MOTOR_MODE_REAL_BENCH=1",
+        "-DSD700_REAL_BENCH_ACKNOWLEDGED=1",
+        "-DSD700_REAL_OUTPUT_ARMING_ENABLED=1",
+        "-DSD700_MOTOR_REAL_HOST_TEST=1",
+        "-DSD700_FORCE_SERVO_COMMISSIONING=1",
+        "-DSD700_TEST_PRODUCTION_ARMING_GATE=1",
+        "-DSD700_FORCE_CHARACTERIZATION=1",
+        "-DSD700_BUILD_TO_TARGET=1",
+        "Tests/Host/test_build_to_target.c",
+        "Application/force_servo.c",
+        "Application/force_servo_machine.c",
+        "Application/machine.c",
+        "Application/runtime.c",
+        "Application/pressure_control.c",
+        "Application/auto_target_config.c",
+        "Board/Motor/motor_executor_real.c",
+        "Board/Motor/motor_hw_real.c",
+        "Board/Motor/motor_stop_timer_tim5.c",
+        "Tests/Host/fake_stm32_hal.c",
+        "Transport/Modbus/force_servo_protocol.c",
+        "Transport/Modbus/modbus_semantic_map.c",
+        "Transport/Modbus/modbus_rtu_server.c",
+        "Protocol/Modbus/modbus_crc16.c",
+        "Board/Motor/motor_real_gate.c",
+        "Application/force_build.c",
+        "Application/force_build_machine.c",
+        "-lm",
+        "-o",
+        "output\\BuildToTarget2_Interpulse1\\host-dev01\\force_servo_O0.exe"
+      ],
+      "exit_code": 3221226505
+    }
+  ],
+  "reason": "Existing400-pulse exposure fixture assumed all gaps OFF; preload must consume the unchanged12s budget. Replaced fixed count with strict budget exhaustion checks, not an increased limit."
+}

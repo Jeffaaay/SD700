@@ -1,0 +1,18 @@
+{
+  "authority": "User explicitly supplied this Desktop archive after clarification",
+  "archive": "C:\\Users\\jian\\Desktop\\SD700-Servo-Press-Controller-master.zip",
+  "archive_sha256": "402EBC0446B0C4FE71B25549E55617276F1C43A4B58E250CC4CCBB59665FA912",
+  "member": "SD700-Servo-Press-Controller-master/SD700-Servo-Press-Controller-master/Drivers/BSP/PRESSURE_CONTROL/pressure_control.c",
+  "source_sha256": "920AEC9A59EC60A439AE7B5624E75AAD17AE76E0372C418F7484B505340CAFE2",
+  "decoded_as": "gb18030",
+  "references": {
+    "constants": "32-35,68",
+    "reset_does_not_clear_preload": "83-99",
+    "droop": "104-111",
+    "micro_end": "437-449",
+    "fine_end": "518-530",
+    "cooldown": "453-459,534-541",
+    "hold_deliberately_not_ported": "594-618"
+  },
+  "physical_status": "NOT_RUN"
+}

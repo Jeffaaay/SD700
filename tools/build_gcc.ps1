@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 if ($BuildToTarget2) {
     if ($StaticForceRuntimeCharacterization2) { throw "Select one candidate" }
     $StaticForceRuntimeCharacterization2=$true
-    Write-Host "BUILD_TO_TARGET2_START_ANCHOR_FIX1; FIXED_SEGMENT_PROFILE; TARGET_ONLY; PHYSICAL_NOT_RUN"
+    Write-Host "BUILD_TO_TARGET2_INTERPULSE1; BOUNDED_FORWARD_PRELOAD; TARGET_ONLY; PHYSICAL_NOT_RUN"
 }
 if ($StaticForceRuntimeCharacterization2) {
     if (-not $ForceServo -or $StaticForceAuthority2) { throw 'Characterization requires -ForceServo and excludes old profile selection' }

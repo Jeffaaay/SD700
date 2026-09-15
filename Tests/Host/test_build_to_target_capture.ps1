@@ -1,4 +1,4 @@
-param([string]$OutputDirectory='output/BuildToTarget2_StartAnchorFix1/capture-tests')
+param([string]$OutputDirectory='output/BuildToTarget2_Interpulse1/capture-tests')
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
 . "$root/tools/capture_force_servo.ps1" -LibraryOnly -BuildToTarget
@@ -21,6 +21,9 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
     $sim=@{Config=(Defaults $schema.parameters);Profile=(Defaults $schema.profile);Plan=(New-CharacterizationPlan 1 0 0);
         Build=(Defaults @($schema.build_profile.PSObject.Properties | ForEach-Object { [pscustomobject]@{name=$_.Name;default=$_.Value} }));Version=0;Digest=0;Stages=@{};Ack=@{};PlanReads=0;Armed=$false;Starts=0;Stops=0;Framed=0;Committed=$false;
         StartedAt=0L;Running=$false;Frozen=@();Requests=(New-Object Collections.ArrayList);Confirmations=0}
+    if ($Failure -eq 'PreloadInitial') { $sim.Build.preload_initial_command=400 }
+    if ($Failure -eq 'PreloadLimit') { $sim.Build.preload_max_command=601 }
+    if ($Failure -eq 'PreloadDroop') { $sim.Build.preload_drop_N=3 }
     if ($Failure -eq 'BuildLimit') { $sim.Build.build_ceiling=7001 }
     if ($Failure -eq 'ContinuousHidden') { $sim.Config.press_cap=1800; $sim.Profile.continuous_press=1800 }
     if ($Failure -eq 'GainChanged') { $sim.Config.kp=11 }
@@ -77,6 +80,11 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
                 if ($sim.Running) {
                     $values.state=13;$values.lease_active=1;$values.output_off=0;$values.current_committed=3000;$values.tim3=600
                     $values.requested_equivalent_V=3;$values.mapped_pwm_percent=12.5
+                    if ($clock.ElapsedMilliseconds-$sim.StartedAt -ge 3000 -and $clock.ElapsedMilliseconds-$sim.StartedAt -lt 5000) {
+                        $values.interpulse_active=1;$values.interpulse_command=600;$values.interpulse_next_command=600
+                        $values.interpulse_spent_ms=1000;$values.interpulse_credit_ms=90
+                        $values.current_committed=600;$values.tim3=120;$values.requested_equivalent_V=0.6;$values.mapped_pwm_percent=2.5
+                    }
                     # Transport/schema fixture, not a physical plant simulation.
                     if ($clock.ElapsedMilliseconds-$sim.StartedAt -lt 3000) {
                         $values.state=12;$values.segment_phase=1;$values.segment_mode=1;$values.segment_base_command=5000
@@ -151,7 +159,7 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
             -CharacterizationPlan (New-CharacterizationPlan $Target $Assist $Continuous) -ConfirmStart $confirm `
             -CurrentLimitSetting 'SYNTHETIC 0.5 A PSU label ONLY' -InitialGap 'SYNTHETIC' -RepositoryCommit 'SYNTHETIC' | Out-Null
     } catch { $errorText=$_.Exception.Message }
-    $zero=$Mode -eq 'Observe' -or $Failure -in @('BuildLimit','BuildDigest','Exposure','NoResponseBudget','ContinuousHidden','GainChanged','SessionChanged','BuildChanged','PlanMismatch','DigestMismatch','StaleVersion','Lockout','Cancel','PlanTimeout')
+    $zero=$Mode -eq 'Observe' -or $Failure -in @('PreloadInitial','PreloadLimit','PreloadDroop','BuildLimit','BuildDigest','Exposure','NoResponseBudget','ContinuousHidden','GainChanged','SessionChanged','BuildChanged','PlanMismatch','DigestMismatch','StaleVersion','Lockout','Cancel','PlanTimeout')
     $expected=[int](-not $zero)
     Check ($sim.Starts -eq $expected -and $sim.Stops -eq 1) "$Name START/STOP count, error=$errorText"
     Check ($sim.Framed -eq $sim.Requests.Count) "$Name bypassed production framing"
@@ -177,6 +185,8 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
         Check ($meta.build_profile.build_ceiling -eq 7000 -and $meta.build_profile.approach_ceiling -eq 8500 -and $meta.build_profile.fine_boost_max_command -eq 1000 -and $meta.build_profile.pulse_hard_max_ms -eq 11 -and $meta.build_config_digest -eq $schema.build_digest) 'Build contract metadata missing'
         Check ($report.maximum_requested_equivalent_V -eq 8.5 -and $report.maximum_committed_command -eq 8500 -and $report.maximum_planned_press_ccr -eq 1700) 'Command/voltage-equivalent/CCR evidence missing'
         Check ($report.maximum_coarse_boost_command -eq 3500 -and $report.maximum_approach_command_ms -eq 850000) 'Coarse boost/time telemetry missing'
+        Check ($meta.build_profile.preload_initial_command -eq 300 -and $meta.build_profile.preload_max_command -eq 600 -and $meta.build_profile.preload_drop_N -eq 2) 'Preload config missing'
+        Check ($report.interpulse_observed_samples -gt 0 -and $report.maximum_interpulse_command -eq 600 -and $report.maximum_interpulse_spent_ms -eq 1000) 'Preload telemetry lost/mislabeled OFF'
         Check ($report.target_reached -and $report.off_monitor_samples -gt 1 -and $report.off_monitor_observed_ms -gt 3000) 'OFF monitor event/coverage missing'
         Check ($report.off_monitor_drop_N -eq 1 -and $report.stable_hold -like 'NOT_ESTABLISHED*') 'Target reach falsely labeled stable HOLD'
         Check (@(Import-Csv -LiteralPath $csv | Where-Object { $_.state -eq 14 }).Count -eq 0) 'BuildToTarget entered HOLD'
@@ -195,7 +205,7 @@ foreach ($bad in @(@(3001,0,0),@(0,0,0),@(1.5,0,0),@(250,1,0),@(250,0,1),@(250,[
 }
 Capture-Case Observe 250 0 0 '' Observe
 foreach ($target in @(1,5,250,500,1000,2000,2999,3000)) { Capture-Case ('Target'+$target) $target 0 0 }
-foreach ($failure in @('BuildLimit','BuildDigest','Exposure','NoResponseBudget','ContinuousHidden','GainChanged','SessionChanged','BuildChanged','PlanMismatch','DigestMismatch','StaleVersion','Lockout','Cancel','PlanTimeout','StartEchoTimeout','RunningFault','RunningTimeout')) {
+foreach ($failure in @('PreloadInitial','PreloadLimit','PreloadDroop','BuildLimit','BuildDigest','Exposure','NoResponseBudget','ContinuousHidden','GainChanged','SessionChanged','BuildChanged','PlanMismatch','DigestMismatch','StaleVersion','Lockout','Cancel','PlanTimeout','StartEchoTimeout','RunningFault','RunningTimeout')) {
     Capture-Case $failure 500 0 0 $failure
 }
 # Only literal examples are parsed; no real CLI, port, or powered START.
@@ -219,4 +229,4 @@ foreach ($example in $examples) {
 $wrapperTokens=$null;$wrapperErrors=$null
 [void][Management.Automation.Language.Parser]::ParseFile("$root/tools/run_force_characterization.ps1",[ref]$wrapperTokens,[ref]$wrapperErrors)
 Check ($wrapperErrors.Count -eq 0) 'Invalid field wrapper syntax'
-Write-Output 'BUILD_TO_TARGET_CAPTURE_CASES=27 + INVALID_INPUTS=6 PASS; PHYSICAL_NOT_RUN'
+Write-Output 'BUILD_TO_TARGET_CAPTURE_CASES=30 + INVALID_INPUTS=6 PASS; PHYSICAL_NOT_RUN'
