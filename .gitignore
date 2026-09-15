@@ -36,7 +36,8 @@ CaptureFix1_ExtractCheck_*/
 /captures/
 *.report.txt
 
-# Retain engineering evidence on disk, never in a normal git add -A.
+# Rebuildable output stays ignored; clean with tools/clean_generated_artifacts.py.
+# The cleaner separately preserves tracked firmware, physical captures and fixtures.
 # Reopen output explicitly: Output/ also matches it on case-insensitive systems.
 !/output/
 /output/*

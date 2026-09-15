@@ -55,3 +55,12 @@ Exactly one script START, no additional manual START and no automatic repeat. CS
 [Actual tests and commands](Docs/BuildToTarget2_CoolingAnchorFix1/TEST_RESULTS.md) - [Protocol and identity](Docs/BuildToTarget2_CoolingAnchorFix1/PROTOCOL.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
 
 Repository navigation: [current / historical / test fixture roles](Docs/REPOSITORY_INDEX.md). [INA240 source PDF](Reference/Hardware/ina240.pdf) is the single retained copy. [File-only cleanup record](Docs/RepositoryCleanup1/README.md) records the separate cleanup after commit A; firmware bytes and identity are unchanged by that cleanup.
+
+Ignored build/test output can be cleaned after use without changing tracked files or firmware:
+
+```powershell
+python tools/clean_generated_artifacts.py
+python tools/clean_generated_artifacts.py --apply
+```
+
+The first command is dry-run only. The second saves and validates an exact plan before deleting ignored output; audits are stored outside the checkout. Physical/uncertain captures and test inputs survive. [Current cleanup policy and actual results](Docs/GeneratedArtifactsCleanup1.md). Historical raw software output may be regenerated; its tracked test reports remain unchanged.
