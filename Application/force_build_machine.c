@@ -188,9 +188,9 @@ void ForceBuildMachine_Pressure(MachineContext *m,uint32_t now)
      d->post_pulse_valid=1; d->post_pulse_request=e.request; d->post_pulse_received_ms=m->pressure.received_at_ms;
      d->post_pulse_sample_hi=(uint32_t)(m->pressure.sequence>>32); d->post_pulse_sample_lo=(uint32_t)m->pressure.sequence;
      b->post_pending=false;
-     if (!b->monitoring && e.phase!=BUILD_PHASE_APPROACH && rise>=g_force_build_config.excessive_rise_N) {
-         fail(m,FAULT_MOTION_TIMEOUT,FAULT_DETAIL_BUILD_RESPONSE,now); return;
-     }
+     /* Qualified post-pulse rise is diagnostic, not an independent trip.
+      * Target/absolute overforce already take priority above; feedback,
+      * lease, cutoff and cumulative safety budgets remain enforced. */
      if (s->active && e.phase!=BUILD_PHASE_APPROACH && !b->monitoring) {
          uint32_t maximum=(float)m->target_pressure_units-measured<=g_force_build_config.fine_margin_N ?
              g_force_build_config.fine_boost_max_command : g_force_build_config.boost_max_command;

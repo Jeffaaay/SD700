@@ -1,6 +1,6 @@
-# SD700 - BuildToTarget2_Pulse10msFix1
+# SD700 - BuildToTarget2_RiseDiagnostic1
 
-Current candidate: **BuildToTarget2_Pulse10msFix1**, based on clean main/origin/main `b1063cad19dc980134256bacae05a0ed1aa49117`. This focused repair uses the SHA-matched old HEX/AXF: MICRO boost is capped at2000 (base<=3000, total<=5000), and MICRO/FINE normal high output is10 ms regardless of boost, with the existing independent11 ms hard cutoff. Request generation and executor admission both enforce that timing. APPROACH, FINE amplitudes, preload, safety/exposure budgets and verified-OFF cooling are unchanged. [Brief handoff and actual tests](Docs/BuildToTarget2_Pulse10msFix1/HANDOFF.md).
+Current candidate: **BuildToTarget2_RiseDiagnostic1**, based on clean main/origin/main `8514376320fab15221c6808edd96d3a072505eee`. A qualified post-pulse rise of25 N or more is retained as diagnostic evidence and no longer independently faults BUILD while below Target and the absolute overforce boundary. Target-OFF and absolute overforce retain priority. The inherited5000 MICRO ceiling,10 ms high segment/11 ms hard cutoff, FINE amplitudes, preload and all feedback/lease/exposure/no-response protections are unchanged. [Brief handoff and actual tests](Docs/BuildToTarget2_RiseDiagnostic1/HANDOFF.md).
 
 **PHYSICAL_STATUS=NOT_RUN.** No serial connection, flashing or machine motion. One HEX supports integer TargetForceN **1..3000 N**; synthetic force attainment is not measured attainment or stable holding. Installed sensor units remain user-confirmed, scale1/offset0, without a new calibration claim.
 
@@ -27,11 +27,11 @@ As in the old code, an adapted600 preload can exceed the minimum400 FINE pulse; 
 
 Old MICRO/FINE formulas have a discontinuity: unboosted error4 N gives846 command, error3 N gives1000. This is disclosed, not hidden behind a claim of strict monotonic energy. Overall near-target pulse energy and the FINE boost ceiling are lower; the map gives exact vectors and adaptations. A previously latched contact never re-enters COARSE. Initial error<=3 uses FINE; already-at/exceeded target produces no segment.
 
-There is **no normal overall session/build/capture timeout**. Detail17 remains diagnostic-only. Genuine no-response, finite exposure, feedback gap125 ms, sample age20 ms, original receive lease130 ms, sensor invalid/order loss, STOP/E-stop, overforce, independent pulse hard cutoff, excessive post-pulse rise25 N and fault latching remain. Continuous/ONE Assist ownership is unavailable in this candidate; BUILD cannot retrigger Assist. No Ki or rotating PID changes.
+There is **no normal overall session/build/capture timeout**. Detail17 remains diagnostic-only. Genuine no-response, finite exposure, feedback gap125 ms, sample age20 ms, original receive lease130 ms, sensor invalid/order loss, STOP/E-stop, overforce, independent pulse hard cutoff and fault latching remain. Post-pulse rise alone is diagnostic; retained config field excessive_rise_N=25 is no longer a BUILD trip. Continuous/ONE Assist ownership is unavailable in this candidate; BUILD cannot retrigger Assist. No Ki or rotating PID changes.
 
 All voltages here are command equivalents at the existing24 V mapping. PWM/CCR are software requests, not measured motor voltage/current. The command-time cap is an additional exposure constraint, **not measured heat or a motor/thermal/continuous rating**. The existing0.5 A PSU setting is unchanged. Finite safety budgets do not guarantee reaching a target on the physical plant.
 
-Firmware: [HEX](output/BuildToTarget2_Pulse10msFix1/firmware/SD700_ForceServo1_BuildToTarget2_Pulse10msFix1_RealBench_Release.hex), [ELF](output/BuildToTarget2_Pulse10msFix1/firmware/SD700_ForceServo1_BuildToTarget2_Pulse10msFix1_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2_Pulse10msFix1/HANDOFF.md). Identity F10C /46530111 / profile7; immutable Build config version4, digest2927201258. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
+Firmware: [HEX](output/BuildToTarget2_RiseDiagnostic1/firmware/SD700_ForceServo1_BuildToTarget2_RiseDiagnostic1_RealBench_Release.hex), [ELF](output/BuildToTarget2_RiseDiagnostic1/firmware/SD700_ForceServo1_BuildToTarget2_RiseDiagnostic1_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2_RiseDiagnostic1/HANDOFF.md). Identity F10C /46530112 / profile7; immutable Build config version4, digest2927201258. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
 
 For a single supervised field session, verify the checkout before connecting:
 
@@ -52,7 +52,7 @@ The wrapper prints these stage ceilings/times before one explicit START confirma
 
 Exactly one script START, no additional manual START and no automatic repeat. CSV streams through build and target-OFF decay monitoring until S/Escape, external STOP or a real fault. Stop immediately for abnormal motion/noise/current/heat. Return CSV, metadata, report and brief field conditions. Capture cannot certify hardware stopping; target touch and sampled OFF retention are separate from stable holding or rotating-load qualification.
 
-[Actual focused tests, commands and identity](Docs/BuildToTarget2_Pulse10msFix1/HANDOFF.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
+[Actual focused tests, commands and identity](Docs/BuildToTarget2_RiseDiagnostic1/HANDOFF.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
 
 Repository navigation: [current / historical / test fixture roles](Docs/REPOSITORY_INDEX.md). [INA240 source PDF](Reference/Hardware/ina240.pdf) is the single retained copy. [File-only cleanup record](Docs/RepositoryCleanup1/README.md) records the separate cleanup after commit A; firmware bytes and identity are unchanged by that cleanup.
 

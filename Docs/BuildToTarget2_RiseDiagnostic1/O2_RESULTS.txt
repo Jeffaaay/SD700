@@ -1,0 +1,12 @@
+QUALIFIED_POST target=250 before=10 after=35 rise=25 diagnostic_retained=1 next_pulse=1 fault=0
+QUALIFIED_POST target=250 before=10 after=36 rise=26 diagnostic_retained=1 next_pulse=1 fault=0
+QUALIFIED_POST target=250 before=10 after=249 rise=239 diagnostic_retained=1 next_pulse=1 fault=0
+TestBuildMissingBadFeedbackAndTargetPriority PASS
+TestBuildCutoffsAndStopRaces PASS
+TestInterpulseStopFaultTargetAndLease PASS
+TestBuildExposureAndUninterruptedCooling PASS
+TestInterpulseEnergyDeadlineWithoutMain PASS
+TestBuildNoiseAndPersistentBudgets PASS
+ACTUAL_OFF_COOLING reserved=12000 rest=108000 expected=108000
+TestCoolingBudgetRejectionActualOff PASS
+RISE_DIAGNOSTIC_AND_7_AFFECTED_GROUPS=PASS; PHYSICAL_NOT_RUN

@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 49748)
+        self.assertEqual(len(image.load_bytes), 49724)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -205,7 +205,7 @@ class VerifierTests(unittest.TestCase):
         self.assertEqual(new_cfg[33:],(300,200,600,100,2))
         self.assertEqual((previous[0],current[0]),(0xF10B,0xF10C))
         self.assertEqual(current[2:],previous[2:]) # every output/safety limit unchanged
-        self.assertEqual((previous[1],current[1]),(0x4653010D,0x46530111))
+        self.assertEqual((previous[1],current[1]),(0x4653010D,0x46530112))
 
     def test_interpulse_predecessor_only_reviewed_pulse_delta(self):
         old=ROOT/'output/BuildToTarget2_Interpulse1/firmware/SD700_ForceServo1_BuildToTarget2_Interpulse1_RealBench_Release.elf'
@@ -218,7 +218,7 @@ class VerifierTests(unittest.TestCase):
         before=struct.unpack('<20I',prior['g_force_servo_contract'])
         after=struct.unpack('<20I',self.image.symbols['g_force_servo_contract'])
         self.assertEqual(before[:1]+before[2:],after[:1]+after[2:])
-        self.assertEqual((before[1],after[1]),(0x4653010F,0x46530111))
+        self.assertEqual((before[1],after[1]),(0x4653010F,0x46530112))
         expected=list(struct.unpack('<38I',prior['g_force_build_config']))
         for index,value in {0:4,8:2000,9:5000,12:11,26:10}.items(): expected[index]=value
         self.assertEqual(struct.unpack('<38I',self.image.symbols['g_force_build_config']),tuple(expected))

@@ -340,6 +340,35 @@ static void TestBuildCutoffsAndStopRaces(void)
  assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms==spent);
  assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
 }
+static void TestBuildPostPulseRiseDiagnostic(void)
+{
+ const int forces[]={35,36,249}; /* exactly25 N, above25 N, still below Target */
+ for (unsigned i=0;i<sizeof(forces)/sizeof(forces[0]);i++) {
+     build_start(250,10); uint32_t request=MotorExecutor_GetBuildSnapshot(now).request;
+     build_sample(forces[i],40);
+     ForceServoDiagnostic *d=&machine.servo.diagnostic;
+     assert(machine.state!=FAULT && machine.servo.active && !machine.servo.build.monitoring);
+     assert(d->post_pulse_valid && d->post_pulse_request==request);
+     assert(d->pulse_force_before==10 && d->pulse_force_after==forces[i]);
+     assert(d->post_pulse_received_ms==now && d->post_pulse_sample_lo==(uint32_t)seq);
+     MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
+     assert(e.request==request+1 && e.segment_active && e.hard_ms==11);
+     assert(e.command<=5000 && !MotorExecutor_OutputIsDisabled());
+     assert(machine.servo.build.progress_anchor==forces[i] && machine.servo.build.no_response_ms==0);
+     printf("QUALIFIED_POST target=250 before=10 after=%d rise=%d diagnostic_retained=1 next_pulse=1 fault=0\n",forces[i],forces[i]-10);
+     assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+     build_sample(10,40); off(); assert(MotorExecutor_GetBuildSnapshot(now).request==e.request);
+ }
+ /* At target and the absolute boundary, priority remains true OFF. */
+ const int terminal[]={250,3000,3001};
+ for (unsigned i=0;i<sizeof(terminal)/sizeof(terminal[0]);i++) {
+     build_start(250,10); uint32_t request=MotorExecutor_GetBuildSnapshot(now).request;
+     build_sample(terminal[i],40); off();
+     if (terminal[i]==250) assert(machine.state==FORCE_TARGET_REACHED_OFF && !machine.servo.ever_held);
+     else assert(machine.state==FAULT && machine.fault==FAULT_OVERPRESSURE);
+     build_sample(10,40); off(); assert(MotorExecutor_GetBuildSnapshot(now).request==request);
+ }
+}
 static void TestBuildMissingBadFeedbackAndTargetPriority(void)
 {
  build_start(250,0); build_advance(126); off();
@@ -356,7 +385,7 @@ static void TestBuildMissingBadFeedbackAndTargetPriority(void)
  assert(machine.state==FORCE_TAPER && machine.servo.build.post_pending);
  build_sample(250,1); off(); assert(machine.state==FORCE_TARGET_REACHED_OFF);
  build_sample(200,100); off(); assert(machine.state==FORCE_TARGET_REACHED_OFF);
- build_start(250,10); build_sample(35,40); off(); assert(machine.fault_detail==FAULT_DETAIL_BUILD_RESPONSE);
+ TestBuildPostPulseRiseDiagnostic();
 }
 static void TestBuildBoostAndTaperEnergy(void)
 {
@@ -767,6 +796,13 @@ int main(int argc,char **argv)
 {
  setvbuf(stdout,NULL,_IONBF,0);
 #define RUN(f) f(); puts(#f " PASS")
+ if (argc==2 && strcmp(argv[1],"--rise-diagnostic")==0) {
+     RUN(TestBuildMissingBadFeedbackAndTargetPriority);
+     RUN(TestBuildCutoffsAndStopRaces); RUN(TestInterpulseStopFaultTargetAndLease);
+     RUN(TestBuildExposureAndUninterruptedCooling); RUN(TestInterpulseEnergyDeadlineWithoutMain);
+     RUN(TestBuildNoiseAndPersistentBudgets); RUN(TestCoolingBudgetRejectionActualOff);
+     puts("RISE_DIAGNOSTIC_AND_7_AFFECTED_GROUPS=PASS; PHYSICAL_NOT_RUN"); return 0;
+ }
  if (argc==2 && strcmp(argv[1],"--pulse-before")==0) { TestBuildPulseOutputTrace(false); return 0; }
  if (argc==2 && strcmp(argv[1],"--pulse-fix")==0) {
      TestBuildPulseOutputTrace(true);
