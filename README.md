@@ -1,6 +1,6 @@
-# SD700 - BuildToTarget2_CoolingAnchorFix1
+# SD700 - BuildToTarget2_Pulse10msFix1
 
-Current candidate: **BuildToTarget2_CoolingAnchorFix1**, based on clean main/origin/main `8e2973a5a6b9869d14cfc63569989dc8cf1d9ce8` (BuildToTarget2_Interpulse1). A failed preload-to-pulse admission now anchors cooling at its verified physical OFF, after refreshing the MCU clock. Accounting may already have cleared preload_active; that no longer lets cooling start at the preceding pulse end. Repeated STOP never clears budgets or moves the anchor. All pulse/boost/preload parameters and8 s/12 s/108 s/5 s thresholds are unchanged. [Inherited source mapping](Docs/BuildToTarget2_Interpulse1/SOURCE_REFERENCE.json) and [actual regression](Docs/BuildToTarget2_CoolingAnchorFix1/TEST_RESULTS.md).
+Current candidate: **BuildToTarget2_Pulse10msFix1**, based on clean main/origin/main `b1063cad19dc980134256bacae05a0ed1aa49117`. This focused repair uses the SHA-matched old HEX/AXF: MICRO boost is capped at2000 (base<=3000, total<=5000), and MICRO/FINE normal high output is10 ms regardless of boost, with the existing independent11 ms hard cutoff. Request generation and executor admission both enforce that timing. APPROACH, FINE amplitudes, preload, safety/exposure budgets and verified-OFF cooling are unchanged. [Brief handoff and actual tests](Docs/BuildToTarget2_Pulse10msFix1/HANDOFF.md).
 
 **PHYSICAL_STATUS=NOT_RUN.** No serial connection, flashing or machine motion. One HEX supports integer TargetForceN **1..3000 N**; synthetic force attainment is not measured attainment or stable holding. Installed sensor units remain user-confirmed, scale1/offset0, without a new calibration claim.
 
@@ -9,9 +9,9 @@ The modern state machine, single motor executor, atomic Target plan, one START, 
 | Stage | Actual command and timing |
 |---|---|
 | APPROACH: not yet contacted, force<10 N, error>3 N | Base5000 (5 V equivalent,20.83% PWM). Old COARSE boost +500 per qualified >=200 ms check with absolute movement<1 N, reset on movement>=1 N, maximum3500. Total maximum8500 (8.5 V equivalent,35.42% PWM). Normal99 / independent hard100 ms per segment |
-| Contacted MICRO build / taper | Base800..3000 according to old error3..50 N formula, clipped at3000 above50 N. Add adaptive boost0..4000; total<=7000. Two post-pulse absolute movements<1 N add300; any absolute movement>=1 N resets boost and low count |
+| Contacted MICRO build / taper | Base800..3000 according to old error3..50 N formula, clipped at3000 above50 N. Add adaptive boost0..2000; total<=5000. Two post-pulse absolute movements<1 N add300; any absolute movement>=1 N resets boost and low count |
 | FINE, positive error<=3 N | Old base400..1000 with smaller additive boost ceiling1000; total<=2000. Same response/reset rule. Positive residual<=1 N uses the400 minimum base to seek the exact target; zero/negative error is OFF |
-| MICRO/FINE timing | Normal=max(2,floor(10*base_command/applied_command)) ms; independent hard=normal+1 ms (3..11 ms). At3000+4000: normal4 / hard5 ms; at1000+1000: normal5 / hard6 ms |
+| MICRO/FINE timing | Normal10 ms at every boost; independent hard11 ms. TIM5 ends the high segment; target/safety may turn OFF earlier. No task polling or busy-wait |
 | MICRO/FINE gap | Forward preload starts at300 command, range200..600 (0.20..0.60 V equivalent,0.833..2.5% PWM). An accepted fresh post-forward-pulse drop strictly greater than2 N adds100, capped600. Exactly2 N does not change it. Same rule for both modes; preload persists across explicit START and cooling, like old ResetAdaptive |
 | Cooldown/feedback | At least30 ms after the pulse, plus ordered fresh post-pulse feedback received at/after end+30 ms, age<=20 ms. MICRO/FINE remain forward preloaded; COARSE remains OFF. No elapsed-time retry or feedback reuse. No reverse Build owner or forward preload after an accepted reverse/legacy pulse |
 | Exposure | Full hard time reserved before arming; no refund. Approach<=8000 ms, pulse hard reservations plus prepaid preload time<=12000 ms. Preload counts full bridge-enabled wall time, with no PWM-duty discount. Unused prepaid time can fund later preload gaps but never reduces the reservation ledger or resets a safety budget. Additional approach sum(command*hard_ms)<=40,000,000, derived from the preceding5000*8000 envelope; higher approach amplitude consumes it faster |
@@ -31,7 +31,7 @@ There is **no normal overall session/build/capture timeout**. Detail17 remains d
 
 All voltages here are command equivalents at the existing24 V mapping. PWM/CCR are software requests, not measured motor voltage/current. The command-time cap is an additional exposure constraint, **not measured heat or a motor/thermal/continuous rating**. The existing0.5 A PSU setting is unchanged. Finite safety budgets do not guarantee reaching a target on the physical plant.
 
-Firmware: [HEX](output/BuildToTarget2_CoolingAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_CoolingAnchorFix1_RealBench_Release.hex), [ELF](output/BuildToTarget2_CoolingAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_CoolingAnchorFix1_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2_CoolingAnchorFix1/HANDOFF.md). Identity F10C /46530110 / profile7; immutable Build config version3, digest2848875769. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
+Firmware: [HEX](output/BuildToTarget2_Pulse10msFix1/firmware/SD700_ForceServo1_BuildToTarget2_Pulse10msFix1_RealBench_Release.hex), [ELF](output/BuildToTarget2_Pulse10msFix1/firmware/SD700_ForceServo1_BuildToTarget2_Pulse10msFix1_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2_Pulse10msFix1/HANDOFF.md). Identity F10C /46530111 / profile7; immutable Build config version4, digest2927201258. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
 
 For a single supervised field session, verify the checkout before connecting:
 
@@ -52,7 +52,7 @@ The wrapper prints these stage ceilings/times before one explicit START confirma
 
 Exactly one script START, no additional manual START and no automatic repeat. CSV streams through build and target-OFF decay monitoring until S/Escape, external STOP or a real fault. Stop immediately for abnormal motion/noise/current/heat. Return CSV, metadata, report and brief field conditions. Capture cannot certify hardware stopping; target touch and sampled OFF retention are separate from stable holding or rotating-load qualification.
 
-[Actual tests and commands](Docs/BuildToTarget2_CoolingAnchorFix1/TEST_RESULTS.md) - [Protocol and identity](Docs/BuildToTarget2_CoolingAnchorFix1/PROTOCOL.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
+[Actual focused tests, commands and identity](Docs/BuildToTarget2_Pulse10msFix1/HANDOFF.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
 
 Repository navigation: [current / historical / test fixture roles](Docs/REPOSITORY_INDEX.md). [INA240 source PDF](Reference/Hardware/ina240.pdf) is the single retained copy. [File-only cleanup record](Docs/RepositoryCleanup1/README.md) records the separate cleanup after commit A; firmware bytes and identity are unchanged by that cleanup.
 

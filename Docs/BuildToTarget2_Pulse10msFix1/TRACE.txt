@@ -1,0 +1,67 @@
+Baseline b1063cad19dc980134256bacae05a0ed1aa49117 + trace-only test; synthetic O2 / production TIM5 IRQ shim
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=0 command=3000 CCR=600 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=300 command=3300 CCR=660 actual_high_ms=9 hard_ms=10 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=600 command=3600 CCR=720 actual_high_ms=8 hard_ms=9 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=900 command=3900 CCR=780 actual_high_ms=7 hard_ms=8 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=1200 command=4200 CCR=840 actual_high_ms=7 hard_ms=8 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=1500 command=4500 CCR=900 actual_high_ms=6 hard_ms=7 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=1800 command=4800 CCR=960 actual_high_ms=6 hard_ms=7 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=2100 command=5100 CCR=1020 actual_high_ms=5 hard_ms=6 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=2400 command=5400 CCR=1080 actual_high_ms=5 hard_ms=6 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=2700 command=5700 CCR=1140 actual_high_ms=5 hard_ms=6 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=3000 command=6000 CCR=1200 actual_high_ms=5 hard_ms=6 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=3300 command=6300 CCR=1260 actual_high_ms=4 hard_ms=5 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=3600 command=6600 CCR=1320 actual_high_ms=4 hard_ms=5 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=3900 command=6900 CCR=1380 actual_high_ms=4 hard_ms=5 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=4000 command=7000 CCR=1400 actual_high_ms=4 hard_ms=5 preload=300
+PULSE_TRACE BEFORE mode=MICRO force=12 target=250 boost=4000 command=7000 CCR=1400 actual_high_ms=4 hard_ms=5 preload=300
+PULSE_TRACE BEFORE mode=FINE force=248 target=250 boost=0 command=700 CCR=140 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE BEFORE mode=FINE force=248 target=250 boost=300 command=1000 CCR=200 actual_high_ms=7 hard_ms=8 preload=300
+PULSE_TRACE BEFORE mode=FINE force=248 target=250 boost=600 command=1300 CCR=260 actual_high_ms=5 hard_ms=6 preload=300
+PULSE_TRACE BEFORE mode=FINE force=248 target=250 boost=900 command=1600 CCR=320 actual_high_ms=4 hard_ms=5 preload=300
+PULSE_TRACE BEFORE mode=FINE force=248 target=250 boost=1000 command=1700 CCR=340 actual_high_ms=4 hard_ms=5 preload=300
+BASELINE_BOOST_SHORTENING_REPRODUCED=YES
+
+Fixed production + final 14 affected groups; synthetic O2 / same IRQ path
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=0 command=3000 CCR=600 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=300 command=3300 CCR=660 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=600 command=3600 CCR=720 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=900 command=3900 CCR=780 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=1200 command=4200 CCR=840 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=1500 command=4500 CCR=900 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=1800 command=4800 CCR=960 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=MICRO force=12 target=250 boost=2000 command=5000 CCR=1000 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=FINE force=248 target=250 boost=0 command=700 CCR=140 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=FINE force=248 target=250 boost=300 command=1000 CCR=200 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=FINE force=248 target=250 boost=600 command=1300 CCR=260 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=FINE force=248 target=250 boost=900 command=1600 CCR=320 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TRACE AFTER mode=FINE force=248 target=250 boost=1000 command=1700 CCR=340 actual_high_ms=10 hard_ms=11 preload=300
+PULSE_TIMING_10_MS_AND_AMPLITUDE=PASS
+TestBuildBoostAndTaperEnergy PASS
+TestBuildContractAndPostFeedback PASS
+TestBuildCutoffsAndStopRaces PASS
+TestBuildMissingBadFeedbackAndTargetPriority PASS
+TestBuildExposureAndUninterruptedCooling PASS
+TestInterpulseInitialMicroFineAndNoOff PASS
+TestInterpulseStopFaultTargetAndLease PASS
+TestInterpulseEnergyDeadlineWithoutMain PASS
+ACTUAL_OFF_COOLING reserved=12000 rest=108000 expected=108000
+TestCoolingBudgetRejectionActualOff PASS
+ACTUAL_OFF_COOLING reserved=142 rest=108000 expected=108000
+ACTUAL_OFF_COOLING reserved=142 rest=108000 expected=108000
+ACTUAL_OFF_COOLING reserved=142 rest=108000 expected=108000
+TestCoolingTimerHardwareStopFailures PASS
+ACTUAL_OFF_COOLING reserved=131 rest=108000 expected=108000
+TestCoolingWaitsForVerifiedHardwareOff PASS
+TestBuildNoiseAndPersistentBudgets PASS
+TestPulseFixPreloadDroop250 PASS
+TestBuildPlanAndReadbackContract PASS
+PULSE_FIX_TRACE_AND_14_AFFECTED_GROUPS=PASS; PHYSICAL_NOT_RUN

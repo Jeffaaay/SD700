@@ -9,6 +9,8 @@ def main():
     ap.add_argument('--characterization',action='store_true')
     ap.add_argument('--build-to-target',action='store_true')
     ap.add_argument('--range-fixture',action='store_true',help='SYNTHETIC host-only command ceilings9600/200, continuous2400; not a hardware rating')
+    ap.add_argument('--optimization',choices=('O0','O2','Os'),help='Run only this optimization; omission keeps the existing matrix')
+    ap.add_argument('--test-argument',action='append',default=[],help='Argument passed to the host executable for a focused case')
     args=ap.parse_args();
     if args.build_to_target and not args.characterization: ap.error('BuildToTarget requires --characterization')
     if args.characterization and (not args.commissioning or args.range_fixture): ap.error('Characterization requires commissioning without synthetic overrides')
@@ -36,17 +38,18 @@ def main():
         defines+=['SD700_BUILD_TO_TARGET=1']
     if args.range_fixture: defines+=['FS_PRESS_PROFILE_CEILING=9600','FS_RELEASE_PROFILE_CEILING=200']
     results=[]
-    for opt in ('-O0','-O2','-Os'):
+    optimizations=('-'+args.optimization,) if args.optimization else ('-O0','-O2','-Os')
+    for opt in optimizations:
         exe=out/('force_servo_'+opt[1:]+'.exe')
         cmd=['gcc','-std=c11','-Wall','-Wextra','-Werror','-pedantic',opt,'-I.','-ITests/Host/Shim']
         cmd+=['-D'+x for x in defines]+sources+['-lm','-o',str(exe)]
         subprocess.run(cmd,check=True)
-        result=subprocess.run([str(exe.resolve())],capture_output=True,text=True)
+        result=subprocess.run([str(exe.resolve())]+args.test_argument,capture_output=True,text=True)
         (out/(opt[1:]+'.log')).write_text(result.stdout+result.stderr,encoding='utf-8')
         print(result.stdout,result.stderr,flush=True)
         results.append({'optimization':opt,'command':cmd,'exit_code':result.returncode})
         (out/'results.json').write_text(json.dumps(results,indent=2)+'\n')
         result.check_returncode()
-    print('FORCE_SERVO_OPTIMIZATIONS=3 PASS; hardware NOT_RUN')
+    print(f'FORCE_SERVO_OPTIMIZATIONS={len(optimizations)} PASS; hardware NOT_RUN')
 
 if __name__=='__main__': main()

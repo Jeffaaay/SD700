@@ -74,10 +74,8 @@ bool ForceBuild_Select(float m,float t,bool contacted,uint32_t boost,uint32_t co
  }
  r->preload_command=c->preload_initial_command;
  r->command=r->base_command+boost;
- /* Old volt-second compensation (floor, minimum2 ms), now actual normal
-  * timer duration; independent hard cutoff is one additional ms. */
- uint32_t normal=c->pulse_base_ms*r->base_command/r->command;
- if (normal<c->pulse_min_ms) normal=c->pulse_min_ms;
- r->hard_ms=normal+c->hard_guard_ms;
+ /* Match the reviewed HEX's normal10-ms task cadence, using TIM5 rather
+  * than task polling. Boost must not shorten the actual high segment. */
+ r->hard_ms=c->pulse_base_ms+c->hard_guard_ms;
  return true;
 }

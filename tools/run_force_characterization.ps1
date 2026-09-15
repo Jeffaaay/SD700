@@ -10,7 +10,7 @@ $options=@{Port=$Port;TargetForceN=$TargetForceN;OutputCsv=$OutputCsv}
 foreach ($item in $options.GetEnumerator()) { Set-Variable -Name $item.Key -Value $item.Value }
 $plan=New-CharacterizationPlan $TargetForceN 0 0
 $root=(Resolve-Path "$PSScriptRoot/..").Path
-$firmware=Join-Path $root 'output/BuildToTarget2_CoolingAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_CoolingAnchorFix1_RealBench_Release.hex'
+$firmware=Join-Path $root 'output/BuildToTarget2_Pulse10msFix1/firmware/SD700_ForceServo1_BuildToTarget2_Pulse10msFix1_RealBench_Release.hex'
 & python "$PSScriptRoot/verify_force_servo_firmware.py"
 if ($LASTEXITCODE -ne 0) { throw 'Strict repository HEX/ELF verification failed; no serial connection' }
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
@@ -38,16 +38,16 @@ foreach ($p in @($OutputCsv,[IO.Path]::ChangeExtension($OutputCsv,'.report.txt')
 }
 $confirmStart={param($p)
     Write-Host @"
-=== SD700 BuildToTarget2_CoolingAnchorFix1 SUPERVISED EXPERIMENT ===
+=== SD700 BuildToTarget2_Pulse10msFix1 SUPERVISED EXPERIMENT ===
 Target:              $($p.target_N) N (only writable control)
 Initial force:       0 N allowed; contact10 N; already reached target takes priority
 APPROACH:            base5000 + coarse0..3500 command (~20.83..35.42% PWM)
 COARSE adaptation:  >=200 ms fresh OFF check; <1 N movement -> +500; otherwise reset
 APPROACH timing:    normal99 / hard100 ms segments, never unbounded continuous
-MICRO:              error-scaled base800..3000 + boost0..4000; maximum7000
+MICRO:              error-scaled base800..3000 + boost0..2000; maximum5000
 FINE (error<=3 N):  base400..1000 + boost0..1000; maximum2000
 Pulse adaptation:  two <1 N movements -> +300; abs(movement)>=1 N resets boost
-Pulse timing:      normal max(2,floor(10*base/command)) ms; hard=normal+1 ms
+Pulse timing:      normal10 ms (boost independent); TIM5 hard11 ms
 MICRO/FINE gap:     forward preload initially300, range200..600; >2 N droop +100
 Preload adaptation: fresh post-forward pulse only, cap600, retained across START
 Next pulse:         cooldown>=30 ms + a fresh post-segment sensor frame

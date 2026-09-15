@@ -195,3 +195,9 @@ output/BuildToTarget2_CoolingAnchorFix1/*
 !output/BuildToTarget2_CoolingAnchorFix1/firmware/
 !output/BuildToTarget2_CoolingAnchorFix1/firmware/*.hex
 !output/BuildToTarget2_CoolingAnchorFix1/firmware/*.elf
+
+!output/BuildToTarget2_Pulse10msFix1/
+output/BuildToTarget2_Pulse10msFix1/*
+!output/BuildToTarget2_Pulse10msFix1/firmware/
+!output/BuildToTarget2_Pulse10msFix1/firmware/*.hex
+!output/BuildToTarget2_Pulse10msFix1/firmware/*.elf

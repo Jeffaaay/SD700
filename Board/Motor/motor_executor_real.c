@@ -1286,9 +1286,8 @@ MotorResult MotorExecutor_StartBuildSegment(uint32_t token,const ForceBuildReque
      } else goto fail;
      if (r->command<r->base_command || r->command-r->base_command>maximum ||
          r->command>c->build_ceiling || r->hard_ms<c->pulse_hard_min_ms || r->hard_ms>c->pulse_hard_max_ms) goto fail;
-     uint32_t normal=c->pulse_base_ms*r->base_command/r->command;
-     if (normal<c->pulse_min_ms) normal=c->pulse_min_ms;
-     if (r->hard_ms!=normal+c->hard_guard_ms) goto fail;
+     /* Independently reject the superseded boost-compensated short pulse. */
+     if (r->hard_ms!=c->pulse_base_ms+c->hard_guard_ms) goto fail;
  } else goto fail;
  if (r->hard_ms>=FORCE_SERVO_COMMISSIONING_LEASE_MS-(now-received) ||
      (s_build_have_sequence && now-s_build.ended_ms<c->off_settle_ms)) goto fail;

@@ -1,4 +1,4 @@
-param([string]$OutputDirectory='output/BuildToTarget2_CoolingAnchorFix1/capture-tests')
+param([string]$OutputDirectory='output/BuildToTarget2_Pulse10msFix1/capture-tests')
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
 . "$root/tools/capture_force_servo.ps1" -LibraryOnly -BuildToTarget
@@ -182,7 +182,7 @@ function Capture-Case([string]$Name,[double]$Target,[double]$Assist,[double]$Con
         Check ($saved[0].measured -eq 0 -and $saved[-1].phase -eq 'STOP_READBACK') 'Zero-start or complete streamed capture lost'
     }
     if ($expected -and -not $Failure) {
-        Check ($meta.build_profile.build_ceiling -eq 7000 -and $meta.build_profile.approach_ceiling -eq 8500 -and $meta.build_profile.fine_boost_max_command -eq 1000 -and $meta.build_profile.pulse_hard_max_ms -eq 11 -and $meta.build_config_digest -eq $schema.build_digest) 'Build contract metadata missing'
+        Check ($meta.build_profile.build_ceiling -eq 5000 -and $meta.build_profile.approach_ceiling -eq 8500 -and $meta.build_profile.fine_boost_max_command -eq 1000 -and $meta.build_profile.pulse_hard_max_ms -eq 11 -and $meta.build_config_digest -eq $schema.build_digest) 'Build contract metadata missing'
         Check ($report.maximum_requested_equivalent_V -eq 8.5 -and $report.maximum_committed_command -eq 8500 -and $report.maximum_planned_press_ccr -eq 1700) 'Command/voltage-equivalent/CCR evidence missing'
         Check ($report.maximum_coarse_boost_command -eq 3500 -and $report.maximum_approach_command_ms -eq 850000) 'Coarse boost/time telemetry missing'
         Check ($meta.build_profile.preload_initial_command -eq 300 -and $meta.build_profile.preload_max_command -eq 600 -and $meta.build_profile.preload_drop_N -eq 2) 'Preload config missing'

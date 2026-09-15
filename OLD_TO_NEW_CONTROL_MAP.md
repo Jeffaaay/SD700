@@ -1,4 +1,4 @@
-Current firmware is BuildToTarget2_CoolingAnchorFix1, based on8e2973a. It changes only the failed-admission cooling baseline; all mappings and parameters below remain inherited from Interpulse1. [Current handoff](Docs/BuildToTarget2_CoolingAnchorFix1/HANDOFF.md).
+Current firmware is BuildToTarget2_Pulse10msFix1, based onb1063ca. The SHA-matched old HEX/AXF overrides historical source-only MICRO boost and compensated TIM5 timing: boost max2000, total<=5000; MICRO/FINE normal10/hard11 ms. FINE amplitudes and all other ported behavior remain. The source mapping below is historical and is not the current pulse-time contract. [Current handoff and binary provenance](Docs/BuildToTarget2_Pulse10msFix1/HANDOFF.md).
 
 # Current interpulse port: BuildToTarget2_Interpulse1
 

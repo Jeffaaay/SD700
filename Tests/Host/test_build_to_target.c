@@ -294,9 +294,10 @@ static void TestBuildContractAndPostFeedback(void)
  assert(MotorExecutor_StartBuildSegment(token,&r,++seq,now,now)!=MOTOR_RESULT_OK);
  token=build_owner(); assert(MotorExecutor_BeginContinuous(&request)==MOTOR_RESULT_INVALID);
  const ForceBuildRequest invalid[]={ {1,5001,100,5000,1,0},{1,8501,100,5000,1,0},{1,8500,101,5000,1,0},
-     {2,7001,5,3000,2,300},{2,7000,11,3000,2,300},{2,2999,11,3000,2,300},{2,3000,12,3000,2,300},
+     {2,5001,11,3000,2,300},{2,7000,11,3000,2,300},{2,2999,11,3000,2,300},{2,3000,12,3000,2,300},
      {2,3000,2,3000,2,300},{3,2001,5,1000,3,300},{3,399,11,400,3,300},{3,1000,12,1000,3,300},
-     {0,1000,5,1000,3,300},{3,7000,5,1000,3,300},{1,8500,100,8500,1,0},{2,7000,5,3001,2,300} };
+     {0,1000,5,1000,3,300},{3,7000,5,1000,3,300},{1,8500,100,8500,1,0},{2,7000,5,3001,2,300},
+     {2,3300,10,3000,2,300},{2,5000,7,3000,2,300},{3,2000,6,1000,3,300} };
  for (unsigned i=0;i<sizeof(invalid)/sizeof(invalid[0]);i++) {
      token=build_owner(); assert(MotorExecutor_StartBuildSegment(token,&invalid[i],++seq,now,now)!=MOTOR_RESULT_OK); off();
  }
@@ -361,21 +362,21 @@ static void TestBuildBoostAndTaperEnergy(void)
 {
  build_start(250,10);
  for (unsigned i=0;i<30;i++) { build_sample(10,50); assert(machine.state!=FAULT); }
- assert(machine.servo.build.boost==4000);
+ assert(machine.servo.build.boost==2000);
  MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
- assert(e.command==7000 && e.hard_ms==5 && TIM3->CCR3==1400);
+ assert(e.command==5000 && e.hard_ms==11 && TIM3->CCR3==1000);
  build_sample(12,50); assert(machine.servo.build.boost==0 && machine.servo.build.low_count==0);
  assert(machine.servo.diagnostic.post_pulse_valid && machine.servo.build.post_pending);
  assert(machine.servo.diagnostic.post_pulse_request+1==MotorExecutor_GetBuildSnapshot(now).request);
  assert(machine.servo.diagnostic.pulse_force_before==10 && machine.servo.diagnostic.pulse_force_after==12);
- /* Values independently calculated from actual old source formulas.
+ /* Base/FINE amplitude formulas unchanged; reviewed HEX MICRO cap and cadence.
   * MICRO/FINE switch is discontinuous in the source: error4 base846,
   * error3 base1000. Do not falsely assert strict monotonicity at that boundary. */
  const struct { int error; unsigned boost,base,command,normal,mode; } cases[]={
-     {240,0,3000,3000,10,2},{240,300,3000,3300,9,2},{240,4000,3000,7000,4,2},
-     {50,4000,3000,7000,4,2},{26,300,1876,2176,8,2},
-     {5,0,893,893,10,2},{4,4000,846,4846,2,2},{3,4000,1000,2000,5,3},
-     {2,300,700,1000,7,3},{1,1000,400,1400,2,3}};
+     {240,0,3000,3000,10,2},{240,300,3000,3300,10,2},{240,4000,3000,5000,10,2},
+     {50,4000,3000,5000,10,2},{26,300,1876,2176,10,2},
+     {5,0,893,893,10,2},{4,4000,846,2846,10,2},{3,4000,1000,2000,10,3},
+     {2,300,700,1000,10,3},{1,1000,400,1400,10,3}};
  ForceBuildRequest r;
  for (unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
      assert(ForceBuild_Select(250-cases[i].error,250,true,cases[i].boost,0,&r));
@@ -396,7 +397,7 @@ static void TestBuildExposureAndUninterruptedCooling(void)
 {
  /* Exercise the production executor ledger without a simulated plant timeout. */
  uint32_t token=build_owner(); ForceBuildRequest approach={BUILD_PHASE_APPROACH,5000,100,5000,BUILD_MODE_COARSE,0};
- ForceBuildRequest pulse={BUILD_PHASE_BUILD,3300,10,3000,BUILD_MODE_MICRO,300};
+ ForceBuildRequest pulse={BUILD_PHASE_BUILD,3300,11,3000,BUILD_MODE_MICRO,300};
  for (unsigned i=0;i<80;i++) {
      assert(MotorExecutor_StartBuildSegment(token,&approach,++seq,now,now)==MOTOR_RESULT_OK);
      executor_wait(129); uint32_t req=MotorExecutor_GetBuildSnapshot(now).request;
@@ -405,12 +406,12 @@ static void TestBuildExposureAndUninterruptedCooling(void)
  assert(MotorExecutor_GetBuildSnapshot(now).approach_reserved_ms==8000);
  unsigned pulses=0;
  while (MotorExecutor_StartBuildSegment(token,&pulse,++seq,now,now)==MOTOR_RESULT_OK) {
-     executor_wait(39); uint32_t req=MotorExecutor_GetBuildSnapshot(now).request;
+     executor_wait(40); uint32_t req=MotorExecutor_GetBuildSnapshot(now).request;
      assert(MotorExecutor_AcceptBuildPost(token,req,++seq,now,now));
      assert(++pulses<400); /* Preload now consumes the SAME12 s budget. */
  }
  off(); MotorBuildSnapshot spent=MotorExecutor_GetBuildSnapshot(now);
- assert(spent.reserved_ms<=12000 && spent.reserved_ms+10>12000 && spent.inhibited);
+ assert(spent.reserved_ms<=12000 && spent.reserved_ms+11>12000 && spent.inhibited);
  assert(spent.energized_upper_ms<=spent.reserved_ms && spent.preload_spent_ms>0);
  assert(spent.approach_reserved_ms==8000 && spent.approach_command_ms==40000000);
  assert(MotorExecutor_Disable()==MOTOR_RESULT_OK); MotorExecutor_Service(now);
@@ -420,14 +421,14 @@ static void TestBuildExposureAndUninterruptedCooling(void)
  advance(1); assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms==0);
  assert(MotorExecutor_BeginBuild(now,&token)==MOTOR_RESULT_OK); off(); /* no automatic output */
  assert(MotorExecutor_StartBuildSegment(token,&pulse,++seq,now,now)==MOTOR_RESULT_OK);
- executor_wait(39); uint32_t req=MotorExecutor_GetBuildSnapshot(now).request;
+ executor_wait(40); uint32_t req=MotorExecutor_GetBuildSnapshot(now).request;
  assert(MotorExecutor_AcceptBuildPost(token,req,++seq,now,now));
  preload(300); assert(MotorExecutor_Disable()==MOTOR_RESULT_OK); off();
  uint32_t reserved=MotorExecutor_GetBuildSnapshot(now).reserved_ms;
  executor_wait(100000); assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms==reserved);
  assert(MotorExecutor_BeginBuild(now,&token)==MOTOR_RESULT_OK);
  assert(MotorExecutor_StartBuildSegment(token,&pulse,++seq,now,now)==MOTOR_RESULT_OK);
- executor_wait(39); assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms>=reserved+10);
+ executor_wait(40); assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms>=reserved+11);
  assert(MotorExecutor_Disable()==MOTOR_RESULT_OK);
  uint32_t reserved2=MotorExecutor_GetBuildSnapshot(now).reserved_ms;
  executor_wait(8001); assert(MotorExecutor_GetBuildSnapshot(now).reserved_ms==reserved2); /* not cooled since first STOP */
@@ -711,10 +712,75 @@ static void TestCoolingWaitsForVerifiedHardwareOff(void)
  assert(MotorExecutor_Disable()==MOTOR_RESULT_OK);
  assert_full_cooling_from_now();
 }
-int main(void)
+static void TestPulseFixPreloadDroop250(void)
+{
+ build_start(250,100); build_sample(98,50); assert(machine.servo.build.preload_command==300);
+ const int values[]={95,92,89,86}; const unsigned expected[]={400,500,600,600};
+ for (unsigned i=0;i<4;i++) {
+     build_sample(values[i],50); assert(machine.servo.build.preload_command==expected[i]);
+     build_advance(10); preload(expected[i]);
+ }
+ assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+ build_start(250,249); build_sample(246,40);
+ assert(machine.servo.build.preload_command==400); build_advance(10); preload(400);
+ assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+}
+static void TestBuildPulseOutputTrace(bool fixed)
+{
+ for (unsigned mode=0;mode<2;mode++) {
+     int force=mode ? 248 : 12;
+     unsigned base=mode ? 700 : 3000,cap=mode ? 1000 : (fixed ? 2000 : 4000);
+     unsigned last=mode ? 8 : 30;
+     build_start(250,force);
+     for (unsigned pulse=0;pulse<=last;pulse++) {
+         unsigned boost=(pulse/2)*300; if (boost>cap) boost=cap;
+         MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
+         assert(e.command==base+boost && e.base_command==base && e.segment_active);
+         uint32_t began=now;
+         while (MotorExecutor_GetBuildSnapshot(now).segment_active) {
+             assert(now-began<11 && MotorExecutor_GetSnapshot()->command_mv==e.command);
+             assert(TIM2->CCR3==0 && TIM3->CCR3==(e.command+4)/5);
+             advance(1); /* Real TIM5 IRQ shim, no Machine_Tick or task polling. */
+         }
+         uint32_t actual=now-began;
+         if (fixed) assert(actual==10 && e.hard_ms==11);
+         else {
+             assert(actual==(10*base/(base+boost)) && e.hard_ms==actual+1);
+             if (pulse==last) assert(actual==4); /* Both old boosted high segments shrink. */
+         }
+         preload(300);
+         if (pulse%2==0) printf("PULSE_TRACE %s mode=%s force=%d target=250 boost=%u command=%lu CCR=%lu actual_high_ms=%lu hard_ms=%lu preload=300\n",
+             fixed ? "AFTER" : "BEFORE",mode ? "FINE" : "MICRO",force,boost,
+             (unsigned long)e.command,(unsigned long)((e.command+4)/5),(unsigned long)actual,(unsigned long)e.hard_ms);
+         assert(MotorExecutor_GetBuildSnapshot(now).ended_ms==began+actual);
+         if (pulse==last) break;
+         build_sample(force,29); preload(300);
+         assert(MotorExecutor_GetBuildSnapshot(now).request==e.request); /* No cooldown bypass. */
+         build_sample(force,1);
+         assert(MotorExecutor_GetBuildSnapshot(now).request==e.request+1);
+     }
+     assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+ }
+ puts(fixed ? "PULSE_TIMING_10_MS_AND_AMPLITUDE=PASS" : "BASELINE_BOOST_SHORTENING_REPRODUCED=YES");
+}
+int main(int argc,char **argv)
 {
  setvbuf(stdout,NULL,_IONBF,0);
 #define RUN(f) f(); puts(#f " PASS")
+ if (argc==2 && strcmp(argv[1],"--pulse-before")==0) { TestBuildPulseOutputTrace(false); return 0; }
+ if (argc==2 && strcmp(argv[1],"--pulse-fix")==0) {
+     TestBuildPulseOutputTrace(true);
+     RUN(TestBuildBoostAndTaperEnergy); RUN(TestBuildContractAndPostFeedback);
+     RUN(TestBuildCutoffsAndStopRaces); RUN(TestBuildMissingBadFeedbackAndTargetPriority);
+     RUN(TestBuildExposureAndUninterruptedCooling); RUN(TestInterpulseInitialMicroFineAndNoOff);
+     RUN(TestInterpulseStopFaultTargetAndLease); RUN(TestInterpulseEnergyDeadlineWithoutMain);
+     RUN(TestCoolingBudgetRejectionActualOff); RUN(TestCoolingTimerHardwareStopFailures);
+     RUN(TestCoolingWaitsForVerifiedHardwareOff);
+     RUN(TestBuildNoiseAndPersistentBudgets); RUN(TestPulseFixPreloadDroop250);
+     RUN(TestBuildPlanAndReadbackContract);
+     puts("PULSE_FIX_TRACE_AND_14_AFFECTED_GROUPS=PASS; PHYSICAL_NOT_RUN"); return 0;
+ }
+ assert(argc==1);
  RUN(TestCoolingWaitsForVerifiedHardwareOff); RUN(TestCoolingBudgetRejectionActualOff); RUN(TestCoolingTimerHardwareStopFailures);
  RUN(TestBuildApproachAndLowTargets); RUN(TestBuildSyntheticTargetsOffAndDecay);
  RUN(TestBuildSlowProgressAndShortPlateau); RUN(TestBuildNoiseAndPersistentBudgets);
