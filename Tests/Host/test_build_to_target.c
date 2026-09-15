@@ -130,6 +130,126 @@ static void TestBuildNoiseAndPersistentBudgets(void)
  for (unsigned i=0;i<40 && machine.state!=FAULT;i++) build_sample(10,100);
  off(); assert(machine.fault_detail==FAULT_DETAIL_BUILD_NO_RESPONSE);
 }
+/* Regression from review7531723: a previous session's150 N high must not
+ * become the next session's progress threshold after unloading to0 N. */
+static void restart_after_150(bool approach)
+{
+ build_start(500,approach ? 0 : 10);
+ if (approach) { build_sample(10,20); build_sample(10,30); }
+ for (int f=20;f<=150;f+=10) { build_sample(f,100); assert(machine.state!=FAULT); }
+ assert(machine.servo.build.progress_anchor==150);
+ build_sample(150,100); /* Retain a nonzero no-response charge across STOP. */
+ assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+ build_sample(0,100); build_advance(5100); sample_at(0,++seq,now,true); off();
+ assert(machine.servo.build.progress_anchor==150);
+}
+static void TestBuildSecondStartProgressAndPlatform(void)
+{
+ restart_after_150(false);
+ uint32_t carried=machine.servo.build.no_response_ms;
+ assert(carried>0);
+ build_plan(500); assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED);
+ build_sample(10,5);
+ assert(machine.servo.build.no_response_ms==carried); /* START cannot buy time. */
+ for (int f=11;f<=160;f++) {
+     build_sample(f,100);
+     if (machine.state==FAULT) printf("CROSS_START_REPRO force=%d anchor=%.0f detail=%u no_response_ms=%lu\n",
+         f,(double)machine.servo.build.progress_anchor,(unsigned)machine.fault_detail,
+         (unsigned long)machine.servo.build.no_response_ms);
+     assert(machine.state!=FAULT);
+ }
+ assert(machine.servo.build.progress_anchor==160 && machine.servo.build.no_response_ms==0);
+ uint32_t plateau=now;
+ for (unsigned i=0;i<50;i++) {
+     build_sample(160,100);
+     if (i<49) assert(machine.state!=FAULT);
+ }
+ off(); assert(machine.fault_detail==FAULT_DETAIL_BUILD_NO_RESPONSE && now-plateau==5000);
+ assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
+ puts("CROSS_START_REPRO second10_to160=PASS; subsequent_platform5000ms=OFF_DETAIL22");
+}
+static void assert_restart_budget(MotorBuildSnapshot prior,uint32_t extra,uint32_t response)
+{
+ MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
+ assert(e.epoch==prior.epoch && e.reserved_ms==prior.reserved_ms+extra);
+ assert(e.approach_reserved_ms==prior.approach_reserved_ms && e.approach_command_ms==prior.approach_command_ms);
+ assert(machine.servo.build.no_response_ms==response);
+}
+static void TestBuildStartAnchorRequiresFreshFrame(void)
+{
+ restart_after_150(true);
+ MotorBuildSnapshot prior=MotorExecutor_GetBuildSnapshot(now);
+ uint32_t response=machine.servo.build.no_response_ms;
+ assert(prior.approach_reserved_ms>0 && prior.approach_command_ms>0 && response>0);
+ assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off(); assert_restart_budget(prior,0,response);
+ build_advance(5100); sample_at(0,++seq,now,true);
+ build_plan(500); assert(machine.servo.build.progress_anchor==150); assert_restart_budget(prior,0,response);
+ build_advance(5);
+ assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED);
+ assert(machine.servo.start_pending && machine.servo.build.progress_anchor==150);
+ assert(command(CMD_FORCE_START,0)==COMMAND_BUSY); assert_restart_budget(prior,0,response);
+ sample_at(10,++seq,now-1,true); /* fresh but received before this START */
+ assert(machine.servo.start_pending && machine.servo.build.progress_anchor==150); off();
+ sample_at(10,seq,now,true); /* duplicate cannot initialize the session */
+ assert(machine.servo.start_pending && machine.servo.build.progress_anchor==150); off();
+ build_advance(25); sample_at(10,++seq,now-21,true); /* ordered but too old */
+ assert(machine.servo.start_pending && machine.servo.build.progress_anchor==150); off();
+ assert_restart_budget(prior,0,response);
+ sample_at(10,++seq,now,true);
+ assert(machine.servo.active && !machine.servo.start_pending && machine.servo.build.progress_anchor==10);
+ assert_restart_budget(prior,11,response); /* one existing3000/11-ms hard reservation */
+ assert(command(CMD_FORCE_START,0)==COMMAND_BUSY); assert_restart_budget(prior,11,response);
+ build_sample(11,100); assert(machine.servo.build.progress_anchor==10 && machine.servo.build.no_response_ms==response+100);
+ build_sample(12,100); assert(machine.servo.build.progress_anchor==12 && machine.servo.build.no_response_ms==0);
+ /* A repeated START during output cannot lower an established progress anchor. */
+ assert(command(CMD_FORCE_START,0)==COMMAND_BUSY); build_sample(10,100);
+ assert(machine.servo.build.progress_anchor==12 && machine.servo.build.no_response_ms==100);
+ assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+ prior=MotorExecutor_GetBuildSnapshot(now); response=machine.servo.build.no_response_ms;
+ build_sample(14,100); off(); assert(machine.servo.build.progress_anchor==12);
+ assert_restart_budget(prior,0,response);
+}
+static void TestBuildRestartNoiseBadFramesAndStop(void)
+{
+ /* Repeated explicit new sessions without net post-pulse progress must still
+  * exhaust the SAME response allowance. Off cooling here is less than108 s. */
+ build_start(500,0); build_sample(10,20); build_sample(10,30);
+ uint32_t epoch=MotorExecutor_GetBuildSnapshot(now).epoch;
+ for (unsigned session=0;session<6 && machine.state!=FAULT;session++) {
+     for (unsigned i=0;i<10 && machine.state!=FAULT;i++) {
+         uint32_t before=machine.servo.build.no_response_ms;
+         assert(command(CMD_FORCE_START,0)==COMMAND_BUSY);
+         build_sample(10+i%2,100);
+         assert(machine.servo.build.no_response_ms>=before);
+     }
+     if (machine.state==FAULT) break;
+     uint32_t response=machine.servo.build.no_response_ms;
+     assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); off();
+     MotorBuildSnapshot prior=MotorExecutor_GetBuildSnapshot(now);
+     build_sample(0,100); build_advance(5100); sample_at(0,++seq,now,true);
+     build_plan(500); assert_restart_budget(prior,0,response);
+     assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED); build_sample(10,5);
+     assert_restart_budget(prior,11,response);
+ }
+ off(); assert(machine.fault_detail==FAULT_DETAIL_BUILD_NO_RESPONSE);
+ assert(machine.servo.build.no_response_ms==5000 && MotorExecutor_GetBuildSnapshot(now).epoch==epoch);
+ assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
+ /* Invalid/old/duplicate feedback and STOP while pending cannot establish a
+  * new baseline or erase budgets. Each bad-frame path is an independent run. */
+ for (unsigned kind=0;kind<4;kind++) {
+     restart_after_150(true); build_plan(500);
+     MotorBuildSnapshot prior=MotorExecutor_GetBuildSnapshot(now);
+     uint32_t response=machine.servo.build.no_response_ms;
+     assert(command(CMD_FORCE_START,0)==COMMAND_ACCEPTED);
+     if (kind==0) sample_at(10,++seq,now,false);
+     else if (kind==1) { sample_at(10,seq,now,true); build_advance(FORCE_SERVO_START_WAIT_MS); }
+     else if (kind==2) { build_advance(25); sample_at(10,++seq,now-21,true); build_advance(FORCE_SERVO_START_WAIT_MS); }
+     else { assert(command(CMD_STOP,0)==COMMAND_ACCEPTED); build_sample(10,100); }
+     off(); assert(!machine.servo.active && !machine.servo.start_pending);
+     assert(machine.servo.build.progress_anchor==150); assert_restart_budget(prior,0,response);
+     assert(command(CMD_FORCE_START,0)!=COMMAND_ACCEPTED);
+ }
+}
 static uint32_t build_owner(void)
 {
  build_fixture(10); uint32_t token=0;
@@ -386,11 +506,13 @@ int main(void)
 #define RUN(f) f(); puts(#f " PASS")
  RUN(TestBuildApproachAndLowTargets); RUN(TestBuildSyntheticTargetsOffAndDecay);
  RUN(TestBuildSlowProgressAndShortPlateau); RUN(TestBuildNoiseAndPersistentBudgets);
+ RUN(TestBuildSecondStartProgressAndPlatform); RUN(TestBuildStartAnchorRequiresFreshFrame);
+ RUN(TestBuildRestartNoiseBadFramesAndStop);
  RUN(TestBuildContractAndPostFeedback); RUN(TestBuildCutoffsAndStopRaces);
  RUN(TestBuildMissingBadFeedbackAndTargetPriority); RUN(TestBuildBoostAndTaperEnergy);
  RUN(TestBuildExposureAndUninterruptedCooling); RUN(TestBuildPlanAndReadbackContract);
  RUN(TestOldPulseBoostResetAndFreshGate); RUN(TestOldCoarseTimingCeilingAndContactLatch);
  RUN(TestBuildStopAllStagesAndNoRestart);
  RUN(TestTrajectory); RUN(TestNumericAndD); RUN(TestAntiWindup);
- puts("BUILD_TO_TARGET_GROUPS=16 PASS; SYNTHETIC_ONLY; PHYSICAL_NOT_RUN"); return 0;
+ puts("BUILD_TO_TARGET_GROUPS=19 PASS; SYNTHETIC_ONLY; PHYSICAL_NOT_RUN"); return 0;
 }

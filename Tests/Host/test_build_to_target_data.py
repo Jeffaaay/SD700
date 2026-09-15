@@ -7,7 +7,7 @@ from force_servo_data import schema,build_to_target_metrics,select_build_branch
 class BuildData(unittest.TestCase):
     def test_exact_schema_and_profile(self):
         s=schema(True,True); c={p['name']:p['default'] for p in s['parameters']}
-        self.assertEqual((s['schema'],s['build_id'],len(s['u32']),len(s['floats'])),(0xF10B,0x4653010D,118,32))
+        self.assertEqual((s['schema'],s['build_id'],len(s['u32']),len(s['floats'])),(0xF10B,0x4653010E,118,32))
         self.assertEqual(len(s['build_profile']),33); self.assertEqual(s['build_digest'],1817994819)
         self.assertEqual((s['live_executor_press_ceiling'],s['live_continuous_ceiling']),(8500,0))
         self.assertEqual([c[k] for k in ('kp','ki','kd','press_cap','session_ms','lease_ms','feedback_gap_ms')],[10,0,0,0,0,130,125])

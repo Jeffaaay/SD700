@@ -1,6 +1,6 @@
-# SD700 - BuildToTarget2_StartAnchorFix1
+# SD700 - BuildToTarget2
 
-Current candidate: **BuildToTarget2_StartAnchorFix1**, based on clean main/origin/main `75317233441d596c8a34cb01255994f86563c86b` (BuildToTarget2). This patch only rebases progress on the valid fresh frame following a genuinely accepted new START, retaining accumulated no-response time and all exposure/approach reservations. Controller, output parameters and safety thresholds are unchanged. [OLD_TO_NEW_CONTROL_MAP.md](OLD_TO_NEW_CONTROL_MAP.md) identifies source hashes, functions/lines, calculations, safety adaptations and tests.
+Current candidate: **BuildToTarget2**, based on clean main/origin/main `1a4c93d57d386e25efa300a64828e2fef5a67071` (BuildToTarget1). This ports the actual old working-tree adaptive pressure strategy. [OLD_TO_NEW_CONTROL_MAP.md](OLD_TO_NEW_CONTROL_MAP.md) identifies source hashes, functions/lines, calculations, safety adaptations and tests.
 
 **PHYSICAL_STATUS=NOT_RUN.** No serial connection, flashing or machine motion. One HEX supports integer TargetForceN **1..3000 N**; synthetic force attainment is not measured attainment or stable holding. Installed sensor units remain user-confirmed, scale1/offset0, without a new calibration claim.
 
@@ -15,10 +15,8 @@ The modern state machine, single motor executor, atomic Target plan, one START, 
 | Every segment | True bridge OFF>=30 ms plus ordered fresh post-segment feedback received at/after end+30 ms, age<=20 ms. No timeout-based repeat or feedback reuse |
 | Exposure | Full hard time reserved before arming; no refund. Approach<=8000 ms, all segments<=12000 ms. Additional approach sum(command*hard_ms)<=40,000,000, derived from the preceding5000*8000 envelope; higher approach amplitude consumes it faster |
 | Reset/cooling |108000 ms uninterrupted verified OFF, including boot. Pulse OFF, phase changes, STOP/fault and new START do not erase cumulative safety budgets. Cooling never restarts output |
-| Persistent no response |Progress anchor starts at this START's first accepted valid fresh force; START/STOP/new plan never clear the timer.5000 ms accumulated active BUILD/TAPER including OFF gaps without valid post-pulse net NEW HIGH progress>=2 N. Alternating noise and short500-600 ms platforms do not reset the budget or cause Detail17 |
+| Persistent no response |5000 ms accumulated active BUILD/TAPER including OFF gaps without valid post-pulse net NEW HIGH progress>=2 N. Alternating noise and short500-600 ms platforms do not reset the budget or cause Detail17 |
 | First valid target reach | Immediate bridge OFF, state16 monitoring only, for every target including3000. No BRAKE, preload, active HOLD, automatic repress or RELEASE |
-
-**Physical equivalence is unproven:** BUILD pulse gaps are also completely bridge OFF. The old controller used0.2-0.6 V interpulse preload; the current OFF gaps are different and have not been shown physically equivalent. This repair does not add energized preload.
 
 Old MICRO/FINE formulas have a discontinuity: unboosted error4 N gives846 command, error3 N gives1000. This is disclosed, not hidden behind a claim of strict monotonic energy. Overall near-target pulse energy and the FINE boost ceiling are lower; the map gives exact vectors and adaptations. A previously latched contact never re-enters COARSE. Initial error<=3 uses FINE; already-at/exceeded target produces no segment.
 
@@ -26,7 +24,7 @@ There is **no normal overall session/build/capture timeout**. Detail17 remains d
 
 All voltages here are command equivalents at the existing24 V mapping. PWM/CCR are software requests, not measured motor voltage/current. The command-time cap is an additional exposure constraint, **not measured heat or a motor/thermal/continuous rating**. The existing0.5 A PSU setting is unchanged. Finite safety budgets do not guarantee reaching a target on the physical plant.
 
-Firmware: [HEX](output/BuildToTarget2_StartAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_StartAnchorFix1_RealBench_Release.hex), [ELF](output/BuildToTarget2_StartAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_StartAnchorFix1_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2_StartAnchorFix1/HANDOFF.md). Identity F10B /4653010E / profile7; immutable Build config version2, digest1817994819. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
+Firmware: [HEX](output/BuildToTarget2/firmware/SD700_ForceServo1_BuildToTarget2_RealBench_Release.hex), [ELF](output/BuildToTarget2/firmware/SD700_ForceServo1_BuildToTarget2_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2/HANDOFF.md). Identity F10B /4653010D / profile7; immutable Build config version2, digest1817994819. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
 
 For a single supervised field session, verify the checkout before connecting:
 
@@ -47,4 +45,4 @@ The wrapper prints these stage ceilings/times before one explicit START confirma
 
 Exactly one script START, no additional manual START and no automatic repeat. CSV streams through build and target-OFF decay monitoring until S/Escape, external STOP or a real fault. Stop immediately for abnormal motion/noise/current/heat. Return CSV, metadata, report and brief field conditions. Capture cannot certify hardware stopping; target touch and sampled OFF retention are separate from stable holding or rotating-load qualification.
 
-[Actual tests and commands](Docs/BuildToTarget2_StartAnchorFix1/TEST_RESULTS.md) - [Protocol and identity](Docs/BuildToTarget2_StartAnchorFix1/PROTOCOL.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
+[Actual tests and commands](Docs/BuildToTarget2/TEST_RESULTS.md) - [Protocol](Docs/BuildToTarget2/PROTOCOL.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.

@@ -105,7 +105,10 @@ bool ForceBuildMachine_Begin(MachineContext *m,uint32_t now)
  b->coarse_check_ms=now; b->coarse_reference=measured;
  b->contact_latched=measured>=g_force_build_config.contact_N;
  s->diagnostic.contact_count=b->contact_latched ? 1U : 0U;
- if (!b->progress_initialized) { b->progress_anchor=measured; b->progress_initialized=true; }
+ /* Reached only for an accepted new START's valid fresh frame. Rebase this
+  * session after unloading; do not refund no-response or executor exposure.
+  * Only a qualified post-pulse net gain can reset the carried response timer. */
+ b->progress_anchor=measured; b->progress_initialized=true;
  if (measured>=(float)m->target_pressure_units) { target_off(m,now,measured); return m->state!=FAULT; }
  if (!ForceServo_Init(&s->controller,&s->config,measured,(float)m->target_pressure_units) ||
      MotorExecutor_BeginBuild(now,&s->token)!=MOTOR_RESULT_OK) return false;

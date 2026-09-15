@@ -10,7 +10,7 @@ $options=@{Port=$Port;TargetForceN=$TargetForceN;OutputCsv=$OutputCsv}
 foreach ($item in $options.GetEnumerator()) { Set-Variable -Name $item.Key -Value $item.Value }
 $plan=New-CharacterizationPlan $TargetForceN 0 0
 $root=(Resolve-Path "$PSScriptRoot/..").Path
-$firmware=Join-Path $root 'output/BuildToTarget2/firmware/SD700_ForceServo1_BuildToTarget2_RealBench_Release.hex'
+$firmware=Join-Path $root 'output/BuildToTarget2_StartAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_StartAnchorFix1_RealBench_Release.hex'
 & python "$PSScriptRoot/verify_force_servo_firmware.py"
 if ($LASTEXITCODE -ne 0) { throw 'Strict repository HEX/ELF verification failed; no serial connection' }
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
@@ -31,14 +31,14 @@ $gap=Read-Host 'Record actual initial gap (include units)'
 if ([string]::IsNullOrWhiteSpace($gap)) { throw 'Initial gap required; ZERO START' }
 $notes=Read-Host 'Brief initial field conditions (optional)'
 if (-not $OutputCsv) {
-    $OutputCsv=Join-Path $root ('output/field/build-to-target2-'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff')+'-'+[Guid]::NewGuid().ToString('N').Substring(0,8)+'.csv')
+    $OutputCsv=Join-Path $root ('output/field/build-to-target2-start-anchor-fix1-'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff')+'-'+[Guid]::NewGuid().ToString('N').Substring(0,8)+'.csv')
 }
 foreach ($p in @($OutputCsv,[IO.Path]::ChangeExtension($OutputCsv,'.report.txt'),[IO.Path]::ChangeExtension($OutputCsv,'.metadata.json'))) {
     if (Test-Path -LiteralPath $p) { throw "Output exists: $p" }
 }
 $confirmStart={param($p)
     Write-Host @"
-=== SD700 BuildToTarget2 SUPERVISED EXPERIMENT ===
+=== SD700 BuildToTarget2_StartAnchorFix1 SUPERVISED EXPERIMENT ===
 Target:              $($p.target_N) N (only writable control)
 Initial force:       0 N allowed; contact10 N; already reached target takes priority
 APPROACH:            base5000 + coarse0..3500 command (~20.83..35.42% PWM)

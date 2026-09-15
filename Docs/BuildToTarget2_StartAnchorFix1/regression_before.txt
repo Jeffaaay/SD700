@@ -1,0 +1,21 @@
+TestBuildApproachAndLowTargets PASS
+SYNTHETIC_TARGET=250
+SYNTHETIC_TARGET=500
+SYNTHETIC_TARGET=1000
+SYNTHETIC_TARGET=2000
+SYNTHETIC_TARGET=3000
+TestBuildSyntheticTargetsOffAndDecay PASS
+TestBuildSlowProgressAndShortPlateau PASS
+TestBuildNoiseAndPersistentBudgets PASS
+CROSS_START_REPRO force=59 anchor=150 detail=22 no_response_ms=5000
+ Assertion failed: machine.state!=FAULT, file Tests/Host/test_build_to_target.c, line 159
+
+Traceback (most recent call last):
+  File "C:\Users\jian\Desktop\SD700-GitHub\tools\run_force_servo_tests.py", line 52, in <module>
+    if __name__=='__main__': main()
+                             ^^^^^^
+  File "C:\Users\jian\Desktop\SD700-GitHub\tools\run_force_servo_tests.py", line 49, in main
+    result.check_returncode()
+  File "C:\Users\jian\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 502, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+subprocess.CalledProcessError: Command '['C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\BuildToTarget2_StartAnchorFix1\\repro-before\\build_host\\force_servo_O0.exe']' returned non-zero exit status 3221226505.

@@ -1,4 +1,4 @@
-param([string]$OutputDirectory='output/BuildToTarget2/capture-tests')
+param([string]$OutputDirectory='output/BuildToTarget2_StartAnchorFix1/capture-tests')
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path "$PSScriptRoot/../..").Path
 . "$root/tools/capture_force_servo.ps1" -LibraryOnly -BuildToTarget

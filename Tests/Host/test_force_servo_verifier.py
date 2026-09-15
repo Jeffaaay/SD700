@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 47648)
+        self.assertEqual(len(image.load_bytes), 47628)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -185,6 +185,20 @@ class VerifierTests(unittest.TestCase):
         for name in ('MotorExecutor_StartBuildSegment','MotorExecutor_AcceptBuildPost','ForceBuildMachine_Safety','ForceBuild_PulseBoost','ForceBuild_CoarseBoost','MotorStopTimer_Arm'):
             sym=dict(self.image.symbols); del sym[name]
             with self.assertRaisesRegex(ValueError,'Missing active implementation'): verifier.verify_contract(sym)
+
+    def test_build2_predecessor_and_unchanged_limits(self):
+        old=ROOT/'output/BuildToTarget2/firmware/SD700_ForceServo1_BuildToTarget2_RealBench_Release.elf'
+        self.reject_elf(old.read_bytes(),'identity/configuration')
+        prior=ElfImage(old.read_bytes()).symbols
+        for name in ('g_force_build_config','g_force_servo_default_config','g_force_servo_profile',
+                     'g_force_servo_candidates','g_force_characterization_contract','g_sd700_auto_target_machine_config',
+                     'MotorHwReal_OutputArmingAllowed','MotorExecutor_BeginContinuous'):
+            with self.subTest(name=name): self.assertEqual(self.image.symbols[name],prior[name])
+        current=struct.unpack('<20I',self.image.symbols['g_force_servo_contract'])
+        previous=struct.unpack('<20I',prior['g_force_servo_contract'])
+        self.assertEqual(current[0],previous[0]) # same diagnostic schema
+        self.assertEqual(current[2:],previous[2:]) # every output/safety limit unchanged
+        self.assertEqual((previous[1],current[1]),(0x4653010D,0x4653010E))
 
     def test_build1_predecessor_rejected(self):
         old=ROOT/'output/BuildToTarget1/firmware/SD700_ForceServo1_BuildToTarget1_RealBench_Release.elf'

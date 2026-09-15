@@ -175,3 +175,10 @@ output/BuildToTarget2/*
 !output/BuildToTarget2/firmware/
 !output/BuildToTarget2/firmware/*.hex
 !output/BuildToTarget2/firmware/*.elf
+
+# Current START progress-anchor repair; retain preceding field evidence.
+!output/BuildToTarget2_StartAnchorFix1/
+output/BuildToTarget2_StartAnchorFix1/*
+!output/BuildToTarget2_StartAnchorFix1/firmware/
+!output/BuildToTarget2_StartAnchorFix1/firmware/*.hex
+!output/BuildToTarget2_StartAnchorFix1/firmware/*.elf

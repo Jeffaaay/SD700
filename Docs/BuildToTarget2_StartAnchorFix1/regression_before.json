@@ -1,0 +1,20 @@
+[
+  {
+    "name": "build_to_target_force",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/run_force_servo_tests.py",
+      "--commissioning",
+      "--characterization",
+      "--build-to-target",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\BuildToTarget2_StartAnchorFix1\\repro-before\\build_host"
+    ],
+    "started_utc": "2026-09-15T00:06:09.082338+00:00",
+    "elapsed_seconds": 3.532,
+    "exit_code": 1,
+    "result": "FAIL",
+    "log": "output/BuildToTarget2_StartAnchorFix1/repro-before/build_to_target_force.log",
+    "sha256": "564DEC95327FD624788544546142FDC1663A360051105DB29EAF5E1F9732F716"
+  }
+]
