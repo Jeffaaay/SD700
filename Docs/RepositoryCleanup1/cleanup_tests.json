@@ -1,0 +1,24 @@
+[
+  {
+    "name": "cleanup_tests_before",
+    "command": [
+      "python",
+      "Tests/Host/test_cleanup_generated.py"
+    ],
+    "exit_code": 0,
+    "log": "output/RepositoryCleanup1/cleanup-tests-before.log",
+    "sha256": "E3704C76F60DABB00739AD5B1354638F898C03E57A03F90E124B1FDF55C5CB23",
+    "utc": "2026-09-15T02:11:41.151204+00:00"
+  },
+  {
+    "name": "cleanup_tests_after",
+    "command": [
+      "python",
+      "Tests/Host/test_cleanup_generated.py"
+    ],
+    "exit_code": 0,
+    "log": "output/RepositoryCleanup1/cleanup-tests-after.log",
+    "sha256": "8D0D80BBDA08173506CCB3BEC07C9C9359DD630A7FA0F701037D3D13EE4B744D",
+    "utc": "2026-09-15T02:13:13.360483+00:00"
+  }
+]

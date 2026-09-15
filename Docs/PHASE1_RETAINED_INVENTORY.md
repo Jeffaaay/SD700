@@ -41,9 +41,11 @@
 | Retained file | Bytes | SHA-256 |
 | --- | ---: | --- |
 | `Reference/Hardware/2026-03-19_SCH_servo_press.pdf` (filename normalized after Phase 1) | 524200 | `5CAB6B544274EFB15C05BAB29AAFF6012CC9F0F484C9B6C6CC2EB614E6B6EDC2` |
-| `Reference/Hardware/ina240.pdf` | 2247687 | `3ACA6049D67D03B39A2D7583157737D5EC0E67884C2D16A8E23A4FE6B815E6B2` |
+| [Reference/Hardware/ina240.pdf](../Reference/Hardware/ina240.pdf) | 2247687 | `3ACA6049D67D03B39A2D7583157737D5EC0E67884C2D16A8E23A4FE6B815E6B2` |
 | `Reference/Reports/SD700_press_rollback_analysis_report.docx` | 5759 | `024480286CE8C9DD47D58CA700EE199559503B392032B56941E75D122AE97254` |
 
 The retained binary bytes were preserved; filenames were normalized separately. The archived legacy BSP relative-path/content manifest SHA-256 is `46AA422EB3AC6CD52A51B30A821A3240E3D5C092172CC2971F157726D654CAC7` before and after relocation.
 
 `PRESSURE_EXPERIMENT_DATA_STATUS=NOT_FOUND`
+
+RepositoryCleanup1 note: the original-source column above preserves Phase1 provenance. The identical root `ina240.pdf` duplicate was removed; use the [retained Reference copy](../Reference/Hardware/ina240.pdf). Its original bytes and SHA-256 above are unchanged. Phase1 `active` describes the historical target, not the current field candidate.

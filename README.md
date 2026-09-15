@@ -53,3 +53,5 @@ The wrapper prints these stage ceilings/times before one explicit START confirma
 Exactly one script START, no additional manual START and no automatic repeat. CSV streams through build and target-OFF decay monitoring until S/Escape, external STOP or a real fault. Stop immediately for abnormal motion/noise/current/heat. Return CSV, metadata, report and brief field conditions. Capture cannot certify hardware stopping; target touch and sampled OFF retention are separate from stable holding or rotating-load qualification.
 
 [Actual tests and commands](Docs/BuildToTarget2_CoolingAnchorFix1/TEST_RESULTS.md) - [Protocol and identity](Docs/BuildToTarget2_CoolingAnchorFix1/PROTOCOL.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
+
+Repository navigation: [current / historical / test fixture roles](Docs/REPOSITORY_INDEX.md). [INA240 source PDF](Reference/Hardware/ina240.pdf) is the single retained copy. [File-only cleanup record](Docs/RepositoryCleanup1/README.md) records the separate cleanup after commit A; firmware bytes and identity are unchanged by that cleanup.

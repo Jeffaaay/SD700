@@ -1,0 +1,21 @@
+{
+  "result": "PASS",
+  "head": "1f4c64a2bac995a19ce4bcd0e6b8020b7f7fd700",
+  "applied_utc": "2026-09-15T02:12:36.800395+00:00",
+  "active_tasks": [],
+  "deleted_files": 1452,
+  "deleted_bytes": 47160552,
+  "retained_before": {
+    "files": 9493,
+    "bytes": 226042824,
+    "path_and_content_sha256": "F31008F2209092979DCEA3C228DD7A06057173869E7059B5F87DC14E68166D9E"
+  },
+  "retained_after": {
+    "files": 9493,
+    "bytes": 226042824,
+    "path_and_content_sha256": "F31008F2209092979DCEA3C228DD7A06057173869E7059B5F87DC14E68166D9E"
+  },
+  "physical_status": "NOT_RUN",
+  "plan": "Docs/RepositoryCleanup1/dry-run.json",
+  "plan_sha256": "8A096B3EE9A4A563354F0FEB27B816241C07CFBD3F004DF7F1130D9D8FCF9849"
+}

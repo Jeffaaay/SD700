@@ -1,0 +1,377 @@
+[
+  {
+    "name": "host_regression",
+    "command": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "tools/run_host_tests.ps1",
+      "-OutputDirectory",
+      "output\\RepositoryCleanup1\\verification-after\\host_regression"
+    ],
+    "started_utc": "2026-09-15T02:12:46.948633+00:00",
+    "elapsed_seconds": 48.047,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/host_regression.log",
+    "sha256": "9374E0F034A1F3D338DE201FD14A4ACD1EA464594E45613E131ECDA4EBF3870A"
+  },
+  {
+    "name": "plain_force",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/run_force_servo_tests.py",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\plain"
+    ],
+    "started_utc": "2026-09-15T02:13:35.001313+00:00",
+    "elapsed_seconds": 7.421,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/plain_force.log",
+    "sha256": "1AD3746965B289B8FA15F135BEC36B7B65BA25E9B886DF7D060974A3AE71D3B1"
+  },
+  {
+    "name": "commissioning_force",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/run_force_servo_tests.py",
+      "--commissioning",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\commissioning"
+    ],
+    "started_utc": "2026-09-15T02:13:42.424288+00:00",
+    "elapsed_seconds": 7.266,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/commissioning_force.log",
+    "sha256": "D605E190E388468CD6D313DE77C37F77783866F846245CACD9F572D53BD9A6E8"
+  },
+  {
+    "name": "range_boost_fixture",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/run_force_servo_tests.py",
+      "--commissioning",
+      "--range-fixture",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\range"
+    ],
+    "started_utc": "2026-09-15T02:13:49.684388+00:00",
+    "elapsed_seconds": 7.031,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/range_boost_fixture.log",
+    "sha256": "EAFC3EC153C25FD053B56F13EACF1A0D5D582909126438D6319B76FEE7C9AD37"
+  },
+  {
+    "name": "runtime2_force",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/run_force_servo_tests.py",
+      "--commissioning",
+      "--characterization",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\runtime2"
+    ],
+    "started_utc": "2026-09-15T02:13:56.719093+00:00",
+    "elapsed_seconds": 8.141,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/runtime2_force.log",
+    "sha256": "425A4840788DDB2355E4D1B647395423E95C0B226511AA55103197229EE6DCF0"
+  },
+  {
+    "name": "build_to_target_force",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/run_force_servo_tests.py",
+      "--commissioning",
+      "--characterization",
+      "--build-to-target",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\build_host"
+    ],
+    "started_utc": "2026-09-15T02:14:04.855225+00:00",
+    "elapsed_seconds": 8.922,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/build_to_target_force.log",
+    "sha256": "6E6BDA6729F4D8CA2580734E51523F89AE3DBE99051B1A4B24C5A3A1FA3C5FC3"
+  },
+  {
+    "name": "capture_length_observe",
+    "command": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "Tests/Host/test_force_servo_capture.ps1",
+      "-OutputDirectory",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\capture"
+    ],
+    "started_utc": "2026-09-15T02:14:13.776678+00:00",
+    "elapsed_seconds": 14.656,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/capture_length_observe.log",
+    "sha256": "30CC3F91D3E4A8AAD339CA9B0F720F4C8197CDFB437813178E947C6B26AFAA2C"
+  },
+  {
+    "name": "force_capture_selftest",
+    "command": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "tools/capture_force_servo.ps1",
+      "-SelfTest"
+    ],
+    "started_utc": "2026-09-15T02:14:28.430935+00:00",
+    "elapsed_seconds": 15.094,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/force_capture_selftest.log",
+    "sha256": "A156D84F766A04BBF5293578EE8A548DAED0C7A75DDFAFD01DC5E9CB3E0654AA"
+  },
+  {
+    "name": "pressure_capture_selftest",
+    "command": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "tools/capture_pressure_response.ps1",
+      "-SelfTest"
+    ],
+    "started_utc": "2026-09-15T02:14:43.533253+00:00",
+    "elapsed_seconds": 0.625,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/pressure_capture_selftest.log",
+    "sha256": "7C83ECAFDF28C085C781F57A262B13D4DAB2EB54DD755B8A60695B6A847CD2A6"
+  },
+  {
+    "name": "auto_capture_selftest",
+    "command": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "tools/capture_auto_target_static.ps1",
+      "-SelfTest"
+    ],
+    "started_utc": "2026-09-15T02:14:44.152647+00:00",
+    "elapsed_seconds": 19.703,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/auto_capture_selftest.log",
+    "sha256": "BF4AC5C9FA908F35E25666738F8E02CCAE1FA76A3184292D509A05489B2530DE"
+  },
+  {
+    "name": "runtime2_capture",
+    "command": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "Tests/Host/test_force_characterization_capture.ps1",
+      "-OutputDirectory",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\runtime2_capture"
+    ],
+    "started_utc": "2026-09-15T02:15:03.849371+00:00",
+    "elapsed_seconds": 36.516,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/runtime2_capture.log",
+    "sha256": "103246E4FB3C0C04F94D011973EBD39B09F1EFCBBFB25ABEE24EBEC58EBE15F0"
+  },
+  {
+    "name": "build_to_target_capture",
+    "command": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "Tests/Host/test_build_to_target_capture.ps1",
+      "-OutputDirectory",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\build_capture"
+    ],
+    "started_utc": "2026-09-15T02:15:40.378312+00:00",
+    "elapsed_seconds": 38.766,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/build_to_target_capture.log",
+    "sha256": "0927FEC8B70EC8FD5FDDC4A1F0524EE2B8F59303767ABF7A7F842090E03E5B67"
+  },
+  {
+    "name": "schema_selftest",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/force_servo_data.py",
+      "--self-test"
+    ],
+    "started_utc": "2026-09-15T02:16:19.158626+00:00",
+    "elapsed_seconds": 0.125,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/schema_selftest.log",
+    "sha256": "45C3AF0B5E32F47C6542069A490530C4AA0115A1DF674E84B93955A1DDBB46D3"
+  },
+  {
+    "name": "target250_data",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "Tests/Host/test_target250_data.py"
+    ],
+    "started_utc": "2026-09-15T02:16:19.276653+00:00",
+    "elapsed_seconds": 0.14,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/target250_data.log",
+    "sha256": "E196996DE481C162AA698E4F0875E6AA8AF0461795BCD70E92F4AC411264A364"
+  },
+  {
+    "name": "runtime2_data",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "Tests/Host/test_force_characterization_data.py"
+    ],
+    "started_utc": "2026-09-15T02:16:19.424332+00:00",
+    "elapsed_seconds": 0.125,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/runtime2_data.log",
+    "sha256": "BBDFA4A075A508CA7308337C6D1BD76D6AD86664F489B67F51902B1503C40D75"
+  },
+  {
+    "name": "build_to_target_data",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "Tests/Host/test_build_to_target_data.py"
+    ],
+    "started_utc": "2026-09-15T02:16:19.551447+00:00",
+    "elapsed_seconds": 0.125,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/build_to_target_data.log",
+    "sha256": "A9028150E10D09B6157A48B4C02B19DDE473987980B501F5F4C19E6F1B040947"
+  },
+  {
+    "name": "compile_gates",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "Tests/Host/test_commissioning_gate.py",
+      "--output",
+      "C:\\Users\\jian\\Desktop\\SD700-GitHub\\output\\RepositoryCleanup1\\verification-after\\gates"
+    ],
+    "started_utc": "2026-09-15T02:16:19.690480+00:00",
+    "elapsed_seconds": 9.0,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/compile_gates.log",
+    "sha256": "4AB584A99A233611BF8FAE75C40A3D75B723DC23D851553D4198C61F98162994"
+  },
+  {
+    "name": "strict_verifier_rejections",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "Tests/Host/test_force_servo_verifier.py"
+    ],
+    "started_utc": "2026-09-15T02:16:28.685637+00:00",
+    "elapsed_seconds": 3.406,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/strict_verifier_rejections.log",
+    "sha256": "2FEA6B42CDD7C64BFF8E894B9CE3D67A7AB54184FBBBFD8DA73AFC28572EB529"
+  },
+  {
+    "name": "offline_firmware",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/verify_force_servo_firmware.py"
+    ],
+    "started_utc": "2026-09-15T02:16:32.102810+00:00",
+    "elapsed_seconds": 0.156,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/offline_firmware.log",
+    "sha256": "A228C4375727BD5B92CB61F598DEC65147B2F0D35FDBF72EBDF1E473DAF9593A"
+  },
+  {
+    "name": "historical_auto_firmware",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/verify_current_auto_target_firmware.py"
+    ],
+    "started_utc": "2026-09-15T02:16:32.261426+00:00",
+    "elapsed_seconds": 0.094,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/historical_auto_firmware.log",
+    "sha256": "0FFB377F77B0FEC8EE0677A4652C9D7AD983266A2328291DFF2C464830CD4E8A"
+  },
+  {
+    "name": "arm_release",
+    "command": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "tools/build_gcc.ps1",
+      "-ForceServo",
+      "-BuildToTarget2",
+      "-MotorMode",
+      "RealBench",
+      "-Configuration",
+      "Release",
+      "-RealBenchAck",
+      "I_ACKNOWLEDGE_LOW_ENERGY_REAL_MOTOR_MOTION",
+      "-BuildDir",
+      "output\\RepositoryCleanup1\\verification-after\\arm"
+    ],
+    "started_utc": "2026-09-15T02:16:32.359001+00:00",
+    "elapsed_seconds": 21.812,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/arm_release.log",
+    "sha256": "0E5B51D46562F065C40EBBA00D25EC7A1BC689DBAEC9D80D61D8DB388E644D22"
+  },
+  {
+    "name": "rebuild_identity",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "-c",
+      "import sys;sys.path.insert(0,'tools');from pathlib import Path;from verify_force_servo_firmware import sha,PINNED_HASHES;from firmware_image import require;b=Path('C:\\\\Users\\\\jian\\\\Desktop\\\\SD700-GitHub\\\\output\\\\RepositoryCleanup1\\\\verification-after\\\\arm\\\\RealBench_ForceServo\\\\Release');[require(sha(b/('press_control_f411.'+e))==h,'Rebuilt '+e+' differs from field pair') for e,h in PINNED_HASHES.items()];print('REBUILD_EXACT_HEX_ELF=PASS')"
+    ],
+    "started_utc": "2026-09-15T02:16:54.165593+00:00",
+    "elapsed_seconds": 0.094,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/rebuild_identity.log",
+    "sha256": "F07A89132043AB531CEA5D9420DB8EAE92674A88411536DB75936D096C7D07E3"
+  },
+  {
+    "name": "developer_objcopy",
+    "command": [
+      "C:\\Users\\jian\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tools/verify_force_servo_firmware.py",
+      "--objcopy-cross-check"
+    ],
+    "started_utc": "2026-09-15T02:16:54.270618+00:00",
+    "elapsed_seconds": 0.219,
+    "exit_code": 0,
+    "result": "PASS",
+    "log": "output/RepositoryCleanup1/verification-after/developer_objcopy.log",
+    "sha256": "A228C4375727BD5B92CB61F598DEC65147B2F0D35FDBF72EBDF1E473DAF9593A"
+  }
+]

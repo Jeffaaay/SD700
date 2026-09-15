@@ -1,0 +1,33 @@
+=== cleanup_tests_before ===
+test_active_task_blocks_before_first_delete (__main__.CleanupTests.test_active_task_blocks_before_first_delete) ... ok
+test_changed_candidate_preflight_deletes_nothing (__main__.CleanupTests.test_changed_candidate_preflight_deletes_nothing) ... ok
+test_changed_retained_bytes_preflight_deletes_nothing (__main__.CleanupTests.test_changed_retained_bytes_preflight_deletes_nothing) ... ok
+test_dry_run_and_exact_apply_preserve_evidence (__main__.CleanupTests.test_dry_run_and_exact_apply_preserve_evidence) ... ok
+test_failed_and_current_final_runs_preserved (__main__.CleanupTests.test_failed_and_current_final_runs_preserved) ... ok
+test_head_or_totals_change_rejected (__main__.CleanupTests.test_head_or_totals_change_rejected) ... ok
+test_mismatched_pdf_refused (__main__.CleanupTests.test_mismatched_pdf_refused) ... ok
+test_protected_paths_cannot_be_added_to_plan (__main__.CleanupTests.test_protected_paths_cannot_be_added_to_plan) ... ok
+test_traversal_absolute_git_and_aliases_rejected (__main__.CleanupTests.test_traversal_absolute_git_and_aliases_rejected) ... ok
+test_windows_junction_rejected (__main__.CleanupTests.test_windows_junction_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 12.596s
+
+OK
+
+=== cleanup_tests_after ===
+test_active_task_blocks_before_first_delete (__main__.CleanupTests.test_active_task_blocks_before_first_delete) ... ok
+test_changed_candidate_preflight_deletes_nothing (__main__.CleanupTests.test_changed_candidate_preflight_deletes_nothing) ... ok
+test_changed_retained_bytes_preflight_deletes_nothing (__main__.CleanupTests.test_changed_retained_bytes_preflight_deletes_nothing) ... ok
+test_dry_run_and_exact_apply_preserve_evidence (__main__.CleanupTests.test_dry_run_and_exact_apply_preserve_evidence) ... ok
+test_failed_and_current_final_runs_preserved (__main__.CleanupTests.test_failed_and_current_final_runs_preserved) ... ok
+test_head_or_totals_change_rejected (__main__.CleanupTests.test_head_or_totals_change_rejected) ... ok
+test_mismatched_pdf_refused (__main__.CleanupTests.test_mismatched_pdf_refused) ... ok
+test_protected_paths_cannot_be_added_to_plan (__main__.CleanupTests.test_protected_paths_cannot_be_added_to_plan) ... ok
+test_traversal_absolute_git_and_aliases_rejected (__main__.CleanupTests.test_traversal_absolute_git_and_aliases_rejected) ... ok
+test_windows_junction_rejected (__main__.CleanupTests.test_windows_junction_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 26.219s
+
+OK

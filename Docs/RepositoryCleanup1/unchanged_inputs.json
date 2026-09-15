@@ -1,0 +1,15 @@
+{
+  "commit_a": "1f4c64a2bac995a19ce4bcd0e6b8020b7f7fd700",
+  "unchanged_tracked_files": 833,
+  "path_and_content_sha256": "5E496A924BC80849F9B687C9CC8092B38826B2905E0494D266164730575B2FA4",
+  "allowed_existing_file_edits": [
+    "AGENTS.md",
+    "Docs/PHASE1_RETAINED_INVENTORY.md",
+    "README.md",
+    "REVIEW_BUNDLE.md",
+    "SHA256SUMS.txt",
+    "ina240.pdf"
+  ],
+  "production_sources_configs_build_tools_fixtures_reference_and_firmware": "UNCHANGED",
+  "root_pdf_reference_sha256": "3ACA6049D67D03B39A2D7583157737D5EC0E67884C2D16A8E23A4FE6B815E6B2"
+}
