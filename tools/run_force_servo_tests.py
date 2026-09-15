@@ -8,6 +8,7 @@ def main():
     ap.add_argument('--commissioning',action='store_true',help='Current explicit profile with the production arming gate')
     ap.add_argument('--characterization',action='store_true')
     ap.add_argument('--build-to-target',action='store_true')
+    ap.add_argument('--source-port',action='store_true',help='Current working-tree source oracle and affected chain only')
     ap.add_argument('--range-fixture',action='store_true',help='SYNTHETIC host-only command ceilings9600/200, continuous2400; not a hardware rating')
     ap.add_argument('--optimization',choices=('O0','O2','Os'),help='Run only this optimization; omission keeps the existing matrix')
     ap.add_argument('--test-argument',action='append',default=[],help='Argument passed to the host executable for a focused case')
@@ -15,6 +16,7 @@ def main():
     if args.build_to_target and not args.characterization: ap.error('BuildToTarget requires --characterization')
     if args.characterization and (not args.commissioning or args.range_fixture): ap.error('Characterization requires commissioning without synthetic overrides')
     if args.range_fixture and not args.commissioning: ap.error('--range-fixture requires --commissioning')
+    args.source_port = args.source_port or args.build_to_target
     out=Path(args.output); out.mkdir(parents=True,exist_ok=True)
     sources=['Tests/Host/test_force_servo.c','Application/force_servo.c',
              'Application/force_servo_machine.c','Application/machine.c',
@@ -34,14 +36,19 @@ def main():
         defines+=['SD700_FORCE_CHARACTERIZATION=1']
     if args.build_to_target:
         sources[0]='Tests/Host/test_build_to_target.c'
-        sources+=['Application/force_build.c','Application/force_build_machine.c']
+        sources+=['Application/force_build.c','Application/force_build_machine.c','Application/force_build_source.c']
         defines+=['SD700_BUILD_TO_TARGET=1']
+    if args.source_port:
+        if not args.build_to_target: ap.error('--source-port requires --build-to-target')
+        sources[0]='Tests/Host/test_build_source_port.c'
+        sources+=['Tests/Host/field182402_oracle.c']
     if args.range_fixture: defines+=['FS_PRESS_PROFILE_CEILING=9600','FS_RELEASE_PROFILE_CEILING=200']
     results=[]
     optimizations=('-'+args.optimization,) if args.optimization else ('-O0','-O2','-Os')
     for opt in optimizations:
         exe=out/('force_servo_'+opt[1:]+'.exe')
         cmd=['gcc','-std=c11','-Wall','-Wextra','-Werror','-pedantic',opt,'-I.','-ITests/Host/Shim']
+        if args.source_port: cmd+=['-ITests/Host/Field182402Shim']
         cmd+=['-D'+x for x in defines]+sources+['-lm','-o',str(exe)]
         subprocess.run(cmd,check=True)
         result=subprocess.run([str(exe.resolve())]+args.test_argument,capture_output=True,text=True)

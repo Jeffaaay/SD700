@@ -10,7 +10,7 @@ $options=@{Port=$Port;TargetForceN=$TargetForceN;OutputCsv=$OutputCsv}
 foreach ($item in $options.GetEnumerator()) { Set-Variable -Name $item.Key -Value $item.Value }
 $plan=New-CharacterizationPlan $TargetForceN 0 0
 $root=(Resolve-Path "$PSScriptRoot/..").Path
-$firmware=Join-Path $root 'output/BuildToTarget2_RiseDiagnostic1/firmware/SD700_ForceServo1_BuildToTarget2_RiseDiagnostic1_RealBench_Release.hex'
+$firmware=Join-Path $root 'output/BuildToTarget3_SourcePort1/firmware/SD700_ForceServo1_BuildToTarget3_SourcePort1_RealBench_Release.hex'
 & python "$PSScriptRoot/verify_force_servo_firmware.py"
 if ($LASTEXITCODE -ne 0) { throw 'Strict repository HEX/ELF verification failed; no serial connection' }
 $actualHash=(Get-FileHash -LiteralPath $firmware -Algorithm SHA256).Hash
@@ -38,25 +38,18 @@ foreach ($p in @($OutputCsv,[IO.Path]::ChangeExtension($OutputCsv,'.report.txt')
 }
 $confirmStart={param($p)
     Write-Host @"
-=== SD700 BuildToTarget2_RiseDiagnostic1 SUPERVISED EXPERIMENT ===
+=== SD700 BuildToTarget3_SourcePort1 SUPERVISED EXPERIMENT ===
 Target:              $($p.target_N) N (only writable control)
 Initial force:       0 N allowed; contact10 N; already reached target takes priority
-APPROACH:            base5000 + coarse0..3500 command (~20.83..35.42% PWM)
-COARSE adaptation:  >=200 ms fresh OFF check; <1 N movement -> +500; otherwise reset
-APPROACH timing:    normal99 / hard100 ms segments, never unbounded continuous
-MICRO:              error-scaled base800..3000 + boost0..2000; maximum5000
-FINE (error<=3 N):  base400..1000 + boost0..1000; maximum2000
-Pulse adaptation:  two <1 N movements -> +300; abs(movement)>=1 N resets boost
-Pulse timing:      normal10 ms (boost independent); TIM5 hard11 ms
-Post-pulse rise:   diagnostic only; Target OFF and absolute overforce stay active
-MICRO/FINE gap:     forward preload initially300, range200..600; >2 N droop +100
-Preload adaptation: fresh post-forward pulse only, cap600, retained across START
-Next pulse:         cooldown>=30 ms + a fresh post-segment sensor frame
-APPROACH gap:       true OFF; no forward preload after a reverse request
-Exposure ceiling:   APPROACH8 s; pulse hard reservations + preload time <=12 s
-Approach amplitude: 40,000,000 command-ms maximum (8 s at5000); not measured heat
-Full reset cooling: 108 s uninterrupted OFF; also required after boot
-No-force-response:  5 s active BUILD/TAPER without >=2 N net new-high progress
+APPROACH:           5000 command continuous until contact, fresh receive lease;8 s bound
+250 N far segment:  source base + directional boost, final cap10000 /12 ms (~10 V)
+250 N precision:    source PrecisionForward levels,2..8 ms, progressive cap7000
+Pulse ending:       TIM5 selected duration, independent hard cutoff normal+1 ms
+Between pulses:     BRAKE, both drivers enabled with both PWM compares0; no preload
+Next pulse:         source30 ms / final400 ms settle from actual end, plus fresh feedback
+No-force-response:  cumulative45 s without >=2 N net new-high progress; START does not reset
+Total12 s budget:   DISABLED; pulse and BRAKE exposure still recorded, not a thermal rating
+Approach/reset:    8 s/40M command-ms reserved;108 s verified OFF resets safety epoch
 At ANY target:      immediate bridge OFF, then monitor decay until manual STOP
 Overall run limit:  NONE; at target no active HOLD/preload or automatic release/repress
 Kp/Ki/Kd:           10 / 0 / 0 (LOCKED; PID diagnostic, bounded build profile drives)

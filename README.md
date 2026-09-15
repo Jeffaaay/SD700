@@ -1,66 +1,27 @@
-# SD700 - BuildToTarget2_RiseDiagnostic1
+# SD700 - BuildToTarget3_SourcePort1
 
-Current candidate: **BuildToTarget2_RiseDiagnostic1**, based on clean main/origin/main `8514376320fab15221c6808edd96d3a072505eee`. A qualified post-pulse rise of25 N or more is retained as diagnostic evidence and no longer independently faults BUILD while below Target and the absolute overforce boundary. Target-OFF and absolute overforce retain priority. The inherited5000 MICRO ceiling,10 ms high segment/11 ms hard cutoff, FINE amplitudes, preload and all feedback/lease/exposure/no-response protections are unchanged. [Brief handoff and actual tests](Docs/BuildToTarget2_RiseDiagnostic1/HANDOFF.md).
+Current candidate directly ports the supplied Field182402 working-tree pressure core, SHA256 `E6E08DC4E370A853EA9A586D765D97D5B6A1E7D6DDC9760202B947F99FB4D512`. The previous standard HEX/5 V assumption is historical. [Source, differences and actual validation](Docs/BuildToTarget3_SourcePort1/HANDOFF.md).
 
-**PHYSICAL_STATUS=NOT_RUN.** No serial connection, flashing or machine motion. One HEX supports integer TargetForceN **1..3000 N**; synthetic force attainment is not measured attainment or stable holding. Installed sensor units remain user-confirmed, scale1/offset0, without a new calibration claim.
+For Target250: source continuous5 V approach before contact10 N; far-stage final10 V/12 ms; near/precision stages follow the source's progressive functions, with250 N precision ultimately7 V/8 ms. Output always passes through MotorExecutor. These are command equivalents, not electrical measurements or ratings. Gains remain10/0/0 diagnostic only; PSU0.5 A unchanged. No other target tuning was performed.
 
-The modern state machine, single motor executor, atomic Target plan, one START, fresh feedback, receive-anchored lease, STOP priority, output guard, direction interlock and TIM5 remain. PID/trajectory stay available and diagnostic with locked10/0/0. Internal adaptive bounded segments provide build authority; the field interface is Target / START / STOP.
+Pulses end in **BRAKE** (both drivers enabled, both PWM compares0). Source30/400 ms settling is measured from the actual TIM5 end, without a second wait. New valid frames may renew BRAKE's receive lease; they never extend a high pulse. Target's first valid reach still causes true OFF and decay monitoring, with no active HOLD, automatic repress or RELEASE.
 
-| Stage | Actual command and timing |
-|---|---|
-| APPROACH: not yet contacted, force<10 N, error>3 N | Base5000 (5 V equivalent,20.83% PWM). Old COARSE boost +500 per qualified >=200 ms check with absolute movement<1 N, reset on movement>=1 N, maximum3500. Total maximum8500 (8.5 V equivalent,35.42% PWM). Normal99 / independent hard100 ms per segment |
-| Contacted MICRO build / taper | Base800..3000 according to old error3..50 N formula, clipped at3000 above50 N. Add adaptive boost0..2000; total<=5000. Two post-pulse absolute movements<1 N add300; any absolute movement>=1 N resets boost and low count |
-| FINE, positive error<=3 N | Old base400..1000 with smaller additive boost ceiling1000; total<=2000. Same response/reset rule. Positive residual<=1 N uses the400 minimum base to seek the exact target; zero/negative error is OFF |
-| MICRO/FINE timing | Normal10 ms at every boost; independent hard11 ms. TIM5 ends the high segment; target/safety may turn OFF earlier. No task polling or busy-wait |
-| MICRO/FINE gap | Forward preload starts at300 command, range200..600 (0.20..0.60 V equivalent,0.833..2.5% PWM). An accepted fresh post-forward-pulse drop strictly greater than2 N adds100, capped600. Exactly2 N does not change it. Same rule for both modes; preload persists across explicit START and cooling, like old ResetAdaptive |
-| Cooldown/feedback | At least30 ms after the pulse, plus ordered fresh post-pulse feedback received at/after end+30 ms, age<=20 ms. MICRO/FINE remain forward preloaded; COARSE remains OFF. No elapsed-time retry or feedback reuse. No reverse Build owner or forward preload after an accepted reverse/legacy pulse |
-| Exposure | Full hard time reserved before arming; no refund. Approach<=8000 ms, pulse hard reservations plus prepaid preload time<=12000 ms. Preload counts full bridge-enabled wall time, with no PWM-duty discount. Unused prepaid time can fund later preload gaps but never reduces the reservation ledger or resets a safety budget. Additional approach sum(command*hard_ms)<=40,000,000, derived from the preceding5000*8000 envelope; higher approach amplitude consumes it faster |
-| Reset/cooling |108000 ms uninterrupted verified OFF, including boot. Pulse OFF, phase changes, STOP/fault and new START do not erase cumulative safety budgets. Cooling never restarts output |
-| Persistent no response |Progress anchor starts at this START's first accepted valid fresh force; START/STOP/new plan never clear the timer.5000 ms accumulated active BUILD/TAPER including pulse gaps without valid post-pulse net NEW HIGH progress>=2 N. Alternating noise and short500-600 ms platforms do not reset the budget or cause Detail17 |
-| First valid target reach | Immediate bridge OFF, state16 monitoring only, for every target including3000. No BRAKE, preload, active HOLD, automatic repress or RELEASE |
+STOP, sensor validity/order/freshness,125 ms feedback gap,20 ms sample age,130 ms receive lease, absolute overforce and independent normal+1 ms cutoff remain. The12 s cumulative admission limit is disabled; exposure is still recorded. The source's full final precision ladder needs more than5 s: the persistent no-response deadline is now45 s, with the derivation and retained START/STOP accounting in the handoff. Existing8 s approach/40M command-ms reservation and108 s verified-OFF reset remain. No normal overall capture/session deadline is restored.
 
-The normal TIM5 compare performs a same-direction preload update through the existing executor/HW update path. Only after the bounded preload compare is verified, with no pending/expired hard event, may TIM5 retain a receive-anchored preload deadline. The counter keeps running through preload-to-pulse transitions; cutoff flags are never erased to renew output. A pending hard event, lease loss or failed handoff turns OFF and revokes ownership. Preload is limited by the original receive+130 ms lease and available prepaid exposure; new feedback cannot extend the original high pulse.
+Identity F10D/46530113/profile7; Build config v5/digest4163791885. Only integer Target1..3000 is writable; Assist/Continuous slots remain0. This delivery accepts only the250 N software path; other source branches are not physical qualifications.
 
-**Physical equivalence remains unproven.** The old forward interpulse behavior is now present, but the modern executor, strong feedback gate, independent cutoff and exposure budgets remain. The old400 ms retry without fresh feedback and old final preload HOLD are deliberately excluded.
-
-As in the old code, an adapted600 preload can exceed the minimum400 FINE pulse; it is bounded separately and target reach still takes immediate OFF priority.
-
-Old MICRO/FINE formulas have a discontinuity: unboosted error4 N gives846 command, error3 N gives1000. This is disclosed, not hidden behind a claim of strict monotonic energy. Overall near-target pulse energy and the FINE boost ceiling are lower; the map gives exact vectors and adaptations. A previously latched contact never re-enters COARSE. Initial error<=3 uses FINE; already-at/exceeded target produces no segment.
-
-There is **no normal overall session/build/capture timeout**. Detail17 remains diagnostic-only. Genuine no-response, finite exposure, feedback gap125 ms, sample age20 ms, original receive lease130 ms, sensor invalid/order loss, STOP/E-stop, overforce, independent pulse hard cutoff and fault latching remain. Post-pulse rise alone is diagnostic; retained config field excessive_rise_N=25 is no longer a BUILD trip. Continuous/ONE Assist ownership is unavailable in this candidate; BUILD cannot retrigger Assist. No Ki or rotating PID changes.
-
-All voltages here are command equivalents at the existing24 V mapping. PWM/CCR are software requests, not measured motor voltage/current. The command-time cap is an additional exposure constraint, **not measured heat or a motor/thermal/continuous rating**. The existing0.5 A PSU setting is unchanged. Finite safety budgets do not guarantee reaching a target on the physical plant.
-
-Firmware: [HEX](output/BuildToTarget2_RiseDiagnostic1/firmware/SD700_ForceServo1_BuildToTarget2_RiseDiagnostic1_RealBench_Release.hex), [ELF](output/BuildToTarget2_RiseDiagnostic1/firmware/SD700_ForceServo1_BuildToTarget2_RiseDiagnostic1_RealBench_Release.elf). [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt), [handoff](Docs/BuildToTarget2_RiseDiagnostic1/HANDOFF.md). Identity F10C /46530112 / profile7; immutable Build config version4, digest2927201258. Strict Python-only verifier checks actual ELF identity/configuration/guard/owner denial, checksums, addressed load bytes and exact hashes; no field ARM executable is required.
-
-For a single supervised field session, verify the checkout before connecting:
+Current [HEX](output/BuildToTarget3_SourcePort1/firmware/SD700_ForceServo1_BuildToTarget3_SourcePort1_RealBench_Release.hex), [ELF](output/BuildToTarget3_SourcePort1/firmware/SD700_ForceServo1_BuildToTarget3_SourcePort1_RealBench_Release.elf), [SHA256 manifest](Firmware/ForceServo1.SHA256SUMS.txt). Verify checkout before any field connection:
 
 ```powershell
 git switch main
 git pull --ff-only
-git rev-parse HEAD
 python .\tools\verify_force_servo_firmware.py
 ```
 
-After the field team locally flashes the verified HEX, confirm permitted travel/load, E-stop, supervision and unchanged0.5 A. Allow108 seconds true OFF after boot, record actual gap and supply setting.0 N is allowed. Use the actual local port (COM6 shown):
+The existing supervised wrapper `tools/run_force_characterization.ps1 -Port COM5 -TargetForceN 250` now prints the source profile, variable pulse timing, BRAKE and45 s no-response policy. It keeps one explicit START confirmation, full CSV/metadata/report and manual/fault STOP behavior. No current-limit change or automatic repeat. The agent did not connect serial, flash or run the machine.
 
-```powershell
-.\tools\run_force_characterization.ps1 -Port COM6 -TargetForceN 250
-```
+CSV retains actual command/normal/hard timing and post-pulse force pairs; new fields show `brake_active`, its receive deadline, `segment_settle_ms`, source precision level/escape/band and source-filtered force. Old forward interpulse fields are0. The immutable90-word Build profile is read back and checked before START.
 
-The wrapper prints these stage ceilings/times before one explicit START confirmation. It reads capability,50-word active config,66-word operating profile,198-word disabled catalog,76-word immutable Build profile and312-word frozen diagnostics, with production length-aware framing/CRC/exact length checks and <=11-register chunks. The reserved Assist/Continuous slots must both be0; they do not represent the internal Build output. CSV/metadata/report expose interpulse_active, interpulse_command, interpulse_next_command, interpulse_deadline_ms, interpulse_spent_ms and interpulse_credit_ms; current_committed and PWM identify actual software output during each gap. Configuration/identity mismatch means ZERO START.
+O2 original-source/production output comparison and affected safety tests PASS; one ARM Release and one strict verifier PASS. Historical full suites and O0/Os were NOT_RUN. [Actual test record](Docs/BuildToTarget3_SourcePort1/HANDOFF.md). **PHYSICAL_STATUS=NOT_RUN**; software PASS does not prove physical250 N success or hardware stopping.
 
-Exactly one script START, no additional manual START and no automatic repeat. CSV streams through build and target-OFF decay monitoring until S/Escape, external STOP or a real fault. Stop immediately for abnormal motion/noise/current/heat. Return CSV, metadata, report and brief field conditions. Capture cannot certify hardware stopping; target touch and sampled OFF retention are separate from stable holding or rotating-load qualification.
-
-[Actual focused tests, commands and identity](Docs/BuildToTarget2_RiseDiagnostic1/HANDOFF.md) - [Repository policy](AGENTS.md). GitHub main is the source of truth. No ZIP/package. Historical firmware, evidence and failure logs remain intact.
-
-Repository navigation: [current / historical / test fixture roles](Docs/REPOSITORY_INDEX.md). [INA240 source PDF](Reference/Hardware/ina240.pdf) is the single retained copy. [File-only cleanup record](Docs/RepositoryCleanup1/README.md) records the separate cleanup after commit A; firmware bytes and identity are unchanged by that cleanup.
-
-Ignored build/test output can be cleaned after use without changing tracked files or firmware:
-
-```powershell
-python tools/clean_generated_artifacts.py
-python tools/clean_generated_artifacts.py --apply
-```
-
-The first command is dry-run only. The second saves and validates an exact plan before deleting ignored output; audits are stored outside the checkout. Physical/uncertain captures and test inputs survive. [Current cleanup policy and actual results](Docs/GeneratedArtifactsCleanup1.md). Historical raw software output may be regenerated; its tracked test reports remain unchanged.
+GitHub main is the source of truth; no ZIP delivery. Historical evidence and firmware retain their paths/hashes. [Repository index](Docs/REPOSITORY_INDEX.md), [policy](AGENTS.md), [INA240 reference](Reference/Hardware/ina240.pdf). No cleanup was performed this turn.

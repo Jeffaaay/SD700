@@ -207,3 +207,9 @@ output/BuildToTarget2_RiseDiagnostic1/*
 !output/BuildToTarget2_RiseDiagnostic1/firmware/
 !output/BuildToTarget2_RiseDiagnostic1/firmware/*.hex
 !output/BuildToTarget2_RiseDiagnostic1/firmware/*.elf
+
+!output/BuildToTarget3_SourcePort1/
+output/BuildToTarget3_SourcePort1/*
+!output/BuildToTarget3_SourcePort1/firmware/
+!output/BuildToTarget3_SourcePort1/firmware/*.hex
+!output/BuildToTarget3_SourcePort1/firmware/*.elf

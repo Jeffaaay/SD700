@@ -7,9 +7,9 @@ from force_servo_data import schema,build_to_target_metrics,select_build_branch
 class BuildData(unittest.TestCase):
     def test_exact_schema_and_profile(self):
         s=schema(True,True); c={p['name']:p['default'] for p in s['parameters']}
-        self.assertEqual((s['schema'],s['build_id'],len(s['u32']),len(s['floats'])),(0xF10C,0x46530112,124,32))
-        self.assertEqual(len(s['build_profile']),38); self.assertEqual(s['build_digest'],2927201258)
-        self.assertEqual((s['live_executor_press_ceiling'],s['live_continuous_ceiling']),(8500,0))
+        self.assertEqual((s['schema'],s['build_id'],len(s['u32']),len(s['floats'])),(0xF10D,0x46530113,133,33))
+        self.assertEqual(len(s['build_profile']),45); self.assertEqual(s['build_digest'],4163791885)
+        self.assertEqual((s['live_executor_press_ceiling'],s['live_continuous_ceiling']),(12000,0))
         self.assertEqual([c[k] for k in ('kp','ki','kd','press_cap','session_ms','lease_ms','feedback_gap_ms')],[10,0,0,0,0,130,125])
         self.assertEqual(len(set(s['u32']+s['floats'])),156)
         self.assertEqual([p['contact'] for p in s['candidates']],[20,20,20])

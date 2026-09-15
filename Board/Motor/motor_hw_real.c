@@ -373,3 +373,24 @@ bool MotorHwReal_MatchesPlan(uint16_t t2,uint16_t t3)
     return MotorHwReal_PwmConfigurationIsValid() &&
            MotorHwReal_ActiveCompareIsValid(t3!=0,t3!=0?t3:t2);
 }
+
+/* BRAKE is both low-side paths enabled with zero high-side PWM, not OFF.
+ * Only the Build executor calls these while holding its live TIM5 lease. */
+bool MotorHwReal_IsBraking(void)
+{ return s_initialized && MotorHwReal_PwmConfigurationIsValid() && MotorHwReal_ActiveCompareIsValid(true,0); }
+bool MotorHwReal_BuildBrake(void)
+{
+ if (!s_initialized || !MotorHwReal_OutputArmingAllowed() ||
+     !MotorHwReal_PwmConfigurationIsValid() ||
+     !MotorHwReal_ActiveCompareIsValid(true,(uint16_t)TIM3->CCR3))
+     return MotorHwReal_FailApply(MOTOR_FAILURE_STAGE_HW_APPLY_ACTIVE_COMPARE_VERIFY);
+ TIM2->CCR3=0; TIM3->CCR3=0; __DSB();
+ return MotorHwReal_IsBraking() ? true : MotorHwReal_FailApply(MOTOR_FAILURE_STAGE_HW_APPLY_ACTIVE_COMPARE_VERIFY);
+}
+bool MotorHwReal_BuildFromBrake(uint16_t duty_counts)
+{
+ if (!MotorHwReal_IsBraking() || !MotorHwReal_OutputArmingAllowed() || !duty_counts || duty_counts>MOTOR_HW_PWM_PERIOD_COUNTS)
+     return MotorHwReal_FailApply(MOTOR_FAILURE_STAGE_HW_APPLY_ACTIVE_COMPARE_VERIFY);
+ TIM3->CCR3=duty_counts; __DSB();
+ return MotorHwReal_ActiveCompareIsValid(true,duty_counts) ? true : MotorHwReal_FailApply(MOTOR_FAILURE_STAGE_HW_APPLY_ACTIVE_COMPARE_VERIFY);
+}

@@ -1,4 +1,4 @@
-Current firmware is BuildToTarget2_RiseDiagnostic1, based on8514376. It only makes qualified post-pulse rise diagnostic instead of an independent BUILD fault. The inherited reviewed HEX/AXF pulse contract remains MICRO boost max2000/total5000 and MICRO/FINE normal10/hard11 ms. The source mapping below is historical. [Current handoff](Docs/BuildToTarget2_RiseDiagnostic1/HANDOFF.md); [pulse binary provenance](Docs/BuildToTarget2_Pulse10msFix1/HANDOFF.md).
+Current firmware is BuildToTarget3_SourcePort1. Its sole algorithm source is Field182402 working-tree pressure_control.c, SHA256 E6E08DC4E370A853EA9A586D765D97D5B6A1E7D6DDC9760202B947F99FB4D512. The mappings below are historical; do not use their5 V/fixed10 ms/preload rules for current firmware. [Current source port and explicit differences](Docs/BuildToTarget3_SourcePort1/HANDOFF.md).
 
 # Current interpulse port: BuildToTarget2_Interpulse1
 

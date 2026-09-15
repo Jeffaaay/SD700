@@ -1,0 +1,12 @@
+SOURCE_ORACLE FAR target=250 cap=10000 width=12 BRAKE=PASS
+SOURCE_ORACLE force=205 command=7000 normal_ms=8 level=0 escape=0 elapsed=32000 PASS
+SOURCE_ORACLE force=215 command=7000 normal_ms=8 level=32 escape=26 elapsed=32000 PASS
+SOURCE_ORACLE force=235 command=7000 normal_ms=8 level=32 escape=26 elapsed=32000 PASS
+SOURCE_ORACLE force=245 command=7000 normal_ms=8 level=32 escape=26 elapsed=32000 PASS
+SOURCE_ORACLE force=249 command=7000 normal_ms=8 level=32 escape=26 elapsed=32000 PASS
+TestFullSourceOutputOracle250 PASS
+FINAL_PRECISION_SEQUENCE_COMPLETES_BEFORE_PERSISTENT_45000_MS_NO_RESPONSE_OFF=PASS
+TestSourceFreshCooldownAndNoResponse PASS
+TestSourceTerminalAndLease PASS
+TestSourceIndependentContractAndPersistence PASS
+SOURCE_WORKTREE_ORACLE_AND_AFFECTED_250_PATH=PASS; PHYSICAL_NOT_RUN

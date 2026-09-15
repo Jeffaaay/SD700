@@ -15,5 +15,8 @@ bool MotorHwReal_OutputArmingAllowed(void);
 MotorFailureStage MotorHwReal_GetLastFailureStage(void);
 
 bool MotorHwReal_MatchesPlan(uint16_t t2,uint16_t t3);
+bool MotorHwReal_BuildBrake(void);
+bool MotorHwReal_IsBraking(void);
+bool MotorHwReal_BuildFromBrake(uint16_t duty_counts);
 bool MotorHwReal_Update(bool press, uint16_t duty_counts);
 #endif

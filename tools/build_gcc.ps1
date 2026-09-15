@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 if ($BuildToTarget2) {
     if ($StaticForceRuntimeCharacterization2) { throw "Select one candidate" }
     $StaticForceRuntimeCharacterization2=$true
-    Write-Host "BUILD_TO_TARGET2_RISE_DIAGNOSTIC1; BOUNDED_FORWARD_PRELOAD; TARGET_ONLY; PHYSICAL_NOT_RUN"
+    Write-Host "BUILD_TO_TARGET3_SOURCE_PORT1; VARIABLE_PULSE_BRAKE; TARGET_ONLY; PHYSICAL_NOT_RUN"
 }
 if ($StaticForceRuntimeCharacterization2) {
     if (-not $ForceServo -or $StaticForceAuthority2) { throw 'Characterization requires -ForceServo and excludes old profile selection' }
@@ -219,7 +219,7 @@ if ($ForceServo) {
                   'Transport/Modbus/force_servo_protocol.c')
 }
 
-if ($BuildToTarget2) { $sources += @('Application/force_build.c','Application/force_build_machine.c') }
+if ($BuildToTarget2) { $sources += @('Application/force_build.c','Application/force_build_machine.c','Application/force_build_source.c') }
 
 $cpuFlags = @("-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard")
 $commonFlags = @("-ffunction-sections", "-fdata-sections", "-Wall", "-Wextra", "-Wno-unused-parameter")

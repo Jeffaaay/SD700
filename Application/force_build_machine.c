@@ -1,6 +1,7 @@
 #include "Application/force_build_machine.h"
 #include "Board/Motor/motor_executor.h"
 #include <math.h>
+#include "Application/force_build_source.h"
 static void fail(MachineContext *m,MachineFault code,FaultDetail detail,uint32_t now)
 { Machine_ReportFault(m,code,detail,now); }
 void ForceBuildMachine_Account(MachineContext *m,uint32_t now)
@@ -29,12 +30,13 @@ void ForceBuildMachine_Publish(MachineContext *m,uint32_t now)
  d->segment_request=e.request; d->segment_phase=e.phase; d->segment_command=e.command;
  d->segment_hard_ms=e.hard_ms; d->segment_started_ms=e.started_ms; d->segment_deadline_ms=e.deadline_ms;
  d->segment_base_command=e.base_command; d->segment_mode=e.mode;
- d->segment_normal_ms=e.hard_ms ? e.hard_ms-1U : 0U;
+ d->segment_normal_ms=e.normal_ms;
  d->coarse_boost_command=b->coarse_boost; d->coarse_check_ms=b->coarse_check_ms;
  d->approach_command_ms=e.approach_command_ms;
- d->interpulse_active=e.preload_active; d->interpulse_command=e.preload_active ? e.preload_command : 0;
- d->interpulse_next_command=b->preload_command; d->interpulse_deadline_ms=e.preload_deadline_ms;
- d->interpulse_spent_ms=e.preload_spent_ms; d->interpulse_credit_ms=e.preload_credit_ms;
+ d->interpulse_active=0; d->interpulse_command=0; d->interpulse_next_command=0;
+ d->interpulse_deadline_ms=0; d->interpulse_spent_ms=0; d->interpulse_credit_ms=0;
+ d->brake_active=e.preload_active; d->brake_deadline_ms=e.preload_active ? e.preload_deadline_ms : 0;
+ d->brake_elapsed_ms=e.preload_spent_ms; d->segment_settle_ms=e.settle_ms;
  d->segment_end_ms=e.ended_ms; d->segment_end_reason=e.end_reason;
  d->post_pulse_pending=b->post_pending; d->exposure_epoch=e.epoch;
  d->energized_reserved_ms=e.reserved_ms; d->approach_reserved_ms=e.approach_reserved_ms;
@@ -44,7 +46,7 @@ void ForceBuildMachine_Publish(MachineContext *m,uint32_t now)
  d->progress_status=!m->servo.active || b->monitoring ? 0U : b->no_response_ms<500 && d->progress_delta>=2 ? 3U : 2U;
  d->build_progress_anchor=b->progress_anchor;
  d->energized_elapsed_ms=e.energized_upper_ms;
- d->post_limit_output=e.segment_active ? (float)e.command : e.preload_active ? (float)e.preload_command : 0;
+ d->post_limit_output=e.segment_active ? (float)e.command : 0;
  d->requested_equivalent_V=d->post_limit_output*.001f;
  d->mapped_pwm_percent=d->post_limit_output/240.0f;
  d->lease_deadline=e.receive_deadline_ms; d->lease_active=e.segment_active || e.preload_active;
@@ -109,7 +111,7 @@ bool ForceBuildMachine_Begin(MachineContext *m,uint32_t now)
  sync_epoch(m,now); b->accounted_ms=now; b->monitoring=false;
  float measured=(float)m->pressure.raw_pressure_counts;
  b->boost=0; b->low_count=0; b->coarse_boost=0;
- if (!b->preload_command) b->preload_command=g_force_build_config.preload_initial_command;
+ b->preload_command=0;
  b->coarse_check_ms=now; b->coarse_reference=measured;
  b->contact_latched=measured>=g_force_build_config.contact_N;
  s->diagnostic.contact_count=b->contact_latched ? 1U : 0U;
@@ -121,9 +123,9 @@ bool ForceBuildMachine_Begin(MachineContext *m,uint32_t now)
  if (!ForceServo_Init(&s->controller,&s->config,measured,(float)m->target_pressure_units) ||
      MotorExecutor_BeginBuild(now,&s->token)!=MOTOR_RESULT_OK) return false;
  s->last_control_rx_ms=m->pressure.received_at_ms;
- ForceBuildRequest r;
- if (!ForceBuild_Select(measured,(float)m->target_pressure_units,b->contact_latched,b->boost,b->coarse_boost,&r)) return false;
- b->phase=r.phase; m->state=r.phase==BUILD_PHASE_APPROACH ? FORCE_APPROACH : r.phase==BUILD_PHASE_BUILD ? FORCE_BUILD : FORCE_TAPER;
+ ForceBuildSource_Reset((float)m->target_pressure_units,now);
+ b->phase=measured<10 && m->target_pressure_units-measured>3 ? BUILD_PHASE_APPROACH : BUILD_PHASE_BUILD;
+ m->state=b->phase==BUILD_PHASE_APPROACH ? FORCE_APPROACH : FORCE_BUILD;
  ForceBuildMachine_Pressure(m,now); return m->state!=FAULT;
 }
 static void pid_diagnostic(MachineContext *m,uint32_t now,float measured)
@@ -137,7 +139,7 @@ static void pid_diagnostic(MachineContext *m,uint32_t now,float measured)
  }
  /* PID remains a replaceable interface/diagnostic. Actual output comes from
   * the disclosed segment profile and is tracked for actual-output anti-windup. */
- c.press_cap=(float)g_force_build_config.approach_ceiling;
+ c.press_cap=(float)g_force_build_config.build_ceiling;
  int32_t actual=MotorExecutor_OutputIsDisabled() ? 0 : (int32_t)MotorExecutor_GetSnapshot()->command_mv;
  if (!ForceServo_Commit(&s->controller,&c,&step,actual)) {
      fail(m,FAULT_INTERNAL_FAULT,FAULT_DETAIL_NUMERIC,now); return;
@@ -173,72 +175,56 @@ void ForceBuildMachine_Pressure(MachineContext *m,uint32_t now)
  }
  if (s->active && measured>d->session_peak_measured) d->session_peak_measured=measured;
  MotorBuildSnapshot e=MotorExecutor_GetBuildSnapshot(now);
+ if (s->active && !b->monitoring && (e.segment_active || e.preload_active)) {
+     if (MotorExecutor_RefreshBuildFeedback(s->token,m->pressure.sequence,m->pressure.received_at_ms,now)!=MOTOR_RESULT_OK) {
+         fail(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_LEASE_EXPIRED,now); return;
+     }
+     e=MotorExecutor_GetBuildSnapshot(now);
+ }
  bool post=b->post_pending && !e.segment_active &&
      ForceServo_SequenceAfter(m->pressure.sequence,b->post_sequence) &&
-     (int32_t)(m->pressure.received_at_ms-e.ended_ms)>=(int32_t)g_force_build_config.off_settle_ms;
+     (int32_t)(m->pressure.received_at_ms-e.ended_ms)>=0;
  if (post) {
-     /* Only a live, normally completed/reduced, owner-matched segment may
-      * change adaptation or progress budgets. Terminal readbacks are evidence. */
      if (s->active && !b->monitoring && !MotorExecutor_AcceptBuildPost(s->token,e.request,
          m->pressure.sequence,m->pressure.received_at_ms,now)) {
          fail(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_REQUEST_REJECTED,now); return;
      }
-     float rise=measured-b->pulse_before;
      d->pulse_force_before=b->pulse_before; d->pulse_force_after=measured;
      d->post_pulse_valid=1; d->post_pulse_request=e.request; d->post_pulse_received_ms=m->pressure.received_at_ms;
      d->post_pulse_sample_hi=(uint32_t)(m->pressure.sequence>>32); d->post_pulse_sample_lo=(uint32_t)m->pressure.sequence;
      b->post_pending=false;
-     /* Qualified post-pulse rise is diagnostic, not an independent trip.
-      * Target/absolute overforce already take priority above; feedback,
-      * lease, cutoff and cumulative safety budgets remain enforced. */
-     if (s->active && e.phase!=BUILD_PHASE_APPROACH && !b->monitoring) {
-         uint32_t maximum=(float)m->target_pressure_units-measured<=g_force_build_config.fine_margin_N ?
-             g_force_build_config.fine_boost_max_command : g_force_build_config.boost_max_command;
-         ForceBuild_PulseBoost(b,rise,maximum);
-     }
-     if (s->active && !b->monitoring && measured-b->progress_anchor>=g_force_build_config.progress_N) {
-         d->progress_delta=measured-b->progress_anchor; b->progress_anchor=measured; b->no_response_ms=0;
-     }
  }
  if (!s->active || b->monitoring) return;
  ForceBuildMachine_Account(m,now);
- if (measured>=g_force_build_config.contact_N && !b->contact_latched) {
+ ForceBuildDecision q=ForceBuildSource_Step(measured,m->pressure.sequence,m->pressure.received_at_ms,now,
+     e.segment_active && e.mode!=BUILD_MODE_COARSE,e.mode==BUILD_MODE_COARSE ? 0 : e.ended_ms);
+ b->boost=q.boost_command; b->low_count=q.stall_count;
+ d->source_precision_level=q.precision_level; d->source_precision_extra_ms=q.precision_extra_ms;
+ d->source_precision_escape=q.precision_escape; d->source_precision_band=q.precision_band;
+ d->source_near_wait=q.near_wait; d->source_filtered=q.filtered;
+ if (post && measured-b->progress_anchor>=g_force_build_config.progress_N) {
+     d->progress_delta=measured-b->progress_anchor; b->progress_anchor=measured; b->no_response_ms=0;
+ }
+ if (q.mode && !b->contact_latched && measured>=10) {
      b->contact_latched=true; d->contact_count=1; d->contact_raw=m->pressure.raw_pressure_counts;
      s->contact_at_ms=m->pressure.received_at_ms; d->contact_at_ms=s->contact_at_ms;
  }
- if (!e.segment_active && !b->post_pending && !b->contact_latched &&
-     (float)m->target_pressure_units-measured>g_force_build_config.fine_margin_N)
-     ForceBuild_CoarseBoost(b,measured,now);
- ForceBuildRequest r;
- if (!ForceBuild_Select(measured,(float)m->target_pressure_units,b->contact_latched,b->boost,b->coarse_boost,&r)) {
-     fail(m,FAULT_INTERNAL_FAULT,FAULT_DETAIL_NUMERIC,now); return;
- }
- if (r.mode==BUILD_MODE_FINE && b->boost>g_force_build_config.fine_boost_max_command)
-     b->boost=g_force_build_config.fine_boost_max_command;
- b->phase=r.phase; m->state=r.phase==BUILD_PHASE_APPROACH ? FORCE_APPROACH : r.phase==BUILD_PHASE_BUILD ? FORCE_BUILD : FORCE_TAPER;
- d->requested_output=(float)r.command; d->post_limit_output=(float)r.command;
- d->requested_equivalent_V=(float)r.command*.001f;
- d->mapped_pwm_percent=(float)r.command/240.0f;
- if (e.segment_active) {
-     /* Contact/taper can only end this segment. That frame is not post-pulse
-      * feedback and cannot start a second segment. */
-     if (r.phase!=e.phase || r.command<e.command || r.command*r.hard_ms<e.command*e.hard_ms) {
-         if (MotorExecutor_EndBuildSegment(s->token,now)!=MOTOR_RESULT_OK) {
-             fail(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_BUILD_CUTOFF,now); return;
-         }
-         b->post_sequence=m->pressure.sequence;
+ if (q.phase) b->phase=q.phase;
+ m->state=b->phase==BUILD_PHASE_APPROACH ? FORCE_APPROACH : b->phase==BUILD_PHASE_BUILD ? FORCE_BUILD : FORCE_TAPER;
+ if (q.action==BUILD_DECISION_OFF) { target_off(m,now,measured); return; }
+ if (q.action==BUILD_DECISION_BRAKE && e.segment_active) {
+     if (MotorExecutor_EndBuildSegment(s->token,now)!=MOTOR_RESULT_OK)
+         fail(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_BUILD_CUTOFF,now);
+ } else if ((q.action==BUILD_DECISION_PULSE || q.action==BUILD_DECISION_APPROACH) && (!e.segment_active || (e.mode==BUILD_MODE_COARSE && q.action==BUILD_DECISION_PULSE))) {
+     ForceBuildRequest r={0}; r.phase=q.phase; r.mode=q.mode; r.command=(uint32_t)q.command;
+     r.base_command=r.command; r.normal_ms=q.normal_ms; r.hard_ms=q.normal_ms+1;
+     r.target=(uint32_t)m->target_pressure_units; r.precision=q.precision_latched || q.mode==BUILD_MODE_FINE;
+     r.settle_ms=q.settle_ms;
+     if (q.command<=0 || MotorExecutor_StartBuildSegment(s->token,&r,m->pressure.sequence,m->pressure.received_at_ms,now)!=MOTOR_RESULT_OK) {
+         fail(m,FAULT_MOTOR_FAULT,FAULT_DETAIL_MOTOR_REQUEST_REJECTED,now); return;
      }
- } else if (!b->post_pending) {
-     r.preload_command=r.mode==BUILD_MODE_COARSE ? 0 : b->preload_command;
-     if (MotorExecutor_StartBuildSegment(s->token,&r,m->pressure.sequence,m->pressure.received_at_ms,now)!=MOTOR_RESULT_OK) {
-         MotorBuildSnapshot rejected=MotorExecutor_GetBuildSnapshot(now);
-         fail(m,rejected.inhibited ? FAULT_MOTION_TIMEOUT : FAULT_MOTOR_FAULT,
-             rejected.inhibited ? FAULT_DETAIL_BUILD_EXPOSURE : FAULT_DETAIL_MOTOR_REQUEST_REJECTED,now); return;
-     }
-     e=MotorExecutor_GetBuildSnapshot(now); b->post_pending=true;
-     b->post_sequence=m->pressure.sequence; b->pulse_before=measured;
-     /* Retain the completed before/after pair and its request across the next
-      * segment; PC polling can be slower than the feedback-gated scheduler. */
+     b->post_pending=q.action==BUILD_DECISION_PULSE; b->post_sequence=m->pressure.sequence; b->pulse_before=measured;
  }
+ d->requested_output=(float)q.command;
  pid_diagnostic(m,now,measured);
 }

@@ -1,4 +1,10 @@
-"""BuildToTarget2_RiseDiagnostic1 software evidence runner. Never connects a serial port."""
+"""Historical BuildToTarget2 full-suite orchestrator; never connects serial.
+
+Current SourcePort1 uses run_force_servo_tests.py --commissioning
+--characterization --build-to-target --source-port --optimization O2,
+followed by the ARM build and current strict firmware verifier (see HANDOFF).
+The historical full suite was NOT_RUN for SourcePort1.
+"""
 import argparse, json, subprocess, sys, time
 from datetime import datetime, timezone
 from pathlib import Path

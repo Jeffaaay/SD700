@@ -33,7 +33,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_exact_pair_and_ram_initializers(self):
         image = verifier.verify_contents(self.elf, self.hex)
-        self.assertEqual(len(image.load_bytes), 49724)
+        self.assertEqual(len(image.load_bytes), 59284)
         data_segment = image.loads[1]
         self.assertEqual(data_segment[2], 0x20000000)
         self.assertIn(data_segment[3], image.load_bytes)
@@ -170,7 +170,7 @@ class VerifierTests(unittest.TestCase):
                     self.reject_elf(bad,'configuration|parameter group')
 
     def test_all_build_configuration_words_rejected(self):
-        for index in range(38):
+        for index in range(45):
             with self.subTest(index=index):
                 bad=bytearray(self.elf); offset=self.image.symbol_offsets['g_force_build_config']+index*4
                 old=struct.unpack_from('<I',bad,offset)[0]
@@ -182,7 +182,7 @@ class VerifierTests(unittest.TestCase):
         self.reject_elf(bad,'Continuous owner admission')
 
     def test_build_implementation_presence_required(self):
-        for name in ('MotorExecutor_StartBuildSegment','MotorExecutor_AcceptBuildPost','ForceBuildMachine_Safety','ForceBuild_PulseBoost','ForceBuild_CoarseBoost','MotorStopTimer_Arm','MotorStopTimer_BuildHandoff','MotorStopTimer_BuildPulse'):
+        for name in ('MotorExecutor_StartBuildSegment','MotorExecutor_AcceptBuildPost','MotorExecutor_RefreshBuildFeedback','ForceBuildMachine_Safety','ForceBuildSource_Reset','ForceBuildSource_Step','MotorHwReal_BuildBrake','MotorHwReal_IsBraking','MotorHwReal_BuildFromBrake','MotorStopTimer_Arm','MotorStopTimer_BuildHandoff','MotorStopTimer_BuildPulse'):
             sym=dict(self.image.symbols); del sym[name]
             with self.assertRaisesRegex(ValueError,'Missing active implementation'): verifier.verify_contract(sym)
 
@@ -197,17 +197,14 @@ class VerifierTests(unittest.TestCase):
         current=struct.unpack('<20I',self.image.symbols['g_force_servo_contract'])
         previous=struct.unpack('<20I',prior['g_force_servo_contract'])
         old_cfg=struct.unpack('<33I',prior['g_force_build_config'])
-        new_cfg=struct.unpack('<38I',self.image.symbols['g_force_build_config'])
-        expected=list(old_cfg)
-        for index,value in {0:4,8:2000,9:5000,12:11,26:10}.items(): expected[index]=value
-        self.assertEqual(new_cfg[:33],tuple(expected)) # exact reviewed pulse delta; other limits unchanged
-        self.assertEqual((old_cfg[0],new_cfg[0]),(2,4))
-        self.assertEqual(new_cfg[33:],(300,200,600,100,2))
-        self.assertEqual((previous[0],current[0]),(0xF10B,0xF10C))
-        self.assertEqual(current[2:],previous[2:]) # every output/safety limit unchanged
-        self.assertEqual((previous[1],current[1]),(0x4653010D,0x46530112))
+        new_cfg=struct.unpack('<45I',self.image.symbols['g_force_build_config'])
+        self.assertEqual(new_cfg,(5,5000,10,8000,8000,800,3000,500,9000,12000,9,15,3,50,3,2000,12000,0,30,0,108000,45000,2,1,2,25,2,1,200,0,0,5000,40000000,0,0,0,0,0,10000,12,7000,8,400,1,10))
+        self.assertEqual(old_cfg[0],2)
+        self.assertEqual((previous[0],current[0]),(0xF10B,0xF10D))
+        expected=list(previous); expected[0]=0xF10D; expected[1]=0x46530113; expected[6]=12000; expected[16]=12000
+        self.assertEqual(current,tuple(expected))
 
-    def test_interpulse_predecessor_only_reviewed_pulse_delta(self):
+    def test_interpulse_predecessor_source_port_delta(self):
         old=ROOT/'output/BuildToTarget2_Interpulse1/firmware/SD700_ForceServo1_BuildToTarget2_Interpulse1_RealBench_Release.elf'
         self.reject_elf(old.read_bytes(),'identity/configuration')
         prior=ElfImage(old.read_bytes()).symbols
@@ -217,11 +214,9 @@ class VerifierTests(unittest.TestCase):
             with self.subTest(name=name): self.assertEqual(self.image.symbols[name],prior[name])
         before=struct.unpack('<20I',prior['g_force_servo_contract'])
         after=struct.unpack('<20I',self.image.symbols['g_force_servo_contract'])
-        self.assertEqual(before[:1]+before[2:],after[:1]+after[2:])
-        self.assertEqual((before[1],after[1]),(0x4653010F,0x46530112))
-        expected=list(struct.unpack('<38I',prior['g_force_build_config']))
-        for index,value in {0:4,8:2000,9:5000,12:11,26:10}.items(): expected[index]=value
-        self.assertEqual(struct.unpack('<38I',self.image.symbols['g_force_build_config']),tuple(expected))
+        expected=list(before); expected[0]=0xF10D; expected[1]=0x46530113; expected[6]=12000; expected[16]=12000
+        self.assertEqual(after,tuple(expected))
+        self.assertEqual(struct.unpack('<45I',self.image.symbols['g_force_build_config']),(5,5000,10,8000,8000,800,3000,500,9000,12000,9,15,3,50,3,2000,12000,0,30,0,108000,45000,2,1,2,25,2,1,200,0,0,5000,40000000,0,0,0,0,0,10000,12,7000,8,400,1,10))
 
     def test_anchor_fix_predecessor_rejected(self):
         old=ROOT/'output/BuildToTarget2_StartAnchorFix1/firmware/SD700_ForceServo1_BuildToTarget2_StartAnchorFix1_RealBench_Release.elf'
